@@ -1,0 +1,31 @@
+.speaker-view {
+  height: 100vh; /* Full viewport height */
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative; /* Add this */
+}
+
+.spotlight {
+  flex-grow: 1;
+  width: 100%;
+  position: relative;
+  min-height: 0; /* Add this to ensure proper scaling */
+}
+
+.participants-bar {
+  width: 100%;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  overflow: hidden; /* Add this to prevent overflow */
+}
+
+/* Add these additional styles */
+.str-video__call-controls {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+}
