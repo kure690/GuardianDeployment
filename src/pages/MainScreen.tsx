@@ -1161,7 +1161,7 @@ const MainScreen = () => {
         }}>
         <div>
         <Avatar 
-          src={Icon}
+          src={icon}
           sx={{ width: 80, height: 80 }}
           alt={Icon}
         />
@@ -1174,10 +1174,17 @@ const MainScreen = () => {
         flexDirection: 'column',
         }}>
         <Typography variant="h5" sx={{ color: 'white', fontWeight: 'bold' }}>
-          MEDICAL CALL
+          {incidentType ? `${incidentType.toUpperCase()} CALL` : ""}
         </Typography>
-        <Typography variant="subtitle1" sx={{ color: 'white', fontWeight: 'bold' }}>
-          A.S Fortuna St, Mandaue City
+        <Typography variant="subtitle1" sx={{ color: 'white', fontWeight: 'bold',
+          display: '-webkit-box',
+          WebkitLineClamp: 2, 
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+        title={address || "Loading address..."}>
+          {address || "Loading address..."}
         </Typography>
         </div>
         </div>
@@ -1188,7 +1195,10 @@ const MainScreen = () => {
         alignItems: 'center'
         }}>
         <Typography variant="h6" sx={{ color: '#ef5350', fontWeight: 'bold' }}>
-          NEED AMBULANCE
+          {incidentType?.toLowerCase() === 'medical' ? 'NEED AMBULANCE' :
+          incidentType?.toLowerCase() === 'fire' ? 'NEED FIRETRUCK' :
+          incidentType?.toLowerCase() === 'police' ? 'NEED POLICE CAR' :
+          'NEED ASSISTANCE'}
         </Typography>
         </div>
         <div>

@@ -425,7 +425,7 @@ const LGUMain = () => {
     const [incidents, setIncidents] = useState<any[]>([]);
     const [activeCall, setActiveCall] = useState<string | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
-    const [audioEnabled, setAudioEnabled] = useState<boolean>(false);
+    const [audioEnabled, setAudioEnabled] = useState<boolean>(true);
     const [pendingAudioType, setPendingAudioType] = useState<string | null>(null);
     const [closingIncident, setClosingIncident] = useState<any>(null);
     const [showClosingModal, setShowClosingModal] = useState(false);
@@ -657,6 +657,9 @@ useEffect(() => {
 
     // Add event listeners for user interaction
     useEffect(() => {
+        // Enable audio automatically when component mounts
+        setAudioEnabled(true);
+        
         const handleUserInteraction = () => {
             if (!audioEnabled) {
                 enableAudio();
@@ -1586,24 +1589,6 @@ useEffect(() => {
                                 >
                                     {!isInvisible ? "ON ACTIVE STAND-BY, WAITING DISPATCH" : "ON BREAK"}
                                 </Typography>
-                                
-                                {/* Add a sound test button */}
-                                <Button 
-                                    variant="outlined" 
-                                    size="small"
-                                    onClick={() => {
-                                        enableAudio();
-                                        if (audioRef.current) {
-                                            audioRef.current.src = generalSound;
-                                            audioRef.current.currentTime = 0;
-                                            audioRef.current.volume = 0.2;
-                                            audioRef.current.play().catch(e => console.error('Test sound failed:', e));
-                                        }
-                                    }}
-                                    sx={{ mt: 1, mb: 1 }}
-                                >
-                                    Enable Alerts
-                                </Button>
                             </Box>
                             
                             <Box
@@ -1681,7 +1666,7 @@ useEffect(() => {
                                 flexDirection: 'column',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                gap: '16px'
+                                gap: '16px',
                             }}>
                                 <Avatar
                                     src={getIncidentIcon(closingIncident.incidentType?.toLowerCase() || 'general').icon}
@@ -1693,8 +1678,8 @@ useEffect(() => {
                                     <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
                                         {closingIncident.incidentType?.toUpperCase()} INCIDENT
                                     </Typography>
-                                    <Typography variant="body1" sx={{ mb: 1 }}>
-                                        ID: {closingIncident._id?.substring(0, 8)}
+                                    <Typography variant="body1" sx={{ mb: 1, textTransform: "uppercase" }}>
+                                        ID: {closingIncident.incidentType ? `${closingIncident.incidentType}-${closingIncident._id?.substring(5, 9)}` : ""}
                                     </Typography>
                                     <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
                                         The responder has requested to close this incident.
