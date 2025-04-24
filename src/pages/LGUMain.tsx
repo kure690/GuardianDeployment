@@ -1098,11 +1098,11 @@ useEffect(() => {
     }
 
     return (
-        <div className="min-h-screen bg-[#1B4965] flex items-center justify-center">
+        <div className="h-screen bg-[#1B4965] flex items-center justify-center">
             <audio ref={audioRef} preload="auto" />
             <Container 
-                maxWidth="xl" 
-                disableGutters 
+                disableGutters={true}
+                maxWidth={false}
                 sx={{
                     position: "absolute",
                     top: 0,
