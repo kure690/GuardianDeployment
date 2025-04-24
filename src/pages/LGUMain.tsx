@@ -539,7 +539,7 @@ const LGUMain = () => {
         
         if (!isInvisible) {
             fetchIncidents();
-            interval = setInterval(fetchIncidents, 15000);
+            interval = setInterval(fetchIncidents, 3000);
         } else {
             setIsLoading(false);
         }

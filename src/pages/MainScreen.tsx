@@ -219,6 +219,7 @@ const MainScreen = () => {
 
       if (response.ok) {
         setIsResolved(true);
+        navigate("/");
         console.log('Incident closed successfully');
       } else {
         console.error('Failed to close incident');
