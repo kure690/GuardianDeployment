@@ -143,7 +143,7 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
         <Paper
             elevation={3}
             sx={{
-                width: '220px',
+                width: '240px',
                 borderRadius: '8px',
                 overflow: 'hidden',
                 m: 1.5,
