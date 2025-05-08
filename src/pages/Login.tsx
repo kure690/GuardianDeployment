@@ -13,6 +13,8 @@ type FormData = {
   password: string;
 };
 
+type UserType = 'lgu' | 'responder' | 'dispatcher';
+
 const Login = () => {
   const [formData, setFormData] = useState<FormData>({
     email: "",
@@ -26,6 +28,18 @@ const Login = () => {
     setFormData({...formData, [name]: value});
   };
 
+  const tryLogin = async (userType: UserType) => {
+    try {
+      const response = await axios.post(
+        `${config.PERSONAL_API}/${userType}s/login`,
+        formData
+      );
+      return { success: true, data: response.data, type: userType };
+    } catch (err) {
+      return { success: false, error: err };
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
@@ -36,33 +50,41 @@ const Login = () => {
         password: formData.password,
       };
 
-      const response = await axios.post(
-        `${config.PERSONAL_API}/users/login`,
-        loginData
-      );
+      // Try logging in with each user type
+      const results = await Promise.all([
+        tryLogin('lgu'),
+        tryLogin('responder'),
+        tryLogin('dispatcher')
+      ]);
 
-      const {token, user} = response.data;
+      // Find the first successful login
+      const successfulLogin = results.find(result => result.success);
+
+      if (!successfulLogin) {
+        throw new Error("Invalid credentials");
+      }
+
+      const { token, user } = successfulLogin.data;
+      const userType = successfulLogin.type;
       
-      console.log('Login response:', response.data);
+      console.log('Login response:', successfulLogin.data);
       
+      // Store user data with type
       localStorage.setItem("user", JSON.stringify({
         ...user,
-        id: user.id, 
-        role: response.data.role,
-        name: `${response.data.firstName} ${response.data.lastName}`
+        id: user.id,
+        type: userType,
+        name: `${successfulLogin.data.firstName} ${successfulLogin.data.lastName}`
       }));
       localStorage.setItem("token", token);
       
-
       localStorage.setItem("chatClient", JSON.stringify({
         id: user.id,
         token: token,
       }));
 
-      const userRole = response.data.role.toLowerCase();  
-      console.log('User role:', userRole);
-      
-      if (userRole === 'lgu') {
+      // Route based on user type
+      if (userType === 'lgu') {
         window.location.href = '/lgu-main';
       } else {
         window.location.href = '/status';
