@@ -14,6 +14,12 @@ import LGUStatus from "./pages/LGUStatus";
 import LGUMain from "./pages/LGUMain";
 import MapView from "./pages/MapView";
 import ResponderMap from "./pages/ResponderMap";
+import LGUConsole from "./pages/LGUConsole";
+import OperationCenter from "./pages/OperationCenter";
+import ManageUsers from "./pages/ManageUsers";
+import Teams from "./pages/Teams"
+import MobileAssets from "./pages/MobileAssets";
+import AddMobileAssets from "./pages/AddMobileAssets";
 
 // Create global theme with Verdana as default font
 const theme = createTheme({
@@ -125,6 +131,12 @@ function App() {
               <Route path="/lgu-main" element={isAuthenticated ? <LGUMain /> : <Navigate to="/" replace />} />
               <Route path="/map" element={isAuthenticated ? <MapView /> : <Navigate to="/" replace />} />
               <Route path="/responder-map" element={isAuthenticated ? <ResponderMap /> : <Navigate to="/" replace />} />
+              <Route path="/lgu-console" element={isAuthenticated ? <LGUConsole /> : <Navigate to="/" replace />} />
+              <Route path="/opcen" element={isAuthenticated ? <OperationCenter /> : <Navigate to="/" replace />} />
+              <Route path="/usermanagement" element={isAuthenticated ? <ManageUsers /> : <Navigate to="/" replace />} />
+              <Route path="/teams" element={isAuthenticated ? <Teams /> : <Navigate to="/" replace />} />
+              <Route path="/mobile-assets" element={isAuthenticated ? <MobileAssets /> : <Navigate to="/" replace />} />
+              <Route path="/add-mobile-assets" element={isAuthenticated ? <AddMobileAssets /> : <Navigate to="/" replace />} />
             </Routes>
           </Chat>
         ) : (

@@ -374,7 +374,7 @@ const MapView = () => {
           }
 
           if (userId) {
-            const userResponse = await fetch(`${config.PERSONAL_API}/users/${userId}`);
+            const userResponse = await fetch(`${config.PERSONAL_API}/volunteers/${userId}`);
             if (userResponse.ok) {
               const userData = await userResponse.json();
               setUserData({

@@ -457,9 +457,19 @@ const LGUMain = () => {
             console.log(`Total incidents: ${data.length}`);
             
             const connectedIncidents = data.filter((incident: any) => {
-                const matches = incident.lgu === userId && incident.lguStatus === 'connected' && !incident.isFinished;
-                if (incident.lgu === userId && incident.lguStatus === 'connected' && incident.isFinished) {
-                    console.log(`Filtering out finished incident: ${incident._id}`);
+                // Get the LGU ID whether it's an object or string
+                const lguId = incident.lgu ? (typeof incident.lgu === 'object' ? incident.lgu._id : incident.lgu) : null;
+                // Show incidents that are assigned to this LGU and either connected or connecting
+                const matches = lguId === userId && 
+                              (incident.lguStatus === 'connected' || incident.lguStatus === 'connecting') && 
+                              !incident.isFinished;
+                
+                if (lguId === userId) {
+                    console.log('Incident status:', {
+                        id: incident._id,
+                        lguStatus: incident.lguStatus,
+                        isFinished: incident.isFinished
+                    });
                 }
                 return matches;
             });
@@ -485,13 +495,11 @@ const LGUMain = () => {
                     const now = new Date();
                     const timeLapsed = Math.floor((now.getTime() - receivedTime.getTime()) / 1000);
                     
-                    // Keep all existing fields from the incident data
                     return {
                         ...incident,
                         address,
                         timeLapsed,
                         receivedTime: incident.acceptedAt || incident.createdAt
-                        // responderStatus is already in the incident object from the database
                     };
                 })
             );
@@ -721,74 +729,57 @@ useEffect(() => {
     }, [client, userId]);
     useEffect(() => {
         const checkConnectingIncidents = async () => {
-            if (!userId || isInvisible) return; 
-    
+            if (!userId || isInvisible) {
+                console.log('Skipping check - userId:', userId, 'isInvisible:', isInvisible);
+                return; 
+            }
+
             try {
+                console.log('Checking for connecting incidents...');
                 const response = await fetch(`${config.PERSONAL_API}/incidents`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
                 });
-    
+
                 if (response.ok) {
                     const data = await response.json();
-                    const connectingIncident = data.find((incident: any) => 
-                        incident.lgu === userId && incident.lguStatus === 'connecting'
-                    );
+                    console.log('Fetched incidents:', data.length);
+                    
+                    const connectingIncident = data.find((incident: any) => {
+                        // Handle cases where lgu might be null, an object, or a string
+                        const lguId = incident.lgu ? (typeof incident.lgu === 'object' ? incident.lgu._id : incident.lgu) : null;
+                        const matches = lguId === userId && incident.lguStatus === 'connecting';
+                        if (lguId === userId) {
+                            console.log('Found incident with matching LGU:', {
+                                incidentId: incident._id,
+                                lguStatus: incident.lguStatus,
+                                lguId: lguId,
+                                userId: userId
+                            });
+                        }
+                        return matches;
+                    });
                     
                     if (connectingIncident) {
+                        console.log('Found connecting incident:', connectingIncident);
                         // Check if this is a new connecting incident
                         if (lastIncidentId !== connectingIncident._id) {
                             console.log('New incident detected:', connectingIncident.incidentType);
                             setLastIncidentId(connectingIncident._id);
-                            
-                            // Store the incident type for later playback
-                            setPendingAudioType(connectingIncident.incidentType);
-                            
-                            // Only try to play immediately if audio is already enabled
-                            if (audioEnabled && audioRef.current) {
-                                console.log('Playing audio for incident type:', connectingIncident.incidentType.toLowerCase());
-                                switch (connectingIncident.incidentType.toLowerCase()) {
-                                    case 'police':
-                                        audioRef.current.src = policeSound;
-                                        break;
-                                    case 'fire':
-                                        audioRef.current.src = fireSound;
-                                        break;
-                                    case 'medical':
-                                        audioRef.current.src = ambulanceSound;
-                                        break;
-                                    default:
-                                        audioRef.current.src = generalSound;
-                                }
-                                
-                                // Reset the audio element
-                                audioRef.current.currentTime = 0;
-                                audioRef.current.volume = 1;
-                                
-                                // Play the audio
-                                audioRef.current.play().catch(error => {
-                                    console.error('Error playing sound:', error);
-                                });
-                            } else {
-                                console.log('Audio playback deferred until user interaction');
+                            setConnectingIncident(connectingIncident);
+                            setShowStatusModal(true);
+                            console.log('Modal state set to true for incident:', connectingIncident._id);
+                            if (connectingIncident.incidentDetails?.coordinates?.lat && connectingIncident.incidentDetails?.coordinates?.lon) {
+                                const formattedAddress = await getAddressFromCoordinates(
+                                    connectingIncident.incidentDetails.coordinates.lat.toString(),
+                                    connectingIncident.incidentDetails.coordinates.lon.toString()
+                                );
+                                setAddress(formattedAddress);
                             }
                         }
-                        
-                        setConnectingIncident(connectingIncident);
-                        setShowStatusModal(true);
-                        if (connectingIncident.incidentDetails?.coordinates?.lat && connectingIncident.incidentDetails?.coordinates?.lon) {
-                            const formattedAddress = await getAddressFromCoordinates(
-                                connectingIncident.incidentDetails.coordinates.lat.toString(),
-                                connectingIncident.incidentDetails.coordinates.lon.toString()
-                            );
-                            setAddress(formattedAddress);
-                        }
                     } else {
-                        // Reset lastIncidentId if there's no connecting incident
-                        if (lastIncidentId !== null) {
-                            setLastIncidentId(null);
-                        }
+                        console.log('No connecting incident found for LGU:', userId);
                     }
                 }
             } catch (error) {

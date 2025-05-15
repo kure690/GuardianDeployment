@@ -96,27 +96,45 @@ export default function Status() {
 
     const checkForIncidents = async () => {
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error('No authentication token found');
+          return;
+        }
+
         let response;
-        if (userRole === 'LGU') {
+        const userType = userData?.type;
+        
+        if (userType === 'lgu') {
           response = await fetch(`${config.PERSONAL_API}/incidents/lgu-connecting/${userId}`, {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
             }
           });
         } else {
-          response = await fetch(`${config.PERSONAL_API}/incidents`);
+          response = await fetch(`${config.PERSONAL_API}/incidents`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        }
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         const incidents = await response.json();
         
         let relevantIncident;
-        if (userRole === 'LGU') {
+        if (userType === 'lgu') {
           relevantIncident = incidents.find((incident: Incident) => 
             incident.lgu === userId && 
             incident.lguStatus === "connecting"
           );
         } else {
-          const unresolvedIncidents = incidents.filter((incident: Incident) => !incident.isAccepted);
+          const unresolvedIncidents = Array.isArray(incidents) ? incidents.filter((incident: Incident) => !incident.isAccepted) : [];
           relevantIncident = unresolvedIncidents.sort((a: Incident, b: Incident) => 
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           )[0];
@@ -167,7 +185,7 @@ export default function Status() {
         clearInterval(interval);
       }
     };
-  }, [currentIncident, lastCheck, isInvisible, userId, userRole]);
+  }, [currentIncident, lastCheck, isInvisible, userId, userData]);
 
   const handleLogout = () => {
     if (audioRef.current) {
@@ -256,41 +274,63 @@ export default function Status() {
 
     try {
       let response;
-      if (userRole === 'LGU') {
+      const token = localStorage.getItem('token');
+      
+      if (userData?.type === 'lgu') {
+        const updateData = {
+          lguStatus: "connected",
+          lguConnectedAt: new Date().toISOString()
+        };
+        
+        console.log('LGU Update Data:', updateData);
+        
         response = await fetch(`${config.PERSONAL_API}/incidents/update/${currentIncident._id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({
-            lguStatus: "connected",
-            lguConnectedAt: new Date()
-          })
+          body: JSON.stringify(updateData)
         });
       } else {
+        const updateData = {
+          isAccepted: true,
+          dispatcher: userId,
+          acceptedAt: new Date().toISOString()
+        };
+        
+        console.log('Dispatcher Update Data:', updateData);
+        
         response = await fetch(`${config.PERSONAL_API}/incidents/update/${currentIncident._id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({
-            isAccepted: true,
-            dispatcher: userId
-          })
+          body: JSON.stringify(updateData)
         });
       }
 
-      if (!response.ok) {
+      // Handle different response cases
+      if (response.status === 500) {
+        console.log('Update completed but population failed - proceeding with flow');
+        // Try to get the error details if available
+        try {
+          const errorData = await response.json();
+          console.log('Population error details:', errorData);
+        } catch (e) {
+          console.log('No additional error details available');
+      }
+      } else if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to update incident');
+        console.error('Update Error Response:', errorData);
+        throw new Error(errorData.message || `Failed to update incident: ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log('Update response:', data);
-      
-      if (userRole !== 'LGU') {
+      // Proceed with channel creation and navigation for dispatchers
+      if (userData?.type !== 'lgu') {
+        try {
+          console.log('Creating chat channel for incident:', currentIncident._id);
         const channelId = await getNextChannelId(currentIncident.incidentType, currentIncident._id);
         
         const channel = client.channel('messaging', channelId, {
@@ -299,6 +339,7 @@ export default function Status() {
         });
         
         await channel.create();
+          console.log('Chat channel created successfully');
 
         const initialMessage = `Your report ${currentIncident.incidentType} Call was received with a location at ${address || "Loading address..."}, can you verify the location, by giving us a landmark around you?`;
 
@@ -306,6 +347,7 @@ export default function Status() {
           text: initialMessage,
           user_id: userId
         });
+          console.log('Initial message sent');
 
         localStorage.setItem('currentIncidentId', currentIncident._id);
         localStorage.setItem('currentChannelId', channelId);
@@ -315,13 +357,21 @@ export default function Status() {
             channelId: channelId
           } 
         });
-      }
-      
+        } catch (channelError) {
+          console.error('Error in channel creation process:', channelError);
+          // Still proceed with closing the modal since the incident was updated
+          setOpenModal(false);
+          setCurrentIncident(null);
+        }
+      } else {
+        // For LGU users, just close the modal
       setOpenModal(false);
       setCurrentIncident(null);
+      }
       
     } catch (error) {
       console.error('Error in handleAcceptIncident:', error);
+      alert('Failed to accept incident. Please try again.');
     }
   };
 

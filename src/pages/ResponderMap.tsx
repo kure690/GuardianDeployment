@@ -283,7 +283,7 @@ const ResponderMap = () => {
           }
 
           if (userId) {
-            const userResponse = await fetch(`${config.PERSONAL_API}/users/${userId}`);
+            const userResponse = await fetch(`${config.PERSONAL_API}/volunteers/${userId}`);
             if (userResponse.ok) {
               const userData = await userResponse.json();
               setUserData({
@@ -298,7 +298,7 @@ const ResponderMap = () => {
             const responderId = data.responderId || data.responder;
             
             try {
-              const responderResponse = await fetch(`${config.PERSONAL_API}/users/${responderId}`);
+              const responderResponse = await fetch(`${config.PERSONAL_API}/responders/${responderId}`);
               if (responderResponse.ok) {
                 const responderData = await responderResponse.json();
                 console.log("Responder data:", responderData);

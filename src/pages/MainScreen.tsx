@@ -180,17 +180,23 @@ const MainScreen = () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           isVerified: newVerificationStatus
         })
       });
 
-      if (response.ok) {
+      if (response.status === 500) {
+        console.log('Update completed but population failed - proceeding with flow');
         setIsVerified(newVerificationStatus);
-      } else {
+      } else if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Update Error Response:', errorData);
         setIsVerified(!newVerificationStatus);
-        console.error('Failed to update incident verification status');
+        throw new Error(errorData.message || `Failed to update incident: ${response.status}`);
+      } else {
+        setIsVerified(newVerificationStatus);
       }
     } catch (error) {
       setIsVerified(!newVerificationStatus);
@@ -211,21 +217,28 @@ const MainScreen = () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           isResolved: true
         })
       });
 
-      if (response.ok) {
+      if (response.status === 500) {
+        console.log('Update completed but population failed - proceeding with flow');
         setIsResolved(true);
         navigate("/");
-        console.log('Incident closed successfully');
+      } else if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Update Error Response:', errorData);
+        throw new Error(errorData.message || `Failed to update incident: ${response.status}`);
       } else {
-        console.error('Failed to close incident');
+        setIsResolved(true);
+        navigate("/");
       }
     } catch (error) {
       console.error('Error closing incident:', error);
+      alert('Failed to close incident. Please try again.');
     }
   };
 
@@ -262,13 +275,33 @@ const MainScreen = () => {
           let userId = typeof data.user === 'string' ? data.user : data.user._id;
           setVolunteerID(userId);
           
-          const userResponse = await fetch(`${config.PERSONAL_API}/users/${userId}`);
+          const userResponse = await fetch(`${config.PERSONAL_API}/volunteers/${userId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
           if (userResponse.ok) {
             const userData = await userResponse.json();
+            console.log('Volunteer data fetched:', userData);
+            
             setUserData({
-              firstName: userData.firstName,
-              lastName: userData.lastName,
-              phone: userData.phone
+              firstName: userData.firstName || 'Unknown',
+              lastName: userData.lastName || 'User',
+              phone: userData.phone || 'No phone number'
+            });
+          } else if (userResponse.status === 404) {
+            console.log('Volunteer not found, setting default values');
+            setUserData({
+              firstName: 'Unknown',
+              lastName: 'User',
+              phone: 'No phone number'
+            });
+          } else {
+            console.error('Failed to fetch volunteer:', userResponse.status);
+            setUserData({
+              firstName: 'Unknown',
+              lastName: 'User',
+              phone: 'No phone number'
             });
           }
         }
@@ -415,8 +448,16 @@ const MainScreen = () => {
       
       if (currentIncidentId) {
         try {
-          const incidentResponse = await fetch(`/api/incidents/${currentIncidentId}`);
-          if (!incidentResponse.ok) throw new Error('Failed to fetch incident');
+          const incidentResponse = await fetch(`${config.PERSONAL_API}/incidents/${currentIncidentId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (!incidentResponse.ok) {
+            console.error('Failed to fetch incident:', incidentResponse.status);
+            return;
+          }
           
           const incidentData = await incidentResponse.json();
           
@@ -434,28 +475,37 @@ const MainScreen = () => {
           console.log('User ID extracted:', userId);
   
           if (userId) {
-            const userResponse = await fetch(`/api/users/${userId}`);
-            if (!userResponse.ok) throw new Error('Failed to fetch user');
-            
-            const userData = await userResponse.json();
-            console.log('User data fetched:', userData);
-            
+            const userResponse = await fetch(`${config.PERSONAL_API}/volunteers/${userId}`);
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              setUserData({
+                firstName: userData.firstName,
+                lastName: userData.lastName,
+                phone: userData.phone
+              });
+            }
+          }
+          else {
+            console.error('Could not extract valid volunteer ID from incident data', incidentData);
             setUserData({
-              firstName: userData.firstName,
-              lastName: userData.lastName,
-              phone: userData.phone
+              firstName: 'Unknown',
+              lastName: 'User',
+              phone: 'No phone number'
             });
-          } else {
-            console.error('Could not extract valid user ID from incident data', incidentData);
           }
         } catch (error) {
-          console.error('Error fetching data:', error);
+          console.error('Error fetching incident data:', error);
+          setUserData({
+            firstName: 'Unknown',
+            lastName: 'User',
+            phone: 'No phone number'
+          });
         }
       }
     };
   
     fetchUserData();
-  }, [incidentId]);
+  }, [incidentId, token]);
   
 
   useEffect(() => {
@@ -485,15 +535,28 @@ const MainScreen = () => {
 
   const fetchLguUsers = async () => {
     try {
-      const response = await fetch(`${config.PERSONAL_API}/users/role/LGU`);
+      const response = await fetch(`${config.PERSONAL_API}/lgus`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
       if (response.ok) {
         const data = await response.json();
-        setLguUsers(data.users || []);
+        setLguUsers(data || []);
+      } else if (response.status === 404) {
+        // If no LGU users found, set empty array
+        setLguUsers([]);
+        console.log('No LGU users found');
       } else {
-        console.error('Failed to fetch LGU users');
+        console.error('Failed to fetch LGU users:', response.status);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Error details:', errorData);
+        setLguUsers([]);
       }
     } catch (error) {
       console.error('Error fetching LGU users:', error);
+      setLguUsers([]);
     }
   };
 
@@ -536,17 +599,21 @@ const MainScreen = () => {
         })
       });
 
-      if (response.ok) {
+      if (response.status === 500) {
+        console.log('Update completed but population failed - proceeding with flow');
+        setSelectedLgu(lguUser);
+      } else if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Update Error Response:', errorData);
+        throw new Error(errorData.message || `Failed to update incident: ${response.status}`);
+      } else {
         const responseData = await response.json();
         console.log("Update response:", responseData);
         setSelectedLgu(lguUser);
-      } else {
-        console.error('Failed to update incident with LGU');
-        const errorData = await response.json();
-        console.error('Error details:', errorData);
       }
     } catch (error) {
       console.error('Error updating incident:', error);
+      alert('Failed to connect with LGU. Please try again.');
     }
   };
 
@@ -610,8 +677,17 @@ const MainScreen = () => {
               })
             });
 
-            if (response.ok) {
-              console.log("LGU status reverted to idle after timeout");
+            if (response.status === 500) {
+              console.log('Update completed but population failed - proceeding with flow');
+              setLguConnectingAt(null);
+              setConnectingModalOpen(false);
+              setConnectingLguName(null);
+              setSelectedLgu(null);
+            } else if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              console.error('Update Error Response:', errorData);
+              throw new Error(errorData.message || `Failed to update incident: ${response.status}`);
+            } else {
               setLguConnectingAt(null);
               setConnectingModalOpen(false);
               setConnectingLguName(null);
@@ -1315,27 +1391,35 @@ const MainScreen = () => {
     </div>
     
     <div style={{maxHeight: '200px', overflowY: 'auto'}}>
-      {lguUsers.map((user) => (
-        <div key={user._id} style={{display: 'flex', alignItems: 'center', padding: '6px', borderBottom: '1px solid #eee', marginBottom: '3px'}}>
-          <div style={{flex: 1}}>
-            <div style={{fontSize: '14px'}}>{user.firstName} {user.lastName}</div>
+      {lguUsers.length > 0 ? (
+        lguUsers.map((user) => (
+          <div key={user._id} style={{display: 'flex', alignItems: 'center', padding: '6px', borderBottom: '1px solid #eee', marginBottom: '3px'}}>
+            <div style={{flex: 1}}>
+              <div style={{fontSize: '14px'}}>{user.firstName} {user.lastName}</div>
+            </div>
+            <div style={{marginRight: '10px', textAlign: 'right'}}>
+              <div style={{fontSize: '12px'}}>13 Min</div>
+              <div style={{fontSize: '12px'}}>2.3 KM</div>
+            </div>
+            <button 
+              onClick={() => handleConnect(user)}
+              style={{padding: '4px 8px', background: '#1e5a71', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px'}}
+            >
+              Connect
+            </button>
           </div>
-          <div style={{marginRight: '10px', textAlign: 'right'}}>
-            <div style={{fontSize: '12px'}}>13 Min</div>
-            <div style={{fontSize: '12px'}}>2.3 KM</div>
-          </div>
-          <button 
-            onClick={() => handleConnect(user)}
-            style={{padding: '4px 8px', background: '#1e5a71', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px'}}
-          >
-            Connect
-          </button>
-        </div>
-      ))}
-      
-      {lguUsers.length === 0 && (
-        <div style={{textAlign: 'center', padding: '10px', color: '#666', fontSize: '14px'}}>
-          No LGU users available
+        ))
+      ) : (
+        <div style={{
+          textAlign: 'center', 
+          padding: '20px', 
+          color: '#666', 
+          fontSize: '14px',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '4px',
+          margin: '10px'
+        }}>
+          No LGU operation centers are currently available
         </div>
       )}
     </div>

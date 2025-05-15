@@ -13,7 +13,7 @@ type FormData = {
   password: string;
 };
 
-type UserType = 'lgu' | 'responder' | 'dispatcher';
+type UserType = 'lgu' | 'dispatcher';
 
 const Login = () => {
   const [formData, setFormData] = useState<FormData>({
@@ -53,7 +53,6 @@ const Login = () => {
       // Try logging in with each user type
       const results = await Promise.all([
         tryLogin('lgu'),
-        tryLogin('responder'),
         tryLogin('dispatcher')
       ]);
 
