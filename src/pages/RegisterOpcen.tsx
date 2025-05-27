@@ -6,21 +6,41 @@ import {useState} from "react";
 import axios from "axios";
 import config from "../config";
 import {useNavigate} from "react-router-dom";
-import {StreamChat} from 'stream-chat';
 
 type FormData = {
   email: string;
   password: string;
+  firstName: string;
+  lastName: string;
+  address: string;
+  description: string;
+  dateEstablished: Date;
+  telNo: string;
+  alternateNo: string;
+  mobileNumber: string;
+  website: string;
+  shortHistory: string;
+  assignment: string;
 };
 
-type UserType = 'opcen' | 'dispatcher';
-
-const Login = () => {
+const RegisterOpcen = () => {
   const [formData, setFormData] = useState<FormData>({
     email: "",
     password: "",
+    firstName: "",
+    lastName: "",
+    address: "",
+    description: "",
+    dateEstablished: new Date(),
+    telNo: "",
+    alternateNo: "",
+    mobileNumber: "",
+    website: "",
+    shortHistory: "",
+    assignment: "",
   });
   const [error, setError] = useState<string>("");
+  const [success, setSuccess] = useState<string>("");
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -28,74 +48,36 @@ const Login = () => {
     setFormData({...formData, [name]: value});
   };
 
-  const tryLogin = async (userType: UserType) => {
-    try {
-      const response = await axios.post(
-        `${config.PERSONAL_API}/${userType}s/login`,
-        formData
-      );
-      return { success: true, data: response.data, type: userType };
-    } catch (err) {
-      return { success: false, error: err };
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
+    setSuccess("");
 
     try {
-      const loginData = {
-        email: formData.email.trim(),
-        password: formData.password,
-      };
-
-      // Try logging in with each user type
-      const results = await Promise.all([
-        tryLogin('opcen'),
-        tryLogin('dispatcher')
-      ]);
-
-      // Find the first successful login
-      const successfulLogin = results.find(result => result.success);
-
-      if (!successfulLogin) {
-        throw new Error("Invalid credentials");
-      }
-
-      const { token, user } = successfulLogin.data;
-      const userType = successfulLogin.type;
-      
-      console.log('Login response:', successfulLogin.data);
-      
-      // Store user data with type
-      localStorage.setItem("user", JSON.stringify({
-        ...user,
-        id: user.id,
-        type: userType,
-        name: `${successfulLogin.data.firstName} ${successfulLogin.data.lastName}`
-      }));
-      localStorage.setItem("token", token);
-      
-      localStorage.setItem("chatClient", JSON.stringify({
-        id: user.id,
-        token: token,
-      }));
-
-      // Route based on user type
-      if (userType === 'opcen') {
-        window.location.href = '/lgu-console';
-      } else {
-        window.location.href = '/status';
-      }
-
-    } catch (err: any) {
-      console.error("Login error:", err.response?.data);
-      setError(
-        err.response?.data?.message ||
-          err.response?.data?.error ||
-          "Failed to login. Please check your credentials."
+      const response = await axios.post(
+        `${config.PERSONAL_API}/opcens/`,
+        formData
       );
+
+      setSuccess("Registration successful! Token: " + response.data.token);
+      setFormData({
+        email: "",
+        password: "",
+        firstName: "",
+        lastName: "",
+        address: "",
+        description: "",
+        dateEstablished: new Date(),
+        telNo: "",
+        alternateNo: "",
+        mobileNumber: "",
+        website: "",
+        shortHistory: "",
+        assignment: "",
+      });
+      navigate("/");
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Registration failed");
     }
   };
 
@@ -120,7 +102,7 @@ const Login = () => {
                   GuardianPH V3
                 </Typography>
                 <Typography variant="subtitle1" color="text.secondary">
-                  Emergency Dispatch Operator
+                  Register your Account
                 </Typography>
               </div>
             </div>
@@ -134,6 +116,30 @@ const Login = () => {
             }}>
             <form onSubmit={handleSubmit}>
               <div className="flex flex-col gap-4">
+                <TextField
+                  fullWidth
+                  label="First Name"
+                  variant="filled"
+                  sx={{
+                    backgroundColor: "white",
+                    borderRadius: "4px",
+                  }}
+                  name="firstName"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                />
+                <TextField
+                  fullWidth
+                  label="Last Name"
+                  variant="filled"
+                  sx={{
+                    backgroundColor: "white",
+                    borderRadius: "4px",
+                  }}
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                />
                 <TextField
                   fullWidth
                   label="Email"
@@ -159,12 +165,27 @@ const Login = () => {
                   value={formData.password}
                   onChange={handleChange}
                 />
-                {error && (
-                  <Typography color="error" variant="body2">
-                    {error}
-                  </Typography>
-                )}
-                
+                <TextField
+                  fullWidth
+                  label="Address"
+                  variant="filled"
+                  sx={{
+                    backgroundColor: "white",
+                    borderRadius: "4px",
+                  }}
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                />
+                <center>
+                  <div className="text-white text-sm">
+                    <span
+                      className="cursor-pointer hover:underline"
+                      onClick={() => navigate("/")}>
+                      Already have an account? Login here
+                    </span>
+                  </div>
+                </center>
                 <Button
                   variant="contained"
                   type="submit"
@@ -176,25 +197,8 @@ const Login = () => {
                       backgroundColor: "#0078CC",
                     },
                   }}>
-                  Log in
+                  Register Account
                 </Button>
-                <center>
-                  <div className="text-white text-sm">
-                    <span
-                      className="cursor-pointer hover:underline"
-                      onClick={() => navigate("/register")}>
-                      Register Account
-                    </span>
-                    &nbsp;
-                    {" | "}&nbsp;
-                    <span className="cursor-pointer hover:underline"
-                    onClick={() => navigate("/register-opcen")}>
-                      Register Operation Center
-                    </span>
-                    
-                    
-                  </div>
-                </center>
               </div>
             </form>
           </Grid>
@@ -204,4 +208,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default RegisterOpcen;

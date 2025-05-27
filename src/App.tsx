@@ -20,7 +20,9 @@ import ManageUsers from "./pages/ManageUsers";
 import Teams from "./pages/Teams"
 import MobileAssets from "./pages/MobileAssets";
 import AddMobileAssets from "./pages/AddMobileAssets";
-
+import Notification from "./pages/Notification";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import RegisterOpcen from "./pages/RegisterOpcen";
 // Create global theme with Verdana as default font
 const theme = createTheme({
   typography: {
@@ -47,6 +49,15 @@ const theme = createTheme({
           fontFamily: 'Verdana, sans-serif',
         },
       },
+    },
+  },
+});
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false, // disable automatic refetching on window focus
+      retry: 1, // only retry failed requests once
     },
   },
 });
@@ -107,47 +118,51 @@ function App() {
   }
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <main>
-        {client ? (
-          <Chat client={client}>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <main>
+          {client ? (
+            <Chat client={client}>
+              <Routes>
+                <Route 
+                  path="/" 
+                  element={
+                    isAuthenticated 
+                      ? (userRole === 'LGU' 
+                          ? <Navigate to="/lgu-main" replace /> 
+                          : <Navigate to="/status" replace />)
+                      : <Login />
+                  } 
+                />
+                <Route path="/standby" element={<StandBy />} />
+                <Route path="/main/:incidentId" element={isAuthenticated ? <MainScreen /> : <Navigate to="/" replace />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/call" element={isAuthenticated ? <Calls /> : <Navigate to="/" replace />} />
+                <Route path="/status" element={isAuthenticated ? <Status /> : <Navigate to="/" replace />} />
+                <Route path="/lgu-main" element={isAuthenticated ? <LGUMain /> : <Navigate to="/" replace />} />
+                <Route path="/map" element={isAuthenticated ? <MapView /> : <Navigate to="/" replace />} />
+                <Route path="/responder-map" element={isAuthenticated ? <ResponderMap /> : <Navigate to="/" replace />} />
+                <Route path="/lgu-console" element={isAuthenticated ? <LGUConsole /> : <Navigate to="/" replace />} />
+                <Route path="/opcen" element={isAuthenticated ? <OperationCenter /> : <Navigate to="/" replace />} />
+                <Route path="/usermanagement" element={isAuthenticated ? <ManageUsers /> : <Navigate to="/" replace />} />
+                <Route path="/teams" element={isAuthenticated ? <Teams /> : <Navigate to="/" replace />} />
+                <Route path="/mobile-assets" element={isAuthenticated ? <MobileAssets /> : <Navigate to="/" replace />} />
+                <Route path="/add-mobile-assets" element={isAuthenticated ? <AddMobileAssets /> : <Navigate to="/" replace />} />
+                <Route path="/notification" element={isAuthenticated ? <Notification /> : <Navigate to="/" replace />} />
+              </Routes>
+            </Chat>
+          ) : (
             <Routes>
-              <Route 
-                path="/" 
-                element={
-                  isAuthenticated 
-                    ? (userRole === 'LGU' 
-                        ? <Navigate to="/lgu-main" replace /> 
-                        : <Navigate to="/status" replace />)
-                    : <Login />
-                } 
-              />
-              <Route path="/standby" element={<StandBy />} />
-              <Route path="/main/:incidentId" element={isAuthenticated ? <MainScreen /> : <Navigate to="/" replace />} />
+              <Route path="/" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/call" element={isAuthenticated ? <Calls /> : <Navigate to="/" replace />} />
-              <Route path="/status" element={isAuthenticated ? <Status /> : <Navigate to="/" replace />} />
-              <Route path="/lgu-main" element={isAuthenticated ? <LGUMain /> : <Navigate to="/" replace />} />
-              <Route path="/map" element={isAuthenticated ? <MapView /> : <Navigate to="/" replace />} />
-              <Route path="/responder-map" element={isAuthenticated ? <ResponderMap /> : <Navigate to="/" replace />} />
-              <Route path="/lgu-console" element={isAuthenticated ? <LGUConsole /> : <Navigate to="/" replace />} />
-              <Route path="/opcen" element={isAuthenticated ? <OperationCenter /> : <Navigate to="/" replace />} />
-              <Route path="/usermanagement" element={isAuthenticated ? <ManageUsers /> : <Navigate to="/" replace />} />
-              <Route path="/teams" element={isAuthenticated ? <Teams /> : <Navigate to="/" replace />} />
-              <Route path="/mobile-assets" element={isAuthenticated ? <MobileAssets /> : <Navigate to="/" replace />} />
-              <Route path="/add-mobile-assets" element={isAuthenticated ? <AddMobileAssets /> : <Navigate to="/" replace />} />
+              <Route path="/register-opcen" element={<RegisterOpcen />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-          </Chat>
-        ) : (
-          <Routes>
-            <Route path="/" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        )}
-      </main>
-    </ThemeProvider>
+          )}
+        </main>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

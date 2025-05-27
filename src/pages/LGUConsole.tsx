@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
 import { 
   AppBar, 
-  Toolbar, 
   Typography, 
   Button,
   Box,
-  useMediaQuery,
-  useTheme,
   Avatar,
   Container,
 } from '@mui/material';
@@ -23,6 +20,7 @@ import DevicesIcon from '@mui/icons-material/Devices';
 import NotificationImportantIcon from '@mui/icons-material/NotificationImportant';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import { useNavigate } from 'react-router-dom';
 
 
 
@@ -30,6 +28,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 
 const LGUConsole = () => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const navigate = useNavigate();
 
     const toggleSidebar = () => {
       setSidebarOpen(!sidebarOpen);
@@ -274,7 +273,7 @@ const LGUConsole = () => {
                   }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Typography variant="h6">Users</Typography>
-                      <Button size="small" sx={{ textTransform: 'none' }}>Manage</Button>
+                      <Button size="small" sx={{ textTransform: 'none' }} onClick={() => navigate('/usermanagement')}>Manage</Button>
                     </Box>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Active</Typography>
                     <Typography variant="h4" sx={{ mb: 2 }}>18</Typography>
@@ -329,11 +328,11 @@ const LGUConsole = () => {
                     </Box>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Send messages to your users</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Create a notification</Button>
+                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={() => navigate('/notification')}>Create a notification</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Delete a notification</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Update notification</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Create a announcement</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Delete a announcement</Button>
+                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Delete a announcement</Button>    
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Update announcement</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Create a message</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Delete a message</Button>
@@ -397,11 +396,10 @@ const LGUConsole = () => {
                   }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Typography variant="h6">Account</Typography>
-                      <Button size="small" sx={{ textTransform: 'none' }}>Manage</Button>
+                      <Button size="small" sx={{ textTransform: 'none' }} onClick={() => navigate('/opcen')}>Manage</Button>
                     </Box>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Send messages to your users</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Create profile</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Settings</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Licences</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Change Password</Button>
