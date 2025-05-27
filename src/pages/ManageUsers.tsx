@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
     AppBar, 
     Toolbar, 
@@ -10,6 +10,13 @@ import {
     Avatar,
     Container,
     TextField,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    Snackbar,
+    Alert,
+    SelectChangeEvent,
   } from '@mui/material';
 import Grid from "@mui/material/Grid2";
 import SearchIcon from '@mui/icons-material/Search';
@@ -24,39 +31,144 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import FormGroup from '@mui/material/FormGroup';
 import FormLabel from '@mui/material/FormLabel';
-import { useState } from 'react';
-
-const users = [
-  {
-    photo: '',
-    name: 'Hazelll',
-    completeName: 'Cloyd B. Dedicatoria',
-    assignment: 'Fire',
-    contact: '09173146624',
-  },
-  {
-    photo: '',
-    name: 'Hazelll',
-    completeName: 'Cloyd B. Dedicatoria',
-    assignment: 'Fire',
-    contact: '09173146624',
-  },
-  {
-    photo: '',
-    name: 'Hazelll',
-    completeName: 'Cloyd B. Dedicatoria',
-    assignment: 'Fire',
-    contact: '09173146624',
-  },
-];
+import axios from 'axios';
+import config from '../config';
 
 const ManageUsers = () => {
   const [open, setOpen] = useState(false);
   const [passwordType, setPasswordType] = useState('create');
   const [askChange, setAskChange] = useState(true);
+  const [responders, setResponders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    password: '',
+    assignment: ''
+  });
+  const [snackbar, setSnackbar] = useState({ 
+    open: false, 
+    message: '', 
+    severity: 'success' as 'success' | 'error' 
+  });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredResponders, setFilteredResponders] = useState([]);
+
+  useEffect(() => {
+    fetchResponders();
+  }, []);
+
+  useEffect(() => {
+    if (responders.length > 0) {
+      const filtered = responders.filter((responder: any) => {
+        const searchLower = searchQuery.toLowerCase();
+        return (
+          responder.firstName.toLowerCase().includes(searchLower) ||
+          responder.lastName.toLowerCase().includes(searchLower) ||
+          responder.email.toLowerCase().includes(searchLower) ||
+          responder.phone.toLowerCase().includes(searchLower) ||
+          responder.assignment.toLowerCase().includes(searchLower)
+        );
+      });
+      setFilteredResponders(filtered);
+    }
+  }, [searchQuery, responders]);
+
+  const fetchResponders = async () => {
+    try {
+      const response = await axios.get(`${config.PERSONAL_API}/responders/`);
+      setResponders(response.data);
+      setLoading(false);
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: 'Error fetching responders',
+        severity: 'error'
+      });
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await axios.delete(`${config.PERSONAL_API}/responders/${id}`);
+      setSnackbar({
+        open: true,
+        message: 'Responder deleted successfully',
+        severity: 'success'
+      });
+      fetchResponders(); // Refresh the list
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || 'Error deleting responder',
+        severity: 'error'
+      });
+    }
+  };
 
   const handleOpen = () => setOpen(true);
-  const handleClose = () => setOpen(false);
+  const handleClose = () => {
+    setOpen(false);
+    setFormData({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      password: '',
+      assignment: ''
+    });
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name as string]: value
+    }));
+  };
+
+  const handleSelectChange = (e: SelectChangeEvent) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name as string]: value
+    }));
+  };
+
+  const handleSubmit = async () => {
+    try {
+      if (!formData.email || !formData.password) {
+        setSnackbar({
+          open: true,
+          message: 'Email and password are required',
+          severity: 'error'
+        });
+        return;
+      }
+
+      await axios.post(`${config.PERSONAL_API}/responders/`, formData);
+      setSnackbar({
+        open: true,
+        message: 'Responder created successfully',
+        severity: 'success'
+      });
+      handleClose();
+      fetchResponders(); // Refresh the list
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || 'Error creating responder',
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: '#fafcfc', position: 'relative' }}>
@@ -86,34 +198,36 @@ const ManageUsers = () => {
               }}
             >
               <div style={{display: 'flex', width: '80%'}}> 
-                  <div style={{
+                <div style={{
                   position: 'relative',
                   display: 'flex',
                   alignItems: 'center',
                   width: '100%',
-                  }}>
-                    <SearchIcon style={{
+                }}>
+                  <SearchIcon style={{
                     position: 'absolute',
                     left: '8px',
                     color: '#757575',
                     fontSize: '20px'
-                    }} />
-                    <input 
+                  }} />
+                  <input 
                     type="text" 
-                    placeholder="Search" 
+                    placeholder="Search users..." 
+                    value={searchQuery}
+                    onChange={handleSearchChange}
                     style={{
-                    flex: 1,
-                    color: 'black',
-                    height: '38px',
-                    padding: '8px 12px 8px 36px',
-                    borderRadius: '8px',
-                    border: '1px solid #ccc',
-                    backgroundColor: 'white',
-                    fontSize: '1.1rem',
+                      flex: 1,
+                      color: 'black',
+                      height: '38px',
+                      padding: '8px 12px 8px 36px',
+                      borderRadius: '8px',
+                      border: '1px solid #ccc',
+                      backgroundColor: 'white',
+                      fontSize: '1.1rem',
                     }} 
-                    /> 
-                    </div>
-                    </div>
+                  /> 
+                </div>
+              </div>
             </Grid>
           </Grid>
         </Container>
@@ -130,25 +244,37 @@ const ManageUsers = () => {
             <Grid size={{ md: 1.6 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>Actions</Grid>
           </Grid>
           {/* User rows */}
-          {users.map((user, idx) => (
-            <Grid container key={idx} sx={{ background: idx % 2 === 0 ? '#f8fbfa' : 'white', borderRadius: 2, mt: 2, mb: 0, boxShadow: 0, border: '1.5px solid #e0e0e0', alignItems: 'center', p: 0.5, minHeight: 70 }}>
-              <Grid size={{ md: 1.2 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Avatar variant="rounded" sx={{ width: 48, height: 48, bgcolor: '#f2f2f2', border: '1px solid #e0e0e0' }} />
+          {loading ? (
+            <Box sx={{ p: 3, textAlign: 'center' }}>Loading...</Box>
+          ) : (
+            filteredResponders.map((responder: any, idx: number) => (
+              <Grid container key={responder._id} sx={{ background: idx % 2 === 0 ? '#f8fbfa' : 'white', borderRadius: 2, mt: 2, mb: 0, boxShadow: 0, border: '1.5px solid #e0e0e0', alignItems: 'center', p: 0.5, minHeight: 70 }}>
+                <Grid size={{ md: 1.2 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Avatar variant="rounded" sx={{ width: 48, height: 48, bgcolor: '#f2f2f2', border: '1px solid #e0e0e0' }} />
+                </Grid>
+                <Grid size={{ md: 2.2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 700, fontSize: 18, textTransform: 'capitalize' }}>
+                  <span style={{ fontWeight: 700, fontSize: 22 }}>{responder.firstName}</span>
+                </Grid>
+                <Grid size={{ md: 3 }} sx={{ display: 'flex', alignItems: 'center', color: '#444', fontSize: 16, textTransform: 'capitalize' }}>
+                  {`${responder.firstName} ${responder.lastName}`}
+                </Grid>
+                <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 700, fontSize: 18 }}>
+                  <span style={{ fontWeight: 700, fontSize: 22, textTransform: 'capitalize' }}>{responder.assignment}</span>
+                </Grid>
+                <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>{responder.phone}</Grid>
+                <Grid size={{ md: 1.6 }} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }}>Manage</Button>
+                  <Button 
+                    variant="contained" 
+                    sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5, '&:hover': { bgcolor: '#d32f2f' } }}
+                    onClick={() => handleDelete(responder._id)}
+                  >
+                    Delete
+                  </Button>
+                </Grid>
               </Grid>
-              <Grid size={{ md: 2.2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 700, fontSize: 18 }}>
-                <span style={{ fontWeight: 700, fontSize: 22 }}>{user.name}</span>
-              </Grid>
-              <Grid size={{ md: 3 }} sx={{ display: 'flex', alignItems: 'center', color: '#444', fontSize: 16 }}>{user.completeName}</Grid>
-              <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 700, fontSize: 18 }}>
-                <span style={{ fontWeight: 700, fontSize: 22 }}>{user.assignment}</span>
-              </Grid>
-              <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>{user.contact}</Grid>
-              <Grid size={{ md: 1.6 }} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }}>Manage</Button>
-                <Button variant="contained" sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5, '&:hover': { bgcolor: '#d32f2f' } }}>Delete</Button>
-              </Grid>
-            </Grid>
-          ))}
+            ))
+          )}
         </Box>
       </Container>
       {/* Floating Add Button */}
@@ -164,13 +290,63 @@ const ManageUsers = () => {
           <DialogTitle sx={{ color: 'white', fontSize: 32, fontWeight: 400, p: 2, pb: 2 }}>Add User</DialogTitle>
         </Box>
         <DialogContent sx={{ p: 4, pt: 2 }}>
-          <FormLabel sx={{ fontWeight: 700, fontSize: 18, mb: 2, color: '#222' }}>User Info</FormLabel>
+          <FormLabel sx={{ fontWeight: 700, fontSize: 18, mb: 2, color: '#222' }}>Responder Info</FormLabel>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
-            <TextField label="First Name" variant="outlined" size="small" fullWidth />
-            <TextField label="Last Name" variant="outlined" size="small" fullWidth />
-            <TextField label="Primary Email" variant="outlined" size="small" fullWidth />
+            <TextField 
+              label="First Name" 
+              variant="outlined" 
+              size="small" 
+              fullWidth 
+              name="firstName"
+              value={formData.firstName}
+              onChange={handleChange}
+              required
+            />
+            <TextField 
+              label="Last Name" 
+              variant="outlined" 
+              size="small" 
+              fullWidth 
+              name="lastName"
+              value={formData.lastName}
+              onChange={handleChange}
+              required
+            />
+            <TextField 
+              label="Primary Email" 
+              variant="outlined" 
+              size="small" 
+              fullWidth 
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+            />
             <Typography variant="caption" sx={{ color: '#888', ml: 0.5, mb: 1 }}>This will be the email user signs in with</Typography>
-            <TextField label="Mobile Number" variant="outlined" size="small" fullWidth />
+            <TextField 
+              label="Mobile Number" 
+              variant="outlined" 
+              size="small" 
+              fullWidth 
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+              required
+            />
+            <FormControl fullWidth size="small">
+              <InputLabel>Assignment</InputLabel>
+              <Select
+                name="assignment"
+                value={formData.assignment}
+                onChange={handleSelectChange}
+                label="Assignment"
+                required
+              >
+                <MenuItem value="ambulance">Ambulance</MenuItem>
+                <MenuItem value="firetruck">Firetruck</MenuItem>
+                <MenuItem value="police">Police</MenuItem>
+              </Select>
+            </FormControl>
           </Box>
           <FormLabel sx={{ fontWeight: 700, fontSize: 18, mb: 1, color: '#222' }}>Password</FormLabel>
           <RadioGroup
@@ -183,7 +359,17 @@ const ManageUsers = () => {
           </RadioGroup>
           {passwordType === 'create' && (
             <Box sx={{ mb: 1 }}>
-              <TextField label="Password" variant="outlined" size="small" fullWidth />
+              <TextField 
+                label="Password" 
+                variant="outlined" 
+                size="small" 
+                fullWidth 
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+              />
               <Typography variant="caption" sx={{ color: '#888', ml: 0.5 }}>Password must have at least 8 characters</Typography>
             </Box>
           )}
@@ -195,14 +381,35 @@ const ManageUsers = () => {
           </FormGroup>
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'flex-end', p: 3, pt: 0 }}>
-          <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, mr: 2 }}>
+          <Button 
+            variant="contained" 
+            sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, mr: 2 }}
+            onClick={handleSubmit}
+          >
             Add New User
           </Button>
-          <Button variant="contained" sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, '&:hover': { bgcolor: '#d32f2f' } }} onClick={handleClose}>
+          <Button 
+            variant="contained" 
+            sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, '&:hover': { bgcolor: '#d32f2f' } }} 
+            onClick={handleClose}
+          >
             Cancel
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={6000} 
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+      >
+        <Alert 
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} 
+          severity={snackbar.severity}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </div>
   )
 }

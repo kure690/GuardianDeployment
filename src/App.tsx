@@ -23,6 +23,7 @@ import AddMobileAssets from "./pages/AddMobileAssets";
 import Notification from "./pages/Notification";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import RegisterOpcen from "./pages/RegisterOpcen";
+import AddTeams from "./pages/AddTeams";
 // Create global theme with Verdana as default font
 const theme = createTheme({
   typography: {
@@ -150,6 +151,7 @@ function App() {
                 <Route path="/mobile-assets" element={isAuthenticated ? <MobileAssets /> : <Navigate to="/" replace />} />
                 <Route path="/add-mobile-assets" element={isAuthenticated ? <AddMobileAssets /> : <Navigate to="/" replace />} />
                 <Route path="/notification" element={isAuthenticated ? <Notification /> : <Navigate to="/" replace />} />
+                <Route path="/add-teams" element={isAuthenticated ? <AddTeams /> : <Navigate to="/" replace />} />
               </Routes>
             </Chat>
           ) : (
