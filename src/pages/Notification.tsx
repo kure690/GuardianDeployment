@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   AppBar,
   Toolbar,
@@ -19,10 +19,24 @@ import {
   Alert,
   Snackbar,
   SelectChangeEvent,
+  IconButton,
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import DeleteIcon from '@mui/icons-material/Delete';
 import Grid from "@mui/material/Grid2";
 import axios from 'axios';
 import config from '../config';
+import { getLatLngFromAddress } from '../utils/geocoding';
+
+declare global {
+  interface Window {
+    initMap: () => void;
+  }
+}
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
 interface FormData {
   title: string;
@@ -42,6 +56,42 @@ interface FormData {
     sendNow: boolean;
     scheduledDate: Date | null;
   };
+}
+
+function loadGoogleMapsScript(apiKey: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // Check if script is already loading
+    if (document.querySelector(`script[src*="maps.googleapis.com/maps/api/js"]`)) {
+      if (window.google && window.google.maps) {
+        resolve();
+      } else {
+        // Wait for existing script to load
+        const checkGoogle = setInterval(() => {
+          if (window.google && window.google.maps) {
+            clearInterval(checkGoogle);
+            resolve();
+          }
+        }, 100);
+      }
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap`;
+    script.async = true;
+    script.defer = true;
+    
+    // Define callback
+    window.initMap = () => {
+      resolve();
+    };
+    
+    script.onerror = (error) => {
+      reject(error);
+    };
+    
+    document.head.appendChild(script);
+  });
 }
 
 const Notification = () => {
@@ -70,6 +120,84 @@ const Notification = () => {
     message: '', 
     severity: 'success' as 'success' | 'error' 
   });
+
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [marker, setMarker] = useState<google.maps.Marker | null>(null);
+  const [circle, setCircle] = useState<google.maps.Circle | null>(null);
+  const [barangayCoords, setBarangayCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
+
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Initialize map
+  useEffect(() => {
+    let isMounted = true;
+    loadGoogleMapsScript(GOOGLE_MAPS_API_KEY).then(() => {
+      if (isMounted && mapRef.current && !map) {
+        const gmap = new window.google.maps.Map(mapRef.current, {
+          center: { lat: 10.3157, lng: 123.8854 },
+          zoom: 13,
+        });
+        setMap(gmap);
+      }
+    });
+    return () => { isMounted = false; };
+  }, [mapRef, map]);
+
+  // Update marker and circle when barangay or affectedArea changes
+  useEffect(() => {
+    if (!map) return;
+    if (barangayCoords) {
+      map.setCenter(barangayCoords);
+      map.setZoom(15);
+      if (marker) marker.setMap(null);
+      const newMarker = new window.google.maps.Marker({
+        position: barangayCoords,
+        map,
+        title: 'Barangay',
+      });
+      setMarker(newMarker);
+      // Draw circle
+      if (circle) circle.setMap(null);
+      const radius = formData.affectedArea ? parseFloat(formData.affectedArea) * 1000 : 0;
+      if (radius > 0) {
+        const newCircle = new window.google.maps.Circle({
+          map,
+          center: barangayCoords,
+          radius,
+          fillColor: '#1976D2',
+          fillOpacity: 0.2,
+          strokeColor: '#1976D2',
+          strokeOpacity: 0.7,
+          strokeWeight: 2,
+        });
+        setCircle(newCircle);
+      }
+    } else {
+      if (marker) marker.setMap(null);
+      if (circle) circle.setMap(null);
+    }
+    // eslint-disable-next-line
+  }, [barangayCoords, formData.affectedArea, map]);
+
+  // Geocode barangay on change
+  const handleBarangayChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleTextChange(e);
+    const value = e.target.value;
+    if (!value) {
+      setBarangayCoords(null);
+      return;
+    }
+    const coords = await getLatLngFromAddress(value + ', Cebu, Philippines');
+    if (coords) {
+      setBarangayCoords(coords);
+    } else {
+      setSnackbar({ open: true, message: 'Barangay not found', severity: 'error' });
+      setBarangayCoords(null);
+    }
+  };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -118,13 +246,48 @@ const Notification = () => {
   };
 
   const handleScheduleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sendNow = e.target.value === 'now';
     setFormData(prev => ({
       ...prev,
       schedule: {
         ...prev.schedule,
-        sendNow: e.target.value === 'now'
+        sendNow,
+        scheduledDate: sendNow ? null : new Date() // Set current date as default when switching to schedule
       }
     }));
+  };
+
+  const handleDateChange = (date: Date | null) => {
+    setFormData(prev => ({
+      ...prev,
+      schedule: {
+        ...prev.schedule,
+        scheduledDate: date
+      }
+    }));
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      // Limit to 4 images
+      const newFiles = files.slice(0, 4 - selectedImages.length);
+      setSelectedImages(prev => [...prev, ...newFiles]);
+      
+      // Create previews
+      newFiles.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImagePreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -141,10 +304,40 @@ const Notification = () => {
         return;
       }
 
+      // Create FormData object for multipart/form-data
+      const submitData = new FormData();
+      
+      // Append all form fields
+      Object.entries(formData).forEach(([key, value]) => {
+        if (key === 'demographics' || key === 'schedule') {
+          submitData.append(key, JSON.stringify(value));
+        } else if (key !== 'images') {
+          submitData.append(key, value as string);
+        }
+      });
+
+      // Append images - change the field name to match Multer configuration
+      selectedImages.forEach((file, index) => {
+        submitData.append('files', file); // Changed from 'images' to 'file'
+      });
+
+      // Log the FormData contents for debugging
+      console.log('Form Data Contents:');
+      for (let pair of submitData.entries()) {
+        console.log(pair[0], pair[1]);
+      }
+
       const response = await axios.post(
         `${config.PERSONAL_API}/notifications/`,
-        formData
+        submitData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
       );
+
+      console.log('Server Response:', response.data);
 
       setSnackbar({
         open: true,
@@ -172,7 +365,10 @@ const Notification = () => {
           scheduledDate: null
         }
       });
+      setSelectedImages([]);
+      setImagePreviews([]);
     } catch (err: any) {
+      console.error('Error details:', err.response?.data);
       setSnackbar({
         open: true,
         message: err.response?.data?.message || 'Error creating notification',
@@ -182,7 +378,7 @@ const Notification = () => {
   };
 
   return (
-    <div>
+    <div style={{ overflow: 'hidden' }}>
       <AppBar position="static" style={{ backgroundColor: 'transparent', padding: 0, boxShadow: 'none'}}>
         <Container disableGutters={true} maxWidth={false} sx={{}}>
           <Grid container spacing={1} sx={{ backgroundColor: '#1B4965', height: '80px' }}>
@@ -208,14 +404,81 @@ const Notification = () => {
           <Grid container spacing={4}>
             {/* Left: Image Uploads */}
             <Grid size={{ xs: 12, md: 3 }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageSelect}
+                style={{ display: 'none' }}
+                ref={fileInputRef}
+              />
               <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2, mb: 2 }}>
-                {[1,2,3,4].map(i => (
-                  <Paper key={i} sx={{ width: 120, height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f5f5' }}>
-                    <img src="https://via.placeholder.com/60x50?text=+" alt="placeholder" style={{ opacity: 0.5 }} />
+                {imagePreviews.map((preview, index) => (
+                  <Paper 
+                    key={index} 
+                    sx={{ 
+                      width: 120, 
+                      height: 120, 
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <img 
+                      src={preview} 
+                      alt={`preview ${index + 1}`} 
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        objectFit: 'cover' 
+                      }} 
+                    />
+                    <IconButton
+                      size="small"
+                      onClick={() => handleRemoveImage(index)}
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        bgcolor: 'rgba(0,0,0,0.5)',
+                        color: 'white',
+                        '&:hover': {
+                          bgcolor: 'rgba(0,0,0,0.7)',
+                        }
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Paper>
+                ))}
+                {[...Array(4 - imagePreviews.length)].map((_, index) => (
+                  <Paper 
+                    key={`empty-${index}`} 
+                    sx={{ 
+                      width: 120, 
+                      height: 120, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      bgcolor: '#f5f5f5',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <img 
+                      src="https://placehold.co/60x50" 
+                      alt="placeholder" 
+                      style={{ opacity: 0.5 }} 
+                    />
                   </Paper>
                 ))}
               </Box>
-              <Button variant="contained" sx={{ bgcolor: '#43a047', color: 'white' }}>Upload Photos</Button>
+              <Button 
+                variant="contained" 
+                sx={{ bgcolor: '#43a047', color: 'white' }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Upload Photos
+              </Button>
             </Grid>
 
             {/* Center: Main Form */}
@@ -289,7 +552,7 @@ const Notification = () => {
                   size="small"
                   name="demographics.barangay"
                   value={formData.demographics.barangay}
-                  onChange={handleTextChange}
+                  onChange={handleBarangayChange}
                 />
               </Box>
               <Box sx={{ display: 'flex', gap: 2 }}>
@@ -315,14 +578,31 @@ const Notification = () => {
               <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2 }}>Schedule Notification:</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <FormControl>
-                  <RadioGroup row value={formData.schedule.sendNow ? 'now' : 'schedule'} onChange={handleScheduleChange}>
+                  <RadioGroup 
+                    row 
+                    value={formData.schedule.sendNow ? 'now' : 'schedule'} 
+                    onChange={handleScheduleChange}
+                  >
                     <FormControlLabel value="now" control={<Radio />} label="Send Now" />
-                    <FormControlLabel value="schedule" control={<Radio />} label="" />
+                    <FormControlLabel value="schedule" control={<Radio />} label="Schedule" />
                   </RadioGroup>
                 </FormControl>
-                <Paper sx={{ width: 180, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f5f5' }}>
-                  Calendar
-                </Paper>
+                {!formData.schedule.sendNow && (
+                <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <DatePicker
+                    label="Schedule Date"
+                    value={formData.schedule.scheduledDate}
+                    onChange={handleDateChange}
+                    minDate={new Date()} // Prevent selecting past dates
+                    slotProps={{
+                      textField: {
+                        size: "small",
+                        required: true
+                      }
+                    }}
+                  />
+                </LocalizationProvider>
+              )}
               </Box>
             </Grid>
 
@@ -342,37 +622,18 @@ const Notification = () => {
                   <MenuItem value="Emergency">Emergency</MenuItem>
                 </Select>
               </FormControl>
-              <FormControl fullWidth size="small">
-                <InputLabel>Commercial</InputLabel>
-                <Select label="Commercial" defaultValue="">
-                  <MenuItem value="">Default</MenuItem>
-                  <MenuItem value="Default Image">Default Image</MenuItem>
-                </Select>
-              </FormControl>
-              <FormControl fullWidth size="small">
-                <InputLabel>Default Image</InputLabel>
-                <Select label="Default Image" defaultValue="">
-                  <MenuItem value="">Default Image</MenuItem>
-                </Select>
-              </FormControl>
               <TextField 
-                label="Affected Area" 
+                label="Affected Area (km)" 
                 fullWidth 
                 size="small"
                 name="affectedArea"
                 value={formData.affectedArea}
                 onChange={handleTextChange}
+                type="number"
               />
-              <TextField label="Search" fullWidth size="small" sx={{ mt: 1 }} />
-              <Box sx={{ width: '100%', height: 180, borderRadius: 2, overflow: 'hidden', border: '1px solid #e0e0e0', mb: 2 }}>
-                <iframe
-                  title="map"
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3875.838377964839!2d123.8854373153607!3d10.31569989262639!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33a9991f1b1b1b1b%3A0x1b1b1b1b1b1b1b1b!2sCebu!5e0!3m2!1sen!2sph!4v1680000000000!5m2!1sen!2sph"
-                  allowFullScreen
-                ></iframe>
+              {/* <TextField label="Search" fullWidth size="small" sx={{ mt: 1 }} /> */}
+              <Box sx={{ width: '100%', height: '100%', borderRadius: 2, overflow: 'hidden', border: '1px solid #e0e0e0', mb: 2 }}>
+                <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
               </Box>
               <Button 
                 type="submit"

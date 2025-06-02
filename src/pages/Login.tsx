@@ -65,7 +65,8 @@ const Login = () => {
 
       const { token, user } = successfulLogin.data;
       const userType = successfulLogin.type;
-      
+      const dispatcherType = successfulLogin.data.dispatcherType;
+
       console.log('Login response:', successfulLogin.data);
       
       // Store user data with type
@@ -73,7 +74,8 @@ const Login = () => {
         ...user,
         id: user.id,
         type: userType,
-        name: `${successfulLogin.data.firstName} ${successfulLogin.data.lastName}`
+        name: `${successfulLogin.data.firstName} ${successfulLogin.data.lastName}`,
+        dispatcherType: successfulLogin.data.dispatcherType,
       }));
       localStorage.setItem("token", token);
       
@@ -85,8 +87,12 @@ const Login = () => {
       // Route based on user type
       if (userType === 'opcen') {
         window.location.href = '/lgu-console';
-      } else {
-        window.location.href = '/status';
+      } else if(userType === 'dispatcher'){
+        if (dispatcherType === 'Guardian') {
+          window.location.href = '/status';
+        } else {
+          window.location.href = '/LGU-main';
+        }
       }
 
     } catch (err: any) {

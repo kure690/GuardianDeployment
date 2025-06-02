@@ -5,8 +5,6 @@ import {
     Typography, 
     Button,
     Box,
-    useMediaQuery,
-    useTheme,
     Avatar,
     Container,
     TextField,
@@ -16,9 +14,11 @@ import {
   } from '@mui/material';
 import Grid from "@mui/material/Grid2";
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
-import AddAPhoto from '@mui/icons-material/AddAPhoto';
+import SearchIcon from '@mui/icons-material/Search';
 import { useOpCen } from '../hooks/useOpCen';
-
+import { getLatLngFromAddress, getAddressFromCoordinates } from '../utils/geocoding';
+import axios from 'axios';
+import config from '../config';
 interface OpCenData {
   firstName: string;
   lastName: string;
@@ -31,7 +31,15 @@ interface OpCenData {
   email: string;
   website: string;
   shortHistory: string;
-  address: string;
+  profileImage: string;
+  coverImage: string;
+  markerImage: string;
+  address: {
+    coordinates: {
+      lat: number;
+      lng: number;
+    }
+  };
   socialMedia: {
     facebook: string;
     youtube: string;
@@ -41,16 +49,45 @@ interface OpCenData {
   };
 }
 
+const getImageUrl = (url: string) => {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  return `${config.PERSONAL_API}${url}`;
+};
+
 const OperationCenter = () => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const { data: opcenData, isLoading, error, updateMutation } = useOpCen(user.id);
   const [formData, setFormData] = useState<Partial<OpCenData>>({});
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const [address, setAddress] = useState('');
+  const [uploading, setUploading] = useState({ profile: false, cover: false, marker: false });
+  const [images, setImages] = useState({
+    profile: '',
+    cover: '',
+    marker: ''
+  });
 
-  // Initialize form data when opcenData is loaded
+  // Initialize form data and images when opcenData is loaded
   useEffect(() => {
     if (opcenData) {
       setFormData(opcenData);
+      setImages({
+        profile: opcenData.profileImage || '',
+        cover: opcenData.coverImage || '',
+        marker: opcenData.markerImage || ''
+      });
+      // Set address field from lat/lng if available
+      if (opcenData.address?.coordinates?.lat && opcenData.address?.coordinates?.lng) {
+        const fetchAddress = async () => {
+          const addr = await getAddressFromCoordinates(
+            opcenData.address.coordinates.lat.toString(),
+            opcenData.address.coordinates.lng.toString()
+          );
+          setAddress(addr);
+        };
+        fetchAddress();
+      }
     }
   }, [opcenData]);
 
@@ -69,6 +106,74 @@ const OperationCenter = () => {
         ...prev,
         [field]: value
       }));
+    }
+  };
+
+  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAddress(e.target.value);
+  };
+
+  const handleAddressSearch = async () => {
+    if (!address) return;
+    const result = await getLatLngFromAddress(address);
+    if (result) {
+      setFormData(prev => ({
+        ...prev,
+        address: {
+          ...prev.address,
+          coordinates: {
+            lat: result.lat,
+            lng: result.lng
+          }
+        }
+      }));
+    } else {
+      setSnackbar({ open: true, message: 'Address not found', severity: 'error' });
+    }
+  };
+
+  const handleImageUpload = async (type: 'profile' | 'cover' | 'marker', file: File) => {
+    try {
+      setUploading(prev => ({ ...prev, [type]: true }));
+      const formData = new FormData();
+      formData.append(type === 'profile' ? 'profileImage' : type === 'cover' ? 'coverImage' : 'markerImage', file);
+
+      const response = await axios.put(`${config.PERSONAL_API}/opcens/${user.id}?imageType=${type}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      // Update the images state with the new image URL
+      setImages(prev => ({ ...prev, [type]: response.data[`${type}Image`] }));
+      
+      // Update formData to include the new image URL
+      setFormData(prev => ({
+        ...prev,
+        [`${type}Image`]: response.data[`${type}Image`]
+      }));
+
+      setSnackbar({
+        open: true,
+        message: `${type.charAt(0).toUpperCase() + type.slice(1)} image uploaded successfully`,
+        severity: 'success'
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: `Failed to upload ${type} image`,
+        severity: 'error'
+      });
+    } finally {
+      setUploading(prev => ({ ...prev, [type]: false }));
+    }
+  };
+
+  const handleImageChange = (type: 'profile' | 'cover' | 'marker') => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleImageUpload(type, file);
     }
   };
 
@@ -133,31 +238,98 @@ const OperationCenter = () => {
           <Grid size={{ xs: 12, md: 3 }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
             {/* Profile Pic */}
             <Box sx={{ position: 'relative', mb: 2 }}>
-              <Avatar src="" sx={{ width: 120, height: 120, border: '2px solid #eee' }} />
+              <Avatar 
+                src={getImageUrl(images.profile)} 
+                sx={{ 
+                  width: 120, 
+                  height: 120, 
+                  border: '2px solid #eee',
+                  bgcolor: !images.profile ? '#e0e0e0' : 'transparent'
+                }} 
+              />
               <Box sx={{ position: 'absolute', bottom: 8, right: 8, bgcolor: 'white', borderRadius: '50%' }}>
-                <Button sx={{ minWidth: 0, p: 1, bgcolor: '#43a047', color: 'white', borderRadius: '50%' }}>
-                  <PhotoCamera />
-                </Button>
+                <input
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  id="profile-image-upload"
+                  type="file"
+                  onChange={handleImageChange('profile')}
+                  disabled={uploading.profile}
+                />
+                <label htmlFor="profile-image-upload">
+                  <Button 
+                    component="span" 
+                    sx={{ minWidth: 0, p: 1, bgcolor: '#43a047', color: 'white', borderRadius: '50%' }}
+                    disabled={uploading.profile}
+                  >
+                    {uploading.profile ? <CircularProgress size={24} color="inherit" /> : <PhotoCamera />}
+                  </Button>
+                </label>
               </Box>
               <Typography align="center" variant="caption" sx={{ mt: 1 }}>Profile Pic</Typography>
             </Box>
 
             <Box sx={{ position: 'relative', mb: 2 }}>
-              <Avatar src="" sx={{ width: 120, height: 120, border: '2px solid #eee' }} />
+              <Avatar 
+                src={getImageUrl(images.cover)} 
+                sx={{ 
+                  width: 120, 
+                  height: 120, 
+                  border: '2px solid #eee',
+                  bgcolor: !images.cover ? '#e0e0e0' : 'transparent'
+                }} 
+              />
               <Box sx={{ position: 'absolute', bottom: 8, right: 8, bgcolor: 'white', borderRadius: '50%' }}>
-                <Button sx={{ minWidth: 0, p: 1, bgcolor: '#43a047', color: 'white', borderRadius: '50%' }}>
-                  <PhotoCamera />
-                </Button>
+                <input
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  id="cover-image-upload"
+                  type="file"
+                  onChange={handleImageChange('cover')}
+                  disabled={uploading.cover}
+                />
+                <label htmlFor="cover-image-upload">
+                  <Button 
+                    component="span" 
+                    sx={{ minWidth: 0, p: 1, bgcolor: '#43a047', color: 'white', borderRadius: '50%' }}
+                    disabled={uploading.cover}
+                  >
+                    {uploading.cover ? <CircularProgress size={24} color="inherit" /> : <PhotoCamera />}
+                  </Button>
+                </label>
               </Box>
               <Typography align="center" variant="caption" sx={{ mt: 1 }}>Cover Photo</Typography>
             </Box>
 
             <Box sx={{ position: 'relative', mb: 2 }}>
-              <Avatar src="" sx={{ width: 120, height: 120, border: '2px solid #eee', borderRadius: 0  }} />
+              <Avatar 
+                src={getImageUrl(images.marker)} 
+                sx={{ 
+                  width: 120, 
+                  height: 120, 
+                  border: '2px solid #eee', 
+                  borderRadius: 0,
+                  bgcolor: !images.marker ? '#e0e0e0' : 'transparent'
+                }} 
+              />
               <Box sx={{ position: 'absolute', bottom: 8, right: 8, bgcolor: 'white', borderRadius: '50%' }}>
-                <Button sx={{ minWidth: 0, p: 1, bgcolor: '#43a047', color: 'white', borderRadius: '50%' }}>
-                  <PhotoCamera />
-                </Button>
+                <input
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  id="marker-image-upload"
+                  type="file"
+                  onChange={handleImageChange('marker')}
+                  disabled={uploading.marker}
+                />
+                <label htmlFor="marker-image-upload">
+                  <Button 
+                    component="span" 
+                    sx={{ minWidth: 0, p: 1, bgcolor: '#43a047', color: 'white', borderRadius: '50%' }}
+                    disabled={uploading.marker}
+                  >
+                    {uploading.marker ? <CircularProgress size={24} color="inherit" /> : <PhotoCamera />}
+                  </Button>
+                </label>
               </Box>
               <Typography align="center" variant="caption" sx={{ mt: 1 }}>Marker to appear in Live Map</Typography>
             </Box>
@@ -277,22 +449,23 @@ const OperationCenter = () => {
 
           {/* Right: Map and Social Links */}
           <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField 
-              fullWidth 
-              label="Address" 
-              variant="outlined" 
-              size="small" 
-              value={formData.address || ''}
-              onChange={(e) => handleChange('address', e.target.value)}
-              sx={{ bgcolor: 'white', borderRadius: 1, mb: 1 }} 
-            />
-            <Box sx={{ width: '100%', height: 180, borderRadius: 2, overflow: 'hidden', mb: 2, border: '1px solid #e0e0e0' }}>
+            <Box sx={{ mb: 1 }}>
+              <TextField 
+                size="small" 
+                placeholder="Search" 
+                fullWidth 
+                InputProps={{ startAdornment: <SearchIcon sx={{ color: '#888', mr: 1 }} /> }} 
+                sx={{ background: 'white', borderRadius: 1, mb: 1 }} 
+                value={address}
+                onChange={handleAddressChange}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddressSearch(); }}
+              />
               <iframe
                 title="map"
                 width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3875.838377964839!2d123.8854373153607!3d10.31569989262639!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33a9991f1b1b1b1b%3A0x1b1b1b1b1b1b1b1b!2sCebu!5e0!3m2!1sen!2sph!4v1680000000000!5m2!1sen!2sph"
+                height="180"
+                style={{ border: 0, marginBottom: "1rem"}}
+                src={`https://www.google.com/maps?q=${formData.address?.coordinates?.lat || 0},${formData.address?.coordinates?.lng || 0}&z=15&output=embed`}
                 allowFullScreen
               ></iframe>
             </Box>

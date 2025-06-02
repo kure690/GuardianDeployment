@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   AppBar, 
   Typography, 
@@ -21,14 +21,37 @@ import NotificationImportantIcon from '@mui/icons-material/NotificationImportant
 import BarChartIcon from '@mui/icons-material/BarChart';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import config from '../config';
+import { useOpCen } from '../hooks/useOpCen';
 
-
-
-  
+const getImageUrl = (url: string) => {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  return `${config.PERSONAL_API}${url}`;
+};
 
 const LGUConsole = () => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    // Only get user id from localStorage
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const { data: opcenData } = useOpCen(user.id);
+    const [respondersCount, setRespondersCount] = useState(0);
     const navigate = useNavigate();
+
+    useEffect(() => {
+      const fetchResponders = async () => {
+        try {
+          const response = await axios.get(`${config.PERSONAL_API}/responders/`);
+          const activeResponders = response.data.filter((responder: any) => responder.status === 'active');
+          setRespondersCount(activeResponders.length);
+        } catch (err) {
+          console.error('Error fetching responders:', err);
+        }
+      };
+
+      fetchResponders();
+    }, []);
 
     const toggleSidebar = () => {
       setSidebarOpen(!sidebarOpen);
@@ -125,14 +148,16 @@ const LGUConsole = () => {
                     }}>
                       <Box sx={{ display: 'flex'}}>
                       <Avatar 
-                      src={avatarImg}
-                      alt="Avatar Image"
-                      sx={{   
-                      width: 50, 
-                      height: 50,
-                      boxSizing: 'border-box',
-                      borderRadius: '50%',
-                      }}/>
+                        src={getImageUrl(opcenData?.profileImage || '')}
+                        alt="Avatar Image"
+                        sx={{   
+                          width: 50, 
+                          height: 50,
+                          boxSizing: 'border-box',
+                          borderRadius: '50%',
+                          bgcolor: !opcenData?.profileImage ? '#e0e0e0' : 'transparent'
+                        }}
+                      />
                       </Box>
                     </Grid>  
                 </Grid>
@@ -217,13 +242,14 @@ const LGUConsole = () => {
               >
                 <Box
                       component="img"
-                      src={GuardianLogo}
-                      alt="GuardianLogo"
+                      src={getImageUrl(opcenData?.profileImage || '')}
+                      alt="Avatar Image"
                       sx={{
                       width: 50,
                       height: 50,
                       ml: 3,
-                      mr: 3
+                      mr: 3,
+                      borderRadius: '50%',
                       }}
                       />
               </Box>
@@ -238,7 +264,7 @@ const LGUConsole = () => {
                   borderBottom: '1px solid #e0e0e0',
                 }}
               >
-                <Typography variant="h6">Bantay Mandaue CDRRMO</Typography>
+                <Typography variant="h6">{opcenData ? `${opcenData.firstName} ${opcenData.lastName}` : ''}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                   Welcome to the GuardianPH Admin Console
                 </Typography>
@@ -276,7 +302,7 @@ const LGUConsole = () => {
                       <Button size="small" sx={{ textTransform: 'none' }} onClick={() => navigate('/usermanagement')}>Manage</Button>
                     </Box>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Active</Typography>
-                    <Typography variant="h4" sx={{ mb: 2 }}>18</Typography>
+                    <Typography variant="h4" sx={{ mb: 2 }}>{respondersCount}</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Add a user</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Delete a user</Button>
@@ -295,7 +321,7 @@ const LGUConsole = () => {
                   }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Typography variant="h6">Directory</Typography>
-                      <Button size="small" sx={{ textTransform: 'none' }}>Manage</Button>
+                      <Button size="small" sx={{ textTransform: 'none' }} onClick={() => navigate('/teams')}>Manage</Button>
                     </Box>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>View and download reports</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>

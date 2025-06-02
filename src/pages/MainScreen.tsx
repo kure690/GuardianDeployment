@@ -35,7 +35,7 @@ import {
   useCalls,
   Call
 } from "@stream-io/video-react-sdk";
-import {RingingCall} from "../components/RingingCall";
+
 
 import {
   Chat,

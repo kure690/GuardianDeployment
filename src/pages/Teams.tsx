@@ -9,17 +9,53 @@ import {
   Container,
   Paper,
   IconButton,
-  Tooltip
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  SelectChangeEvent,
+  Snackbar,
+  Alert,
+  FormLabel,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText
 } from '@mui/material';
 import Grid from "@mui/material/Grid2";
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
 import axios from 'axios';
 import config from '../config';
 
 const Teams = () => {
   const [teams, setTeams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState<any>(null);
+  const [editFormData, setEditFormData] = useState({
+    teamName: '',
+    description: '',
+    assignment: '',
+    teamLeader: '',
+    deputyDriver: '',
+    teamBadge: ''
+  });
+  const [snackbar, setSnackbar] = useState({ 
+    open: false, 
+    message: '', 
+    severity: 'success' as 'success' | 'error' 
+  });
+  const [responders, setResponders] = useState<any[]>([]);
+  const [editMembers, setEditMembers] = useState<any[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,6 +70,138 @@ const Teams = () => {
     };
     fetchTeams();
   }, []);
+
+  useEffect(() => {
+    const fetchResponders = async () => {
+      try {
+        const res = await axios.get(`${config.PERSONAL_API}/responders/`);
+        setResponders(res.data);
+      } catch (err) {
+        setResponders([]);
+      }
+    };
+    fetchResponders();
+  }, []);
+
+  const handleEditOpen = (team: any) => {
+    setSelectedTeam(team);
+    setEditFormData({
+      teamName: team.teamName,
+      description: team.description || '',
+      assignment: team.assignment,
+      teamLeader: team.teamLeader?._id || '',
+      deputyDriver: team.deputyDriver?._id || '',
+      teamBadge: team.teamBadge || ''
+    });
+    setEditMembers(team.members || []);
+    setEditOpen(true);
+  };
+
+  const handleEditClose = () => {
+    setEditOpen(false);
+    setSelectedTeam(null);
+  };
+
+  const handleDeleteConfirmOpen = (team: any) => {
+    setSelectedTeam(team);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirmClose = () => {
+    setDeleteConfirmOpen(false);
+    setSelectedTeam(null);
+  };
+
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleEditSelectChange = (e: SelectChangeEvent) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleAddMember = (responder: any) => {
+    setEditMembers(prev => [...prev, responder]);
+  };
+
+  const handleRemoveMember = (id: string) => {
+    setEditMembers(prev => prev.filter(m => m._id !== id));
+  };
+
+  const handleEditSubmit = async () => {
+    try {
+      if (!selectedTeam) return;
+
+      const memberIds = [
+        ...new Set([
+          ...editMembers.map(m => m._id),
+          editFormData.teamLeader,
+          editFormData.deputyDriver
+        ])
+      ];
+
+      const payload = {
+        ...editFormData,
+        members: memberIds
+      };
+
+      await axios.put(`${config.PERSONAL_API}/opcen-teams/${selectedTeam._id}`, payload);
+      setSnackbar({
+        open: true,
+        message: 'Team updated successfully',
+        severity: 'success'
+      });
+      handleEditClose();
+      // Refresh teams list
+      const res = await axios.get(`${config.PERSONAL_API}/opcen-teams/`);
+      setTeams(res.data);
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || 'Error updating team',
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await axios.delete(`${config.PERSONAL_API}/opcen-teams/${id}`);
+      setSnackbar({
+        open: true,
+        message: 'Team deleted successfully',
+        severity: 'success'
+      });
+      handleDeleteConfirmClose();
+      // Refresh teams list
+      const res = await axios.get(`${config.PERSONAL_API}/opcen-teams/`);
+      setTeams(res.data);
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || 'Error deleting team',
+        severity: 'error'
+      });
+    }
+  };
+
+  // Get available responders (not already in the team)
+  const getAvailableResponders = () => {
+    const currentMemberIds = new Set([
+      ...editMembers.map(m => m._id),
+      editFormData.teamLeader,
+      editFormData.deputyDriver
+    ]);
+    return responders.filter(r => !currentMemberIds.has(r._id));
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: '#f7fafa', position: 'relative' }}>
@@ -87,12 +255,24 @@ const Teams = () => {
             teams.map((team, idx) => (
               <Grid container key={team._id || idx} sx={{ background: 'white', borderRadius: 2, mt: 2, mb: 0, boxShadow: 0, border: '1.5px solid #e0e0e0', alignItems: 'space-between', justifyContent: 'space-between', p: 2, minHeight: 120 }}>
                 <Grid size={{ md: 1.2 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Avatar variant="rounded" sx={{ width: 64, height: 64, bgcolor: '#f2f2f2', border: '1px solid #e0e0e0' }} />
+                  <Avatar 
+                    src={team.teamBadge ? `${config.PERSONAL_API}${team.teamBadge}` : undefined} 
+                    variant="rounded" 
+                    sx={{ 
+                      width: 64, 
+                      height: 64, 
+                      bgcolor: '#f2f2f2', 
+                      border: '1px solid #e0e0e0',
+                      '& img': {
+                        objectFit: 'cover'
+                      }
+                    }} 
+                  />
                 </Grid>
                 <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 700, fontSize: 18, justifyContent: 'center' }}>
                   <span style={{ fontWeight: 700, fontSize: 24 }}>{team.teamName}</span>
                 </Grid>
-                <Grid size={{ md: 2.8 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f5f5', minHeight: 80 }}>
+                <Grid size={{ md: 2.8 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f5f5', minHeight: 80, textTransform: 'capitalize' }}>
                   <Box>
                     {team.members && team.members.length > 0 ? (
                       team.members.map((member: any, i: number) => (
@@ -115,9 +295,21 @@ const Teams = () => {
                       : team.teamLeader || 'N/A'}
                   </span>
                 </Grid>
-                <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column', gap: 2, justifyContent: 'end' }}>
-                  <Button variant="contained" sx={{ bgcolor: '#43a047', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 16, px: 4, py: 1, width: '100%' }}>Manage</Button>
-                  <Button variant="contained" sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 16, px: 4, py: 1, width: '100%', '&:hover': { bgcolor: '#d32f2f' } }}>Delete</Button>
+                <Grid size={{ md: 1.6 }} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Button 
+                    variant="contained" 
+                    sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }}
+                    onClick={() => handleEditOpen(team)}
+                  >
+                    Edit
+                  </Button>
+                  <Button 
+                    variant="contained" 
+                    sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5, '&:hover': { bgcolor: '#d32f2f' } }}
+                    onClick={() => handleDeleteConfirmOpen(team)}
+                  >
+                    Delete
+                  </Button>
                 </Grid>
               </Grid>
             ))
@@ -132,6 +324,194 @@ const Teams = () => {
           </IconButton>
         </Tooltip>
       </Box>
+
+      {/* Edit Team Modal */}
+      <Dialog open={editOpen} onClose={handleEditClose} maxWidth="md" fullWidth slotProps={{ paper: { sx: { borderRadius: 4 } } }}>
+        <Box sx={{ background: '#6b8e9e', p: 0}}>
+          <DialogTitle sx={{ color: 'white', fontSize: 32, fontWeight: 400, p: 2, pb: 2 }}>Edit Team</DialogTitle>
+        </Box>
+        <DialogContent sx={{ p: 4, pt: 2 }}>
+          <Grid container spacing={3}>
+            <Grid size={{ md: 6 }}>
+              <FormLabel sx={{ fontWeight: 700, fontSize: 18, color: '#222' }}>Team Info</FormLabel>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3, mt: 2 }}>
+                <TextField 
+                  label="Team Name" 
+                  variant="outlined" 
+                  size="small" 
+                  fullWidth 
+                  name="teamName"
+                  value={editFormData.teamName}
+                  onChange={handleEditChange}
+                  required
+                />
+                <TextField 
+                  label="Description" 
+                  variant="outlined" 
+                  size="small" 
+                  fullWidth 
+                  name="description"
+                  value={editFormData.description}
+                  onChange={handleEditChange}
+                />
+                <FormControl fullWidth size="small">
+                  <InputLabel>Assignment</InputLabel>
+                  <Select
+                    name="assignment"
+                    value={editFormData.assignment}
+                    onChange={handleEditSelectChange}
+                    label="Assignment"
+                    required
+                  >
+                    <MenuItem value="Fire">Fire</MenuItem>
+                    <MenuItem value="Police">Police</MenuItem>
+                    <MenuItem value="Medical">Medical</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+            </Grid>
+            <Grid size={{ md: 6 }}>
+              <FormLabel sx={{ fontWeight: 700, fontSize: 18, color: '#222' }}>Team Members</FormLabel>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3, mt: 2 }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Team Leader</InputLabel>
+                  <Select
+                    name="teamLeader"
+                    value={editFormData.teamLeader}
+                    onChange={handleEditSelectChange}
+                    label="Team Leader"
+                    required
+                  >
+                    {responders.map(r => (
+                      <MenuItem key={r._id} value={r._id}>{r.firstName} {r.lastName}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Deputy/Driver</InputLabel>
+                  <Select
+                    name="deputyDriver"
+                    value={editFormData.deputyDriver}
+                    onChange={handleEditSelectChange}
+                    label="Deputy/Driver"
+                    required
+                  >
+                    {responders.map(r => (
+                      <MenuItem key={r._id} value={r._id}>{r.firstName} {r.lastName}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+            </Grid>
+            <Grid size={{ md: 6 }}>
+              <Paper sx={{ maxHeight: 200, overflowY: 'auto', mb: 2, background: '#fafbfc', boxShadow: 0, border: '1px solid #e0e0e0', borderRadius: 2 }}>
+                <List>
+                  {getAvailableResponders().map(r => (
+                    <ListItem key={r._id} onClick={() => handleAddMember(r)} sx={{ cursor: 'pointer' }}>
+                      <ListItemAvatar>
+                        <Avatar variant="rounded" sx={{ bgcolor: '#f2f2f2', width: 32, height: 32 }} />
+                      </ListItemAvatar>
+                      <ListItemText primary={r.firstName + ' ' + r.lastName} />
+                    </ListItem>
+                  ))}
+                  {getAvailableResponders().length === 0 && (
+                    <ListItem><ListItemText primary="No available responders" /></ListItem>
+                  )}
+                </List>
+              </Paper>
+            </Grid>
+            <Grid size={{ md: 6 }}>
+              <Paper sx={{ maxHeight: 200, overflowY: 'auto', mb: 2, background: '#fafbfc', boxShadow: 0, border: '1px solid #e0e0e0', borderRadius: 2 }}>
+                <List>
+                  {editMembers.map(m => (
+                    <ListItem key={m._id}>
+                      <ListItemAvatar>
+                        <Avatar variant="rounded" sx={{ bgcolor: '#f2f2f2', width: 32, height: 32 }} />
+                      </ListItemAvatar>
+                      <ListItemText primary={m.firstName + ' ' + m.lastName} />
+                      {m._id !== editFormData.teamLeader && m._id !== editFormData.deputyDriver && (
+                        <IconButton edge="end" aria-label="delete" onClick={() => handleRemoveMember(m._id)}>
+                          <DeleteIcon sx={{ color: '#ef5350' }} />
+                        </IconButton>
+                      )}
+                    </ListItem>
+                  ))}
+                  {editMembers.length === 0 && (
+                    <ListItem><ListItemText primary="No members added" /></ListItem>
+                  )}
+                </List>
+              </Paper>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'flex-end', p: 3, pt: 0 }}>
+          <Button 
+            variant="contained" 
+            sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, '&:hover': { bgcolor: '#d32f2f' } }} 
+            onClick={handleEditClose}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, mr: 2 }}
+            onClick={handleEditSubmit}
+          >
+            Save Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={handleDeleteConfirmClose}
+        maxWidth="xs"
+        fullWidth
+        slotProps={{ paper: { sx: { borderRadius: 4 } } }}
+      >
+        <DialogTitle sx={{ fontSize: 24, fontWeight: 500, p: 3, pb: 1 }}>
+          Confirm Deletion
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, pt: 1 }}>
+          <Typography>
+            Are you sure you want to delete {selectedTeam?.teamName}? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'flex-end', p: 3, pt: 1 }}>
+          <Button 
+            variant="contained" 
+            sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, mr: 2 }}
+            onClick={handleDeleteConfirmClose}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, '&:hover': { bgcolor: '#d32f2f' } }}
+            onClick={() => {
+              if (selectedTeam) {
+                handleDelete(selectedTeam._id);
+              }
+            }}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={6000} 
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+      >
+        <Alert 
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} 
+          severity={snackbar.severity}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </div>
   )
 }

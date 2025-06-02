@@ -36,6 +36,9 @@ import config from '../config';
 
 const ManageUsers = () => {
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [selectedResponder, setSelectedResponder] = useState<any>(null);
   const [passwordType, setPasswordType] = useState('create');
   const [askChange, setAskChange] = useState(true);
   const [responders, setResponders] = useState([]);
@@ -46,7 +49,16 @@ const ManageUsers = () => {
     email: '',
     phone: '',
     password: '',
-    assignment: ''
+    assignment: '',
+    status: 'active'
+  });
+  const [editFormData, setEditFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    assignment: '',
+    status: 'active'
   });
   const [snackbar, setSnackbar] = useState({ 
     open: false, 
@@ -118,7 +130,8 @@ const ManageUsers = () => {
       email: '',
       phone: '',
       password: '',
-      assignment: ''
+      assignment: '',
+      status: 'active'
     });
   };
 
@@ -168,6 +181,71 @@ const ManageUsers = () => {
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
+  };
+
+  const handleEditOpen = (responder: any) => {
+    setSelectedResponder(responder);
+    setEditFormData({
+      firstName: responder.firstName,
+      lastName: responder.lastName,
+      email: responder.email,
+      phone: responder.phone,
+      assignment: responder.assignment,
+      status: responder.status
+    });
+    setEditOpen(true);
+  };
+
+  const handleEditClose = () => {
+    setEditOpen(false);
+    setSelectedResponder(null);
+  };
+
+  const handleDeleteConfirmOpen = (responder: any) => {
+    setSelectedResponder(responder);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirmClose = () => {
+    setDeleteConfirmOpen(false);
+    setSelectedResponder(null);
+  };
+
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({
+      ...prev,
+      [name as string]: value
+    }));
+  };
+
+  const handleEditSelectChange = (e: SelectChangeEvent) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({
+      ...prev,
+      [name as string]: value
+    }));
+  };
+
+  const handleEditSubmit = async () => {
+    try {
+      if (!selectedResponder) return;
+
+      await axios.put(`${config.PERSONAL_API}/responders/${selectedResponder._id}`, editFormData);
+      setSnackbar({
+        open: true,
+        message: 'Responder updated successfully',
+        severity: 'success'
+      });
+      handleEditClose();
+      fetchResponders(); // Refresh the list
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || 'Error updating responder',
+        severity: 'error'
+      });
+    }
   };
 
   return (
@@ -263,11 +341,17 @@ const ManageUsers = () => {
                 </Grid>
                 <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>{responder.phone}</Grid>
                 <Grid size={{ md: 1.6 }} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }}>Manage</Button>
+                  <Button 
+                    variant="contained" 
+                    sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }}
+                    onClick={() => handleEditOpen(responder)}
+                  >
+                    Edit
+                  </Button>
                   <Button 
                     variant="contained" 
                     sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5, '&:hover': { bgcolor: '#d32f2f' } }}
-                    onClick={() => handleDelete(responder._id)}
+                    onClick={() => handleDeleteConfirmOpen(responder)}
                   >
                     Delete
                   </Button>
@@ -290,8 +374,8 @@ const ManageUsers = () => {
           <DialogTitle sx={{ color: 'white', fontSize: 32, fontWeight: 400, p: 2, pb: 2 }}>Add User</DialogTitle>
         </Box>
         <DialogContent sx={{ p: 4, pt: 2 }}>
-          <FormLabel sx={{ fontWeight: 700, fontSize: 18, mb: 2, color: '#222' }}>Responder Info</FormLabel>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+          <FormLabel sx={{ fontWeight: 700, fontSize: 18, color: '#222' }}>Responder Info</FormLabel>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3, mt: 2 }}>
             <TextField 
               label="First Name" 
               variant="outlined" 
@@ -383,17 +467,152 @@ const ManageUsers = () => {
         <DialogActions sx={{ justifyContent: 'flex-end', p: 3, pt: 0 }}>
           <Button 
             variant="contained" 
+            sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, '&:hover': { bgcolor: '#d32f2f' } }} 
+            onClick={handleClose}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
             sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, mr: 2 }}
             onClick={handleSubmit}
           >
             Add New User
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit User Modal */}
+      <Dialog open={editOpen} onClose={handleEditClose} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: 4 } } }}>
+        <Box sx={{ background: '#6b8e9e', p: 0}}>
+          <DialogTitle sx={{ color: 'white', fontSize: 32, fontWeight: 400, p: 2, pb: 2 }}>Edit User</DialogTitle>
+        </Box>
+        <DialogContent sx={{ p: 4, pt: 2 }}>
+          <FormLabel sx={{ fontWeight: 700, fontSize: 18, color: '#222' }}>Responder Info</FormLabel>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3, mt: 2 }}>
+            <TextField 
+              label="First Name" 
+              variant="outlined" 
+              size="small" 
+              fullWidth 
+              name="firstName"
+              value={editFormData.firstName}
+              onChange={handleEditChange}
+              required
+            />
+            <TextField 
+              label="Last Name" 
+              variant="outlined" 
+              size="small" 
+              fullWidth 
+              name="lastName"
+              value={editFormData.lastName}
+              onChange={handleEditChange}
+              required
+            />
+            <TextField 
+              label="Primary Email" 
+              variant="outlined" 
+              size="small" 
+              fullWidth 
+              name="email"
+              value={editFormData.email}
+              onChange={handleEditChange}
+              required
+            />
+            <TextField 
+              label="Mobile Number" 
+              variant="outlined" 
+              size="small" 
+              fullWidth 
+              name="phone"
+              value={editFormData.phone}
+              onChange={handleEditChange}
+              required
+            />
+            <FormControl fullWidth size="small">
+              <InputLabel>Assignment</InputLabel>
+              <Select
+                name="assignment"
+                value={editFormData.assignment}
+                onChange={handleEditSelectChange}
+                label="Assignment"
+                required
+              >
+                <MenuItem value="ambulance">Ambulance</MenuItem>
+                <MenuItem value="firetruck">Firetruck</MenuItem>
+                <MenuItem value="police">Police</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth size="small">
+              <InputLabel>Status</InputLabel>
+              <Select
+                name="status"
+                value={editFormData.status}
+                onChange={handleEditSelectChange}
+                label="Status"
+                required
+              >
+                <MenuItem value="active">Active</MenuItem>
+                <MenuItem value="inactive">Inactive</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'flex-end', p: 3, pt: 0 }}>
+          
           <Button 
             variant="contained" 
             sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, '&:hover': { bgcolor: '#d32f2f' } }} 
-            onClick={handleClose}
+            onClick={handleEditClose}
           >
             Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, mr: 2 }}
+            onClick={handleEditSubmit}
+          >
+            Save Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={handleDeleteConfirmClose}
+        maxWidth="xs"
+        fullWidth
+        slotProps={{ paper: { sx: { borderRadius: 4 } } }}
+      >
+        <DialogTitle sx={{ fontSize: 24, fontWeight: 500, p: 3, pb: 1 }}>
+          Confirm Deletion
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, pt: 1 }}>
+          <Typography>
+            Are you sure you want to delete {selectedResponder?.firstName} {selectedResponder?.lastName}? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'flex-end', p: 3, pt: 1 }}>
+          <Button 
+            variant="contained" 
+            sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, mr: 2 }}
+            onClick={handleDeleteConfirmClose}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, '&:hover': { bgcolor: '#d32f2f' } }}
+            onClick={() => {
+              if (selectedResponder) {
+                handleDelete(selectedResponder._id);
+                handleDeleteConfirmClose();
+              }
+            }}
+          >
+            Delete
           </Button>
         </DialogActions>
       </Dialog>

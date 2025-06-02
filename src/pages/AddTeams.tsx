@@ -8,7 +8,6 @@ import {
   Container,
   Paper,
   IconButton,
-  Tooltip,
   TextField,
   Select,
   MenuItem,
@@ -35,6 +34,8 @@ const AddTeams = () => {
   const [deputyDriver, setDeputyDriver] = useState('');
   const [members, setMembers] = useState<any[]>([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const [teamBadge, setTeamBadge] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>('');
 
   useEffect(() => {
     // Fetch responders from API
@@ -57,12 +58,32 @@ const AddTeams = () => {
     setMembers(prev => prev.filter(m => m._id !== id));
   };
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setTeamBadge(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSave = async () => {
     try {
       if (!teamName || !description || !assignment || !teamLeader || !deputyDriver) {
         setSnackbar({ open: true, message: 'Please fill all required fields', severity: 'error' });
         return;
       }
+
+      const formData = new FormData();
+      formData.append('teamName', teamName);
+      formData.append('description', description);
+      formData.append('assignment', assignment);
+      formData.append('teamLeader', teamLeader);
+      formData.append('deputyDriver', deputyDriver);
+      
       // Always include teamLeader and deputyDriver in the members array, no duplicates
       const memberIds = [
         ...new Set([
@@ -71,15 +92,21 @@ const AddTeams = () => {
           deputyDriver
         ])
       ];
-      const payload = {
-        teamName,
-        description,
-        assignment,
-        teamLeader,
-        deputyDriver,
-        members: memberIds
-      };
-      await axios.post(`${config.PERSONAL_API}/opcen-teams/`, payload);
+      
+      memberIds.forEach(memberId => {
+        formData.append('members', memberId);
+      });
+
+      if (teamBadge) {
+        formData.append('teamBadge', teamBadge);
+      }
+
+      await axios.post(`${config.PERSONAL_API}/opcen-teams/`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
       setSnackbar({ open: true, message: 'Team created successfully!', severity: 'success' });
       setTeamName('');
       setDescription('');
@@ -87,6 +114,8 @@ const AddTeams = () => {
       setTeamLeader('');
       setDeputyDriver('');
       setMembers([]);
+      setTeamBadge(null);
+      setPreviewUrl('');
     } catch (err: any) {
       setSnackbar({ open: true, message: err.response?.data?.message || 'Error creating team', severity: 'error' });
     }
@@ -146,9 +175,54 @@ const AddTeams = () => {
         <Grid container spacing={4}>
           {/* Left: Team Badge */}
           <Grid size={{ md: 3, xs: 12 }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <Paper sx={{ width: 160, height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-              <img src="https://via.placeholder.com/120x100?text=+" alt="Team Badge" style={{ opacity: 0.5 }} />
+            <Paper 
+              sx={{ 
+                width: 160, 
+                height: 160, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                mb: 2,
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              {previewUrl ? (
+                <img 
+                  src={previewUrl} 
+                  alt="Team Badge Preview" 
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    objectFit: 'cover' 
+                  }} 
+                />
+              ) : (
+                <img 
+                  src="https://via.placeholder.com/120x100?text=+" 
+                  alt="Team Badge" 
+                  style={{ opacity: 0.5 }} 
+                />
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                style={{
+                  position: 'absolute',
+                  width: '100%',
+                  height: '100%',
+                  opacity: 0,
+                  cursor: 'pointer'
+                }}
+              />
             </Paper>
+              <input
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={handleFileChange}
+              />
             <Typography variant="subtitle1" sx={{ color: '#888' }}>Team Badge</Typography>
           </Grid>
           {/* Center: Team Info and Form */}
@@ -211,7 +285,7 @@ const AddTeams = () => {
           </Grid>
           {/* Right: Members List */}
           <Grid size={{ md: 4, xs: 12 }}>
-            <Paper sx={{ borderRadius: 3, overflow: 'hidden', mb: 2, height: '100%' }}>
+            <Paper sx={{ borderRadius: 3, overflow: 'hidden', mb: 2, height: '500px' }}>
               <Box sx={{ background: '#23607a', p: 1.5, }}>
                 <Typography variant="h6" sx={{ color: 'white', fontWeight: 600, textAlign: 'center' }}>Members</Typography>
               </Box>

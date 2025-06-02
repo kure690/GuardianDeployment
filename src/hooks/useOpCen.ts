@@ -14,7 +14,15 @@ interface OpCenData {
   email: string;
   website: string;
   shortHistory: string;
-  address: string;
+  profileImage: string;
+  coverImage: string;
+  markerImage: string;
+  address: {
+    coordinates: {
+      lat: number;
+      lng: number;
+    }
+  };
   socialMedia: {
     facebook: string;
     youtube: string;

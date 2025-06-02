@@ -24,6 +24,8 @@ import Notification from "./pages/Notification";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import RegisterOpcen from "./pages/RegisterOpcen";
 import AddTeams from "./pages/AddTeams";
+import Facilities from "./pages/Facilities";
+import AddFacilities from "./pages/AddFacilities";
 // Create global theme with Verdana as default font
 const theme = createTheme({
   typography: {
@@ -130,9 +132,17 @@ function App() {
                   path="/" 
                   element={
                     isAuthenticated 
-                      ? (userRole === 'LGU' 
-                          ? <Navigate to="/lgu-main" replace /> 
-                          : <Navigate to="/status" replace />)
+                      ? (() => {
+                          const user = JSON.parse(localStorage.getItem('user') || '{}');
+                          if (user.type === 'opcen') {
+                            return <Navigate to="/lgu-console" replace />;
+                          } else if (user.type === 'dispatcher') {
+                            return user.dispatcherType === 'Guardian' 
+                              ? <Navigate to="/status" replace />
+                              : <Navigate to="/lgu-main" replace />;
+                          }
+                          return <Navigate to="/status" replace />;
+                        })()
                       : <Login />
                   } 
                 />
@@ -152,6 +162,8 @@ function App() {
                 <Route path="/add-mobile-assets" element={isAuthenticated ? <AddMobileAssets /> : <Navigate to="/" replace />} />
                 <Route path="/notification" element={isAuthenticated ? <Notification /> : <Navigate to="/" replace />} />
                 <Route path="/add-teams" element={isAuthenticated ? <AddTeams /> : <Navigate to="/" replace />} />
+                <Route path="/facilities" element={isAuthenticated ? <Facilities /> : <Navigate to="/" replace />} />
+                <Route path="/add-facilities" element={isAuthenticated ? <AddFacilities /> : <Navigate to="/" replace />} />
               </Routes>
             </Chat>
           ) : (
