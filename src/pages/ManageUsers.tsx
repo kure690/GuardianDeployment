@@ -155,7 +155,7 @@ const ManageUsers = () => {
 
   const handleSubmit = async () => {
     try {
-      if (!formData.email || !formData.password) {
+      if (!formData.email) {
         setSnackbar({
           open: true,
           message: 'Email and password are required',
