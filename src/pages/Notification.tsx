@@ -304,6 +304,7 @@ const Notification = () => {
         return;
       }
 
+
       // Create FormData object for multipart/form-data
       const submitData = new FormData();
       
@@ -337,7 +338,25 @@ const Notification = () => {
         }
       );
 
-      console.log('Server Response:', response.data);
+      const sendNotif = await axios.post(
+        `${config.PERSONAL_API}/notifications/send-to-all`,
+        {
+          title: formData.title,
+          body: formData.message
+        },
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+        await Promise.all([response, sendNotif]).then((values) => {
+          console.log(values); // [3, 1337, "foo"]
+        });
+
+
+      // console.log('Server Response:', response.data);
 
       setSnackbar({
         open: true,
