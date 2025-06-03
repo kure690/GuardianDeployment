@@ -50,7 +50,8 @@ const ManageUsers = () => {
     phone: '',
     password: '',
     assignment: '',
-    status: 'active'
+    status: 'active',
+    requirePasswordChange: false
   });
   const [editFormData, setEditFormData] = useState({
     firstName: '',
@@ -131,7 +132,8 @@ const ManageUsers = () => {
       phone: '',
       password: '',
       assignment: '',
-      status: 'active'
+      status: 'active',
+      requirePasswordChange: false
     });
   };
 
@@ -162,7 +164,12 @@ const ManageUsers = () => {
         return;
       }
 
-      await axios.post(`${config.PERSONAL_API}/responders/`, formData);
+      const submitData = {
+        ...formData,
+        requirePasswordChange: passwordType === 'auto'
+      };
+
+      await axios.post(`${config.PERSONAL_API}/responders/`, submitData);
       setSnackbar({
         open: true,
         message: 'Responder created successfully',
