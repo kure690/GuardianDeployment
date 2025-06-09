@@ -26,6 +26,8 @@ import RegisterOpcen from "./pages/RegisterOpcen";
 import AddTeams from "./pages/AddTeams";
 import Facilities from "./pages/Facilities";
 import AddFacilities from "./pages/AddFacilities";
+import Announcements from "./pages/Announcements";
+import Messages from "./pages/Messages";
 // Create global theme with Verdana as default font
 const theme = createTheme({
   typography: {
@@ -164,6 +166,8 @@ function App() {
                 <Route path="/add-teams" element={isAuthenticated ? <AddTeams /> : <Navigate to="/" replace />} />
                 <Route path="/facilities" element={isAuthenticated ? <Facilities /> : <Navigate to="/" replace />} />
                 <Route path="/add-facilities" element={isAuthenticated ? <AddFacilities /> : <Navigate to="/" replace />} />
+                <Route path="/announcements" element={isAuthenticated ? <Announcements /> : <Navigate to="/" replace />} />
+                <Route path="/messages" element={isAuthenticated ? <Messages /> : <Navigate to="/" replace />} />
               </Routes>
             </Chat>
           ) : (

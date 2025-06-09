@@ -35,6 +35,12 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import axios from 'axios';
 import config from '../config';
 
+const getImageUrl = (url: string) => {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  return `${config.PERSONAL_API}${url}`;
+};
+
 const Teams = () => {
   const [teams, setTeams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -256,7 +262,7 @@ const Teams = () => {
               <Grid container key={team._id || idx} sx={{ background: 'white', borderRadius: 2, mt: 2, mb: 0, boxShadow: 0, border: '1.5px solid #e0e0e0', alignItems: 'space-between', justifyContent: 'space-between', p: 2, minHeight: 120 }}>
                 <Grid size={{ md: 1.2 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Avatar 
-                    src={team.teamBadge ? `${config.PERSONAL_API}${team.teamBadge}` : undefined} 
+                    src={getImageUrl(team?.teamBadge || '')} 
                     variant="rounded" 
                     sx={{ 
                       width: 64, 

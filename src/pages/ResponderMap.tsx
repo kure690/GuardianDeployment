@@ -448,10 +448,12 @@ const ResponderMap = () => {
   useEffect(() => {
     const fetchResponderUsers = async () => {
       try {
-        const response = await fetch(`${config.PERSONAL_API}/users/role/Responder`);
+        const response = await fetch(`${config.PERSONAL_API}/responders`);
         if (response.ok) {
           const data = await response.json();
-          setResponderUsers(data.users || []);
+          // Filter out inactive responders
+          const activeResponders = data.filter((responder: any) => responder.status === 'active');
+          setResponderUsers(activeResponders);
         } else {
           console.error('Failed to fetch responder users');
         }
@@ -785,7 +787,7 @@ const ResponderMap = () => {
 
         <Typography variant="h6" sx={{ color: 'black' }}>AMBULANCE</Typography>
         {responderUsers
-          .filter(user => user.type?.toLowerCase() === 'ambulance' || user.firstName?.toLowerCase().includes('ambu'))
+          .filter(user => user.assignment === 'ambulance')
           .map((user, index) => (
             <Box
               key={index}
@@ -828,7 +830,7 @@ const ResponderMap = () => {
         <Box sx={{  }}>
           
           {responderUsers
-            .filter(user => user.type?.toLowerCase() === 'firetruck')
+            .filter(user => user.assignment === 'firetruck')
             .map((user, index) => (
               <Box
                 key={index}
@@ -873,7 +875,7 @@ const ResponderMap = () => {
         <Box sx={{ mb: 1 }}>
           
           {responderUsers
-            .filter(user => user.type?.toLowerCase() === 'police')
+            .filter(user => user.assignment === 'police')
             .map((user, index) => (
               <Box
                 key={index}

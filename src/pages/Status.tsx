@@ -110,7 +110,9 @@ export default function Status() {
         });
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Server error response:', errorData);
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.message || 'Unknown error'}`);
         }
         
         const incidents = await response.json();
@@ -154,6 +156,7 @@ export default function Status() {
         }
       } catch (error) {
         console.error('Error fetching incidents:', error);
+        // Don't throw the error further since this is in an interval
       }
     };
 

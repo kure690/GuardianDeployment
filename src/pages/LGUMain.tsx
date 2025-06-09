@@ -457,17 +457,17 @@ const LGUMain = () => {
             console.log(`Total incidents: ${data.length}`);
             
             const connectedIncidents = data.filter((incident: any) => {
-                // Get the LGU ID whether it's an object or string
-                const lguId = incident.lgu ? (typeof incident.lgu === 'object' ? incident.lgu._id : incident.lgu) : null;
-                // Show incidents that are assigned to this LGU and either connected or connecting
-                const matches = lguId === userId && 
-                              (incident.lguStatus === 'connected' || incident.lguStatus === 'connecting') && 
+                // Get the opCen ID whether it's an object or string
+                const opCenId = incident.opCen ? (typeof incident.opCen === 'object' ? incident.opCen._id : incident.opCen) : null;
+                // Show incidents that are assigned to this opCen and are connected (not connecting)
+                const matches = opCenId === userId && 
+                              incident.opCenStatus === 'connected' && 
                               !incident.isFinished;
                 
-                if (lguId === userId) {
+                if (opCenId === userId) {
                     console.log('Incident status:', {
                         id: incident._id,
-                        lguStatus: incident.lguStatus,
+                        opCenStatus: incident.opCenStatus,
                         isFinished: incident.isFinished
                     });
                 }
@@ -747,14 +747,14 @@ useEffect(() => {
                     console.log('Fetched incidents:', data.length);
                     
                     const connectingIncident = data.find((incident: any) => {
-                        // Handle cases where lgu might be null, an object, or a string
-                        const lguId = incident.lgu ? (typeof incident.lgu === 'object' ? incident.lgu._id : incident.lgu) : null;
-                        const matches = lguId === userId && incident.lguStatus === 'connecting';
-                        if (lguId === userId) {
-                            console.log('Found incident with matching LGU:', {
+                        // Handle cases where opCen might be null, an object, or a string
+                        const opCenId = incident.opCen ? (typeof incident.opCen === 'object' ? incident.opCen._id : incident.opCen) : null;
+                        const matches = opCenId === userId && incident.opCenStatus === 'connecting';
+                        if (opCenId === userId) {
+                            console.log('Found incident with matching opCen:', {
                                 incidentId: incident._id,
-                                lguStatus: incident.lguStatus,
-                                lguId: lguId,
+                                opCenStatus: incident.opCenStatus,
+                                opCenId: opCenId,
                                 userId: userId
                             });
                         }
@@ -779,7 +779,7 @@ useEffect(() => {
                             }
                         }
                     } else {
-                        console.log('No connecting incident found for LGU:', userId);
+                        console.log('No connecting incident found for opCen:', userId);
                     }
                 }
             } catch (error) {
@@ -826,9 +826,9 @@ useEffect(() => {
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    lguStatus: 'connected',
-                    lguConnectedAt: new Date(),
-                    lgu: userId,
+                    opCenStatus: 'connected',
+                    opCenConnectedAt: new Date(),
+                    opCen: userId,
                     channelId: channelId
                 })
             });
@@ -865,8 +865,8 @@ useEffect(() => {
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    lguStatus: 'idle',
-                    lgu: null
+                    opCenStatus: 'idle',
+                    opCen: null
                 })
             });
     

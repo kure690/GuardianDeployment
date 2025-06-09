@@ -107,14 +107,14 @@ const MainScreen = () => {
   const [isResolved, setIsResolved] = useState(false);
   const [acceptedAt, setAcceptedAt] = useState<string | null>(null);
   const [lapsTime, setLapsTime] = useState(0);
-  const [lguUsers, setLguUsers] = useState<any[]>([]);
-  const [selectedLgu, setSelectedLgu] = useState<any>(null);
+  const [opCenUsers, setOpCenUsers] = useState<any[]>([]);
+  const [selectedOpCen, setSelectedOpCen] = useState<any>(null);
   const [modalIncident, setModalIncident] = useState<string>("");
   const [customIncidentType, setCustomIncidentType] = useState<string>("");
   const [modalIncidentDescription, setModalIncidentDescription] = useState<string>("");
   const [connectingModalOpen, setConnectingModalOpen] = useState(false);
-  const [connectingLguName, setConnectingLguName] = useState<{ firstName: string; lastName: string } | null>(null);
-  const [lguConnectingAt, setLguConnectingAt] = useState<Date | null>(null);
+  const [connectingOpCenName, setConnectingOpCenName] = useState<{ firstName: string; lastName: string } | null>(null);
+  const [opCenConnectingAt, setOpCenConnectingAt] = useState<Date | null>(null);
   const [address, setAddress] = useState<string>('');
   const [responderCoordinates, setResponderCoordinates] = useState<{lat: number; lon: number} | null>(null);
 
@@ -522,20 +522,20 @@ const MainScreen = () => {
   }, [acceptedAt]);
 
   useEffect(() => {
-    if (lguConnectingAt === null) {
+    if (opCenConnectingAt === null) {
       setConnectingModalOpen(false);
-      setConnectingLguName(null);
+      setConnectingOpCenName(null);
     }
-  }, [lguConnectingAt]);
+  }, [opCenConnectingAt]);
   const formatLapsTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes} min ${remainingSeconds} sec`;
   };
 
-  const fetchLguUsers = async () => {
+  const fetchOpCenUsers = async () => {
     try {
-      const response = await fetch(`${config.PERSONAL_API}/lgus`, {
+      const response = await fetch(`${config.PERSONAL_API}/opcens`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -543,28 +543,28 @@ const MainScreen = () => {
       
       if (response.ok) {
         const data = await response.json();
-        setLguUsers(data || []);
+        setOpCenUsers(data || []);
       } else if (response.status === 404) {
-        // If no LGU users found, set empty array
-        setLguUsers([]);
-        console.log('No LGU users found');
+        // If no opCen users found, set empty array
+        setOpCenUsers([]);
+        console.log('No opCen users found');
       } else {
-        console.error('Failed to fetch LGU users:', response.status);
+        console.error('Failed to fetch opCen users:', response.status);
         const errorData = await response.json().catch(() => ({}));
         console.error('Error details:', errorData);
-        setLguUsers([]);
+        setOpCenUsers([]);
       }
     } catch (error) {
-      console.error('Error fetching LGU users:', error);
-      setLguUsers([]);
+      console.error('Error fetching opCen users:', error);
+      setOpCenUsers([]);
     }
   };
 
   useEffect(() => {
-    fetchLguUsers();
+    fetchOpCenUsers();
   }, []);
 
-  const handleConnect = async (lguUser: any) => {
+  const handleConnect = async (opCenUser: any) => {
     try {
       const id = location.state?.incident?._id || incidentId;
       if (!id) {
@@ -573,8 +573,8 @@ const MainScreen = () => {
       }
 
       const connectingTime = new Date();
-      setLguConnectingAt(connectingTime);
-      setConnectingLguName({ firstName: lguUser.firstName, lastName: lguUser.lastName });
+      setOpCenConnectingAt(connectingTime);
+      setConnectingOpCenName({ firstName: opCenUser.firstName, lastName: opCenUser.lastName });
       setConnectingModalOpen(true);
       const incidentTypeToSend = modalIncident === "Other" ? customIncidentType : modalIncident;
 
@@ -585,9 +585,9 @@ const MainScreen = () => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          lgu: lguUser._id,
-          lguStatus: "connecting",
-          lguConnectingAt: connectingTime,
+          opCen: opCenUser._id,
+          opCenStatus: "connecting",
+          opCenConnectingAt: connectingTime,
           incidentDetails: {
             coordinates: {
               lat: coordinates.lat,
@@ -601,7 +601,7 @@ const MainScreen = () => {
 
       if (response.status === 500) {
         console.log('Update completed but population failed - proceeding with flow');
-        setSelectedLgu(lguUser);
+        setSelectedOpCen(opCenUser);
       } else if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Update Error Response:', errorData);
@@ -609,19 +609,19 @@ const MainScreen = () => {
       } else {
         const responseData = await response.json();
         console.log("Update response:", responseData);
-        setSelectedLgu(lguUser);
+        setSelectedOpCen(opCenUser);
       }
     } catch (error) {
       console.error('Error updating incident:', error);
-      alert('Failed to connect with LGU. Please try again.');
+      alert('Failed to connect with Operation Center. Please try again.');
     }
   };
 
   useEffect(() => {
-    const checkLguStatus = async () => {
-      if (lguConnectingAt) {
+    const checkOpCenStatus = async () => {
+      if (opCenConnectingAt) {
         const now = new Date();
-        const timeDiff = (now.getTime() - lguConnectingAt.getTime()) / 1000; 
+        const timeDiff = (now.getTime() - opCenConnectingAt.getTime()) / 1000; 
         try {
           if (!incidentId) return;
 
@@ -634,7 +634,7 @@ const MainScreen = () => {
           if (response.ok) {
             const incidentData = await response.json();
 
-            if (incidentData.lguStatus === 'connected') {
+            if (incidentData.opCenStatus === 'connected') {
               const channelId = `${incidentData.incidentType.toLowerCase()}-${incidentId.substring(4,9)}`;
               if (chatClient) {
                 const channel = chatClient.channel('messaging', channelId);
@@ -644,17 +644,17 @@ const MainScreen = () => {
                 });
               }
 
-              setLguConnectingAt(null);
+              setOpCenConnectingAt(null);
               setConnectingModalOpen(false);
-              setConnectingLguName(null);
+              setConnectingOpCenName(null);
               setOpenModal(false);
               return;
             }
-            if (incidentData.lguStatus === 'idle') {
-              setLguConnectingAt(null);
+            if (incidentData.opCenStatus === 'idle') {
+              setOpCenConnectingAt(null);
               setConnectingModalOpen(false);
-              setConnectingLguName(null);
-              setSelectedLgu(null);
+              setConnectingOpCenName(null);
+              setSelectedOpCen(null);
               return;
             }
           }
@@ -672,37 +672,37 @@ const MainScreen = () => {
                 'Authorization': `Bearer ${token}`
               },
               body: JSON.stringify({
-                lguStatus: "idle",
-                lgu: null
+                opCenStatus: "idle",
+                opCen: null
               })
             });
 
             if (response.status === 500) {
               console.log('Update completed but population failed - proceeding with flow');
-              setLguConnectingAt(null);
+              setOpCenConnectingAt(null);
               setConnectingModalOpen(false);
-              setConnectingLguName(null);
-              setSelectedLgu(null);
+              setConnectingOpCenName(null);
+              setSelectedOpCen(null);
             } else if (!response.ok) {
               const errorData = await response.json().catch(() => ({}));
               console.error('Update Error Response:', errorData);
               throw new Error(errorData.message || `Failed to update incident: ${response.status}`);
             } else {
-              setLguConnectingAt(null);
+              setOpCenConnectingAt(null);
               setConnectingModalOpen(false);
-              setConnectingLguName(null);
-              setSelectedLgu(null);
+              setConnectingOpCenName(null);
+              setSelectedOpCen(null);
             }
           } catch (error) {
-            console.error('Error reverting LGU status:', error);
+            console.error('Error reverting opCen status:', error);
           }
         }
       }
     };
 
-    const interval = setInterval(checkLguStatus, 1000);
+    const interval = setInterval(checkOpCenStatus, 1000);
     return () => clearInterval(interval);
-  }, [lguConnectingAt, incidentId, token, chatClient, userId]);
+  }, [opCenConnectingAt, incidentId, token, chatClient, userId]);
 
 
   const handleLocationClick = () => {
@@ -1391,8 +1391,8 @@ const MainScreen = () => {
     </div>
     
     <div style={{maxHeight: '200px', overflowY: 'auto'}}>
-      {lguUsers.length > 0 ? (
-        lguUsers.map((user) => (
+      {opCenUsers.length > 0 ? (
+        opCenUsers.map((user) => (
           <div key={user._id} style={{display: 'flex', alignItems: 'center', padding: '6px', borderBottom: '1px solid #eee', marginBottom: '3px'}}>
             <div style={{flex: 1}}>
               <div style={{fontSize: '14px'}}>{user.firstName} {user.lastName}</div>
@@ -1419,7 +1419,7 @@ const MainScreen = () => {
           borderRadius: '4px',
           margin: '10px'
         }}>
-          No LGU operation centers are currently available
+          No Operation Centers are currently available
         </div>
       )}
     </div>
@@ -1495,9 +1495,9 @@ const MainScreen = () => {
             justifyContent: 'center',
             alignItems: 'center'
           }}>
-              {connectingLguName && (
+              {connectingOpCenName && (
                 <Typography variant="h6" sx={{ color: 'black', fontWeight: 'bold', mb: 3 }}>
-                  {connectingLguName.firstName} {connectingLguName.lastName} Command Center
+                  {connectingOpCenName.firstName} {connectingOpCenName.lastName} Command Center
                 </Typography>
               )}
           </div>
