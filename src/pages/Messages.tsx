@@ -304,6 +304,23 @@ const Messages = () => {
         }
       );
 
+      const sendNotif = await axios.post(
+        `${config.PERSONAL_API}/notifications/send-to-all`,
+        {
+          title: formData.title,
+          body: formData.message
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      await Promise.all([response, sendNotif]).then((values) => {
+        console.log(values); 
+      });
+
       setSnackbar({
         open: true,
         message: 'Message created successfully!',

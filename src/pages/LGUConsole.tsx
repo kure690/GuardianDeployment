@@ -360,7 +360,7 @@ const LGUConsole = () => {
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={() => navigate('/announcements')}>Create a announcement</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Delete a announcement</Button>    
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Update announcement</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Create a message</Button>
+                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={() => navigate('/messages')}>Create a message</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Delete a message</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Update message</Button>
                     </Box>
