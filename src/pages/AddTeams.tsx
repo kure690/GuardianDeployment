@@ -162,9 +162,9 @@ const AddTeams = () => {
     <div style={{ minHeight: '100vh', background: '#f7f9fa' }}>
       <AppBar position="static" style={{ backgroundColor: 'transparent', padding: 0, boxShadow: 'none' }}>
         <Container disableGutters={true} maxWidth={false}>
-          <Grid container spacing={1} sx={{ backgroundColor: '#5c7d8a', height: '60px' }}>
-            <Grid size={{ md: 12 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'start', p: '0.5rem 2rem' }}>
-              <Typography variant="h6" component="div" sx={{ color: 'white' }}>
+          <Grid container spacing={1} sx={{ backgroundColor: '#1B4965', height: '80px' }}>
+            <Grid size={{ md: 9 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'start', p: '1rem 2rem 1rem 2rem' }}>
+              <Typography variant="h6" component="div">
                 Add Team
               </Typography>
             </Grid>
@@ -174,7 +174,7 @@ const AddTeams = () => {
       <Container maxWidth={false} sx={{ mt: 4, mb: 4 }}>
         <Grid container spacing={4}>
           {/* Left: Team Badge */}
-          <Grid size={{ md: 3, xs: 12 }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <Grid size={{ md: 3, xs: 12 }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'start' }}>
             <Paper 
               sx={{ 
                 width: 160, 

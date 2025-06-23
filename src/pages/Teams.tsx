@@ -244,8 +244,8 @@ const Teams = () => {
         </Container>
       </AppBar>
       {/* Table header */}
-      <Container maxWidth="xl" sx={{ mt: 3 }}>
-        <Box sx={{ background: '#e9f0f3', borderRadius: 1, boxShadow: 0, p: 0, border: 'none' }}>
+      
+        <Box sx={{ borderRadius: 1, boxShadow: 0, p: 4, border: 'none' }}>
           <Grid container sx={{ borderBottom: '2px solid #cfd8dc', background: '#cfd8dc', p: 1, fontWeight: 600 }}>
             <Grid size={{ md: 1.2 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>Badge</Grid>
             <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>Name/Call Sign</Grid>
@@ -321,7 +321,7 @@ const Teams = () => {
             ))
           )}
         </Box>
-      </Container>
+  
       {/* Floating Add Button */}
       <Box sx={{ position: 'fixed', bottom: 40, right: 40, zIndex: 100 }}>
         <Tooltip title="Add Team">

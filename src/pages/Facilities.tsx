@@ -151,9 +151,9 @@ const Facilities = () => {
           </Grid>
         </Container>
       </AppBar>
-      <Container maxWidth="xl" sx={{ mt: 4 }}>
+      
         {/* Header Row */}
-        <Box sx={{ maxWidth: 1500, mx: 'auto', mb: 2 }}>
+        <Box sx={{ mx: 'auto', p: 4 }}>
           <Box sx={{ display: 'flex', background: '#e5e8ea', borderRadius: 1, p: 0.5, alignItems: 'center', border: '1.5px solid #d1d3d4' }}>
             <Box sx={{ flex: '0 0 10%', fontWeight: 700, fontSize: 18, textAlign: 'center', py: 1, borderRight: '2px solid #d1d3d4' }}>Photo</Box>
             <Box sx={{ flex: '0 0 15%', fontWeight: 700, fontSize: 18, textAlign: 'center', py: 1, borderRight: '2px solid #d1d3d4' }}>Name/Call Sign</Box>
@@ -164,7 +164,7 @@ const Facilities = () => {
           </Box>
         </Box>
         {/* Facility Rows */}
-        <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
+        <Box sx={{ mx: 'auto', p: 4 }}>
           {loading ? (
             <Box sx={{ p: 3, textAlign: 'center' }}>Loading...</Box>
           ) : (
@@ -225,7 +225,7 @@ const Facilities = () => {
             ))
           )}
         </Box>
-      </Container>
+      
       {/* Floating Add Button */}
       <Box sx={{ position: 'fixed', bottom: 40, right: 40, zIndex: 100 }}>
         <Tooltip title="Add Facility">

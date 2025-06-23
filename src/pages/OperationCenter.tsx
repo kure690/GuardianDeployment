@@ -213,8 +213,8 @@ const OperationCenter = () => {
   return (
     <div className="max-h-screen bg-white flex flex-col items-start justify-start">
       <AppBar position="static" style={{ backgroundColor: 'transparent', padding: 0, boxShadow: 'none'}}>
-        <Container disableGutters={true} maxWidth={false} sx={{}}>
-          <Grid container spacing={1} sx={{ backgroundColor: '#1B4965',  height: '80px' }}>
+        <Box sx={{ width: '100%' }}>
+          <Grid container spacing={1} sx={{ backgroundColor: '#1B4965', height: '80px' }}>
             <Grid
               size={{ md: 12 }}
               sx={{
@@ -229,10 +229,10 @@ const OperationCenter = () => {
               </Typography>
             </Grid>
           </Grid>
-        </Container>
+        </Box>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ mt: 4, mb: 4, flex: 1, p: 2 }}>
+      <Box sx={{ width: '100%', flex: 1, mt: 4, mb: 4, pl: 4, pr: 4 }}>
         <Grid container spacing={4}>
           {/* Left: Images */}
           <Grid size={{ xs: 12, md: 3 }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
@@ -525,7 +525,7 @@ const OperationCenter = () => {
             </Button>
           </Grid>
         </Grid>
-      </Container>
+      </Box>
 
       <Snackbar 
         open={snackbar.open} 

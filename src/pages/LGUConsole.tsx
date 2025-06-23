@@ -71,7 +71,7 @@ const LGUConsole = () => {
                     sx={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
+                    justifyContent: 'start',
                     // backgroundColor: 'blue',
                     p: '1rem 1rem 1rem 1rem'
                     }}
@@ -219,15 +219,17 @@ const LGUConsole = () => {
           </Box>
           )}
 
-          <div className="flex flex-col w-full h-screen">
+          <div className="flex flex-col w-full">
 
-          <div className="flex flex-row w-full h-screen">
-            <Container
-              maxWidth="xl"
+          <div className="flex flex-row w-full">
+            <Box
               sx={{
                 display: 'flex',
                 flexDirection: 'row',
                 width: '100%',
+                pl: 4,
+                pr: 4,
+                // backgroundColor: 'red',
               }}
             >
               <Box
@@ -238,6 +240,7 @@ const LGUConsole = () => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   borderBottom: '1px solid #e0e0e0',
+                  height: '100%',
                 }}
               >
                 <Box
@@ -269,7 +272,7 @@ const LGUConsole = () => {
                   Welcome to the GuardianPH Admin Console
                 </Typography>
               </Box>
-            </Container>
+            </Box>
           </div>
           
           
@@ -277,8 +280,8 @@ const LGUConsole = () => {
           <div className="flex flex-row w-full h-screen">
             
             {/* Main Content Area */}
-          <Box sx={{ flex: 1, overflow: 'auto', background: 'white' }}>
-            <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+          <Box sx={{ flex: 1, overflow: 'auto', background: 'white', width: '100%' }}>
+            <Box sx={{ mt: 4, mb: 4, width: '100%', p: 4 }}>
               <Grid container spacing={3} justifyContent="center">
                 {/* Top Row: Users, Alerts, Reporting */}
                 <Grid size={{ xs: 12, md: 4 }}
@@ -436,7 +439,7 @@ const LGUConsole = () => {
 
             
               </Grid>
-            </Container>
+            </Box>
           </Box>
 
           </div>

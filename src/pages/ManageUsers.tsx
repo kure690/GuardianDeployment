@@ -318,8 +318,8 @@ const ManageUsers = () => {
         </Container>
       </AppBar>
       {/* Table header */}
-      <Container maxWidth="xl" sx={{ mt: 3 }}>
-        <Box sx={{ background: 'white', borderRadius: 1, boxShadow: 0, p: 0, border: 'none' }}>
+      
+        <Box sx={{ background: 'white', borderRadius: 1, boxShadow: 0, p: 4, border: 'none' }}>
           <Grid container sx={{ borderBottom: '2px solid #f2f2f2', background: '#f8fafa', p: 1, fontWeight: 600 }}>
             <Grid size={{ md: 1.2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>Photo</Grid>
             <Grid size={{ md: 2.2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>Name/Call Sign</Grid>
@@ -367,7 +367,7 @@ const ManageUsers = () => {
             ))
           )}
         </Box>
-      </Container>
+      
       {/* Floating Add Button */}
       <Box sx={{ position: 'fixed', bottom: 40, right: 40, zIndex: 100 }}>
         <Button variant="contained" sx={{ bgcolor: '#29516a', width: 80, height: 80, borderRadius: '50%', minWidth: 0, boxShadow: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 0 }} onClick={handleOpen}>
