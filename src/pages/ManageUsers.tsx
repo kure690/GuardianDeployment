@@ -40,7 +40,6 @@ const ManageUsers = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [selectedResponder, setSelectedResponder] = useState<any>(null);
   const [passwordType, setPasswordType] = useState('create');
-  const [askChange, setAskChange] = useState(true);
   const [responders, setResponders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
@@ -68,6 +67,10 @@ const ManageUsers = () => {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredResponders, setFilteredResponders] = useState([]);
+
+  // Get logged-in user from localStorage
+  const userStr = localStorage.getItem('user');
+  const loggedInUser = userStr ? JSON.parse(userStr) : null;
 
   useEffect(() => {
     fetchResponders();
@@ -166,7 +169,8 @@ const ManageUsers = () => {
 
       const submitData = {
         ...formData,
-        requirePasswordChange: passwordType === 'auto'
+        requirePasswordChange: passwordType === 'auto' ? true : formData.requirePasswordChange,
+        operationCenter: loggedInUser?.id // Set operationCenter to logged-in user's id
       };
 
       await axios.post(`${config.PERSONAL_API}/responders/`, submitData);
@@ -245,7 +249,7 @@ const ManageUsers = () => {
         severity: 'success'
       });
       handleEditClose();
-      fetchResponders(); // Refresh the list
+      fetchResponders();
     } catch (err: any) {
       setSnackbar({
         open: true,
@@ -466,7 +470,10 @@ const ManageUsers = () => {
           )}
           <FormGroup>
             <FormControlLabel
-              control={<Checkbox checked={askChange} onChange={e => setAskChange(e.target.checked)} />}
+              control={<Checkbox
+                checked={formData.requirePasswordChange}
+                onChange={e => setFormData(prev => ({ ...prev, requirePasswordChange: e.target.checked }))}
+              />}
               label={<span style={{ fontSize: 15 }}>Ask user to change their password when they sign in</span>}
             />
           </FormGroup>

@@ -6,6 +6,8 @@ import {
   Box,
   Avatar,
   Container,
+  Menu,
+  MenuItem,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import GuardianIcon from "../assets/images/icon.png";
@@ -38,12 +40,17 @@ const LGUConsole = () => {
     const { data: opcenData } = useOpCen(user.id);
     const [respondersCount, setRespondersCount] = useState(0);
     const navigate = useNavigate();
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    const openMenu = Boolean(anchorEl);
 
     useEffect(() => {
       const fetchResponders = async () => {
         try {
           const response = await axios.get(`${config.PERSONAL_API}/responders/`);
-          const activeResponders = response.data.filter((responder: any) => responder.status === 'active');
+          // Only count active responders with matching operationCenter
+          const activeResponders = response.data.filter((responder: any) => 
+            responder.status === 'active' && responder.operationCenter === user.id
+          );
           setRespondersCount(activeResponders.length);
         } catch (err) {
           console.error('Error fetching responders:', err);
@@ -55,6 +62,19 @@ const LGUConsole = () => {
 
     const toggleSidebar = () => {
       setSidebarOpen(!sidebarOpen);
+    };
+
+    const handleAvatarClick = (event: React.MouseEvent<HTMLElement>) => {
+      setAnchorEl(event.currentTarget);
+    };
+
+    const handleMenuClose = () => {
+      setAnchorEl(null);
+    };
+
+    const handleLogout = () => {
+      localStorage.clear();
+      window.location.href = '/';
     };
 
     return (
@@ -147,17 +167,29 @@ const LGUConsole = () => {
                       p: '1rem 1rem 1rem 1rem'
                     }}>
                       <Box sx={{ display: 'flex'}}>
-                      <Avatar 
-                        src={getImageUrl(opcenData?.profileImage || '')}
-                        alt="Avatar Image"
-                        sx={{   
-                          width: 50, 
-                          height: 50,
-                          boxSizing: 'border-box',
-                          borderRadius: '50%',
-                          bgcolor: !opcenData?.profileImage ? '#e0e0e0' : 'transparent'
-                        }}
-                      />
+                        <Avatar 
+                          src={getImageUrl(opcenData?.profileImage || '')}
+                          alt="Avatar Image"
+                          sx={{   
+                            color: 'white',
+                            width: 50, 
+                            height: 50,
+                            boxSizing: 'border-box',
+                            borderRadius: '50%',
+                            bgcolor: !opcenData?.profileImage ? '#e0e0e0' : 'grey',
+                            cursor: 'pointer'
+                          }}
+                          onClick={handleAvatarClick}
+                        />
+                        <Menu
+                          anchorEl={anchorEl}
+                          open={openMenu}
+                          onClose={handleMenuClose}
+                          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                        >
+                          <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                        </Menu>
                       </Box>
                     </Grid>  
                 </Grid>
@@ -243,17 +275,17 @@ const LGUConsole = () => {
                   height: '100%',
                 }}
               >
-                <Box
-                      component="img"
-                      src={getImageUrl(opcenData?.profileImage || '')}
-                      alt="Avatar Image"
-                      sx={{
-                      width: 50,
-                      height: 50,
-                      ml: 3,
-                      mr: 3,
-                      borderRadius: '50%',
-                      }}
+                <Avatar 
+                        src={getImageUrl(opcenData?.profileImage || '')}
+                        alt="Avatar Image"
+                        sx={{   
+                          color: 'white',
+                          width: 50, 
+                          height: 50,
+                          boxSizing: 'border-box',
+                          borderRadius: '50%',
+                          bgcolor: !opcenData?.profileImage ? '#e0e0e0' : 'grey'
+                        }}
                       />
               </Box>
 

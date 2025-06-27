@@ -388,7 +388,7 @@ const MapView = () => {
             const responderId = data.responderId || data.responder;
             
             try {
-              const responderResponse = await fetch(`${config.PERSONAL_API}/users/${responderId}`);
+              const responderResponse = await fetch(`${config.PERSONAL_API}/responders/${responderId}`);
               if (responderResponse.ok) {
                 const responderData = await responderResponse.json();
                 console.log("Responder data:", responderData);

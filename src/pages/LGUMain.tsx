@@ -104,7 +104,7 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
             
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch(`${config.PERSONAL_API}/users/${incident.responder}`, {
+                const response = await fetch(`${config.PERSONAL_API}/responders/${incident.responder}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
