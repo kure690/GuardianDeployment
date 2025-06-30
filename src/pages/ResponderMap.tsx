@@ -27,7 +27,8 @@ import {
 } from "stream-chat-react";
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import socket from '../utils/socket';
+import SocketContext from "../utils/socket";
+import { useContext } from "react";
 
 const containerStyle = {
   width: '100%',
@@ -71,6 +72,7 @@ const ResponderMap = () => {
   const [responderType, setResponderType] = useState<string>('ambulance');
   const [destinationType, setDestinationType] = useState<string>('incident'); // 'incident' or 'hospital'
   const token = localStorage.getItem("token");
+  const socket = useContext(SocketContext);
 
   const user = {
     id: userId,
@@ -362,11 +364,13 @@ const ResponderMap = () => {
         return;
       }
       // Emit the assignment request via websocket
-      socket.emit('requestResponderAssignment', {
-        incidentId,
-        responderId,
-        dispatcherId,
-      });
+      if (socket) {
+        socket.emit('requestResponderAssignment', {
+          incidentId,
+          responderId,
+          dispatcherId,
+        });
+      }
       // Optionally, listen for confirmation or error events here
       // socket.on('assignmentRequest', (data) => { ... });
       // socket.on('error', (err) => { ... });

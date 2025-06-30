@@ -44,7 +44,8 @@ import policeSound from '../assets/sounds/police.mp3';
 import fireSound from '../assets/sounds/fire.mp3';
 import ambulanceSound from '../assets/sounds/ambulance.mp3';
 import generalSound from '../assets/sounds/general.mp3';
-import socket from '../utils/socket';
+import SocketContext from "../utils/socket";
+import { useContext } from "react";
 
 const getIncidentIcon = (incidentType: string) => {
     const type = incidentType?.toLowerCase() || '';
@@ -430,6 +431,7 @@ const LGUMain = () => {
     const [pendingAudioType, setPendingAudioType] = useState<string | null>(null);
     const [closingIncident, setClosingIncident] = useState<any>(null);
     const [showClosingModal, setShowClosingModal] = useState(false);
+    const socket = useContext(SocketContext);
     const handleSelectIncidentForChat = (channelId: string) => {
         setActiveCall(channelId);
         setIsChatExpanded(true);
@@ -745,11 +747,14 @@ useEffect(() => {
                 setAddress(formattedAddress);
             }
         };
-        socket.on('notifyOpCenConnecting', handleNotifyConnecting);
-        return () => {
-            socket.off('notifyOpCenConnecting', handleNotifyConnecting);
-        };
-    }, [userId]);
+        if (socket) {
+            socket.on('notifyOpCenConnecting', handleNotifyConnecting);
+            return () => {
+                socket.off('notifyOpCenConnecting', handleNotifyConnecting);
+            };
+        }
+        return;
+    }, [userId, socket]);
     const getNextChannelId = async (incidentType: string, incidentId: string) => {
         try {
             const data = incidentId.substring(4,9);
@@ -777,11 +782,13 @@ useEffect(() => {
             });
             await channel.create();
             // Emit socket event to accept the incident
-            socket.emit('opcenAcceptIncident', {
-                incidentId: connectingIncident._id,
-                opCenId: userId,
-                channelId,
-            });
+            if (socket) {
+                socket.emit('opcenAcceptIncident', {
+                    incidentId: connectingIncident._id,
+                    opCenId: userId,
+                    channelId,
+                });
+            }
             localStorage.setItem('currentIncidentId', connectingIncident._id);
             localStorage.setItem('currentChannelId', channelId);
             setConnectingIncident(null);
@@ -801,10 +808,12 @@ useEffect(() => {
             }
             setPendingAudioType(null);
             // Emit socket event to decline the incident
-            socket.emit('opcenDeclineIncident', {
-                incidentId: connectingIncident._id,
-                opCenId: userId,
-            });
+            if (socket) {
+                socket.emit('opcenDeclineIncident', {
+                    incidentId: connectingIncident._id,
+                    opCenId: userId,
+                });
+            }
             setConnectingIncident(null);
             setShowStatusModal(false);
         } catch (error) {

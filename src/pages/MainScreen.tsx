@@ -52,7 +52,8 @@ import generalIcon from '../assets/images/General.png';
 import fireIcon from '../assets/images/Fire.png';
 import crimeIcon from '../assets/images/Police.png';
 import { getAddressFromCoordinates } from '../utils/geocoding';
-import socket from '../utils/socket';
+import SocketContext from "../utils/socket";
+import { useContext } from "react";
 
 
 type User = {
@@ -118,6 +119,8 @@ const MainScreen = () => {
   const [opCenConnectingAt, setOpCenConnectingAt] = useState<Date | null>(null);
   const [address, setAddress] = useState<string>('');
   const [responderCoordinates, setResponderCoordinates] = useState<{lat: number; lon: number} | null>(null);
+
+  const socket = useContext(SocketContext);
 
   const getIncidentIcon = (incidentType: string) => {
     const type = incidentType?.toLowerCase() || '';
@@ -580,19 +583,21 @@ const MainScreen = () => {
     setConnectingModalOpen(true);
     const incidentTypeToSend = modalIncident === "Other" ? customIncidentType : modalIncident;
     // Emit socket event to request opcen connection
-    socket.emit('requestOpCenConnect', {
-      incidentId: id,
-      opCenId: opCenUser._id,
-      connectingTime,
-      incidentDetails: {
-        coordinates: {
-          lat: Number(coordinates.lat),
-          lon: Number(coordinates.long)
-        },
-        incident: incidentTypeToSend,
-        incidentDescription: modalIncidentDescription || "No description provided"
-      }
-    });
+    if (socket) {
+      socket.emit('requestOpCenConnect', {
+        incidentId: id,
+        opCenId: opCenUser._id,
+        connectingTime,
+        incidentDetails: {
+          coordinates: {
+            lat: Number(coordinates.lat),
+            lon: Number(coordinates.long)
+          },
+          incident: incidentTypeToSend,
+          incidentDescription: modalIncidentDescription || "No description provided"
+        }
+      });
+    }
     setSelectedOpCen(opCenUser);
   };
 
@@ -621,11 +626,14 @@ const MainScreen = () => {
         setSelectedOpCen(null);
       }
     };
-    socket.on('opcen-connecting-status', handleStatus);
-    return () => {
-      socket.off('opcen-connecting-status', handleStatus);
-    };
-  }, [incidentId, chatClient, userId]);
+    if (socket) {
+      socket.on('opcen-connecting-status', handleStatus);
+      return () => {
+        socket.off('opcen-connecting-status', handleStatus);
+      };
+    }
+    return;
+  }, [incidentId, chatClient, userId, socket]);
 
 
   const handleLocationClick = () => {
