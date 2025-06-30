@@ -52,6 +52,7 @@ import generalIcon from '../assets/images/General.png';
 import fireIcon from '../assets/images/Fire.png';
 import crimeIcon from '../assets/images/Police.png';
 import { getAddressFromCoordinates } from '../utils/geocoding';
+import socket from '../utils/socket';
 
 
 type User = {
@@ -418,7 +419,7 @@ const MainScreen = () => {
           members: [
             { user_id: userId },
             { user_id: volunteerID }
-            // { user_id: "67f33ddaf0bce2cde6b95f57" },
+            // { user_id: "68387f94be8626b569038fb3" },
           ],
           settings_override: {
             ring: {
@@ -535,7 +536,7 @@ const MainScreen = () => {
 
   const fetchOpCenUsers = async () => {
     try {
-      const response = await fetch(`${config.PERSONAL_API}/opcens`, {
+      const response = await fetch(`${config.PERSONAL_API}/dispatchers`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -543,10 +544,10 @@ const MainScreen = () => {
       
       if (response.ok) {
         const data = await response.json();
-        setOpCenUsers(data || []);
+        // setOpCenUsers(data || []);
         // // Filter users to only those with dispatcherType === 'LGU'
-        // const filtered = (data || []).filter((user: any) => user.dispatcherType === 'LGU');
-        // setOpCenUsers(filtered);
+        const filtered = (data || []).filter((user: any) => user.dispatcherType === 'LGU');
+        setOpCenUsers(filtered);
       } else if (response.status === 404) {
         // If no opCen users found, set empty array
         setOpCenUsers([]);
@@ -567,145 +568,64 @@ const MainScreen = () => {
     fetchOpCenUsers();
   }, []);
 
-  const handleConnect = async (opCenUser: any) => {
-    try {
-      const id = location.state?.incident?._id || incidentId;
-      if (!id) {
-        console.error('No incident ID available');
-        return;
-      }
-
-      const connectingTime = new Date();
-      setOpCenConnectingAt(connectingTime);
-      setConnectingOpCenName({ firstName: opCenUser.firstName, lastName: opCenUser.lastName });
-      setConnectingModalOpen(true);
-      const incidentTypeToSend = modalIncident === "Other" ? customIncidentType : modalIncident;
-
-      const response = await fetch(`${config.PERSONAL_API}/incidents/update/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          opCen: opCenUser._id,
-          opCenStatus: "connecting",
-          opCenConnectingAt: connectingTime,
-          incidentDetails: {
-            coordinates: {
-              lat: coordinates.lat,
-              lon: coordinates.long
-            },
-            incident: incidentTypeToSend || "Vehicular Collision",
-            incidentDescription: modalIncidentDescription || "No description provided"
-          }
-        })
-      });
-
-      if (response.status === 500) {
-        console.log('Update completed but population failed - proceeding with flow');
-        setSelectedOpCen(opCenUser);
-      } else if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Update Error Response:', errorData);
-        throw new Error(errorData.message || `Failed to update incident: ${response.status}`);
-      } else {
-        const responseData = await response.json();
-        console.log("Update response:", responseData);
-        setSelectedOpCen(opCenUser);
-      }
-    } catch (error) {
-      console.error('Error updating incident:', error);
-      alert('Failed to connect with Operation Center. Please try again.');
+  const handleConnect = (opCenUser: any) => {
+    const id = location.state?.incident?._id || incidentId;
+    if (!id) {
+      console.error('No incident ID available');
+      return;
     }
+    const connectingTime = new Date();
+    setOpCenConnectingAt(connectingTime);
+    setConnectingOpCenName({ firstName: opCenUser.firstName, lastName: opCenUser.lastName });
+    setConnectingModalOpen(true);
+    const incidentTypeToSend = modalIncident === "Other" ? customIncidentType : modalIncident;
+    // Emit socket event to request opcen connection
+    socket.emit('requestOpCenConnect', {
+      incidentId: id,
+      opCenId: opCenUser._id,
+      connectingTime,
+      incidentDetails: {
+        coordinates: {
+          lat: Number(coordinates.lat),
+          lon: Number(coordinates.long)
+        },
+        incident: incidentTypeToSend,
+        incidentDescription: modalIncidentDescription || "No description provided"
+      }
+    });
+    setSelectedOpCen(opCenUser);
   };
 
   useEffect(() => {
-    const checkOpCenStatus = async () => {
-      if (opCenConnectingAt) {
-        const now = new Date();
-        const timeDiff = (now.getTime() - opCenConnectingAt.getTime()) / 1000; 
-        try {
-          if (!incidentId) return;
-
-          const response = await fetch(`${config.PERSONAL_API}/incidents/${incidentId}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
+    // Listen for opcen-connecting-status updates from server
+    const handleStatus = (data: any) => {
+      if (!incidentId) return;
+      if (data.incidentId !== incidentId) return;
+      if (data.status === 'connected') {
+        const channelId = `${data.incidentType.toLowerCase()}-${incidentId.substring(4,9)}`;
+        if (chatClient) {
+          const channel = chatClient.channel('messaging', channelId);
+          channel.sendMessage({
+            text: `Incident: ${data.incident || "Not specified"}\nDescription: ${data.incidentDescription || "No description provided"}`,
+            user_id: userId
           });
-
-          if (response.ok) {
-            const incidentData = await response.json();
-
-            if (incidentData.opCenStatus === 'connected') {
-              const channelId = `${incidentData.incidentType.toLowerCase()}-${incidentId.substring(4,9)}`;
-              if (chatClient) {
-                const channel = chatClient.channel('messaging', channelId);
-                await channel.sendMessage({
-                  text: `Incident: ${incidentData.incidentDetails.incident || "Not specified"}\nDescription: ${incidentData.incidentDetails.incidentDescription || "No description provided"}`,
-                  user_id: userId
-                });
-              }
-
-              setOpCenConnectingAt(null);
-              setConnectingModalOpen(false);
-              setConnectingOpCenName(null);
-              setOpenModal(false);
-              return;
-            }
-            if (incidentData.opCenStatus === 'idle') {
-              setOpCenConnectingAt(null);
-              setConnectingModalOpen(false);
-              setConnectingOpCenName(null);
-              setSelectedOpCen(null);
-              return;
-            }
-          }
-        } catch (error) {
-          console.error('Error checking incident status:', error);
         }
-        if (timeDiff > 15) {
-          if (!incidentId) return;
-
-          try {
-            const response = await fetch(`${config.PERSONAL_API}/incidents/update/${incidentId}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({
-                opCenStatus: "idle",
-                opCen: null
-              })
-            });
-
-            if (response.status === 500) {
-              console.log('Update completed but population failed - proceeding with flow');
-              setOpCenConnectingAt(null);
-              setConnectingModalOpen(false);
-              setConnectingOpCenName(null);
-              setSelectedOpCen(null);
-            } else if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}));
-              console.error('Update Error Response:', errorData);
-              throw new Error(errorData.message || `Failed to update incident: ${response.status}`);
-            } else {
-              setOpCenConnectingAt(null);
-              setConnectingModalOpen(false);
-              setConnectingOpCenName(null);
-              setSelectedOpCen(null);
-            }
-          } catch (error) {
-            console.error('Error reverting opCen status:', error);
-          }
-        }
+        setOpCenConnectingAt(null);
+        setConnectingModalOpen(false);
+        setConnectingOpCenName(null);
+        setOpenModal(false);
+      } else if (data.status === 'idle') {
+        setOpCenConnectingAt(null);
+        setConnectingModalOpen(false);
+        setConnectingOpCenName(null);
+        setSelectedOpCen(null);
       }
     };
-
-    const interval = setInterval(checkOpCenStatus, 1000);
-    return () => clearInterval(interval);
-  }, [opCenConnectingAt, incidentId, token, chatClient, userId]);
+    socket.on('opcen-connecting-status', handleStatus);
+    return () => {
+      socket.off('opcen-connecting-status', handleStatus);
+    };
+  }, [incidentId, chatClient, userId]);
 
 
   const handleLocationClick = () => {

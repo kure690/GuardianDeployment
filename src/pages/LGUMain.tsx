@@ -44,6 +44,7 @@ import policeSound from '../assets/sounds/police.mp3';
 import fireSound from '../assets/sounds/fire.mp3';
 import ambulanceSound from '../assets/sounds/ambulance.mp3';
 import generalSound from '../assets/sounds/general.mp3';
+import socket from '../utils/socket';
 
 const getIncidentIcon = (incidentType: string) => {
     const type = incidentType?.toLowerCase() || '';
@@ -567,7 +568,7 @@ const LGUMain = () => {
             
             // Find an incident with responderStatus "close" that isn't finished yet
             const incidentToClose = incidents.find(incident => 
-                incident.responderStatus === 'close' && !incident.isFinished
+                incident.responderStatus === 'rtb' && !incident.isFinished
             );
             
             if (incidentToClose) {
@@ -728,68 +729,27 @@ useEffect(() => {
         checkUserStatus();
     }, [client, userId]);
     useEffect(() => {
-        const checkConnectingIncidents = async () => {
-            if (!userId || isInvisible) {
-                console.log('Skipping check - userId:', userId, 'isInvisible:', isInvisible);
-                return; 
-            }
-
-            try {
-                console.log('Checking for connecting incidents...');
-                const response = await fetch(`${config.PERSONAL_API}/incidents`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log('Fetched incidents:', data.length);
-                    
-                    const connectingIncident = data.find((incident: any) => {
-                        // Handle cases where opCen might be null, an object, or a string
-                        const opCenId = incident.opCen ? (typeof incident.opCen === 'object' ? incident.opCen._id : incident.opCen) : null;
-                        const matches = opCenId === userId && incident.opCenStatus === 'connecting';
-                        if (opCenId === userId) {
-                            console.log('Found incident with matching opCen:', {
-                                incidentId: incident._id,
-                                opCenStatus: incident.opCenStatus,
-                                opCenId: opCenId,
-                                userId: userId
-                            });
-                        }
-                        return matches;
-                    });
-                    
-                    if (connectingIncident) {
-                        console.log('Found connecting incident:', connectingIncident);
-                        // Check if this is a new connecting incident
-                        if (lastIncidentId !== connectingIncident._id) {
-                            console.log('New incident detected:', connectingIncident.incidentType);
-                            setLastIncidentId(connectingIncident._id);
-                            setConnectingIncident(connectingIncident);
-                            setShowStatusModal(true);
-                            console.log('Modal state set to true for incident:', connectingIncident._id);
-                            if (connectingIncident.incidentDetails?.coordinates?.lat && connectingIncident.incidentDetails?.coordinates?.lon) {
-                                const formattedAddress = await getAddressFromCoordinates(
-                                    connectingIncident.incidentDetails.coordinates.lat.toString(),
-                                    connectingIncident.incidentDetails.coordinates.lon.toString()
-                                );
-                                setAddress(formattedAddress);
-                            }
-                        }
-                    } else {
-                        console.log('No connecting incident found for opCen:', userId);
-                    }
-                }
-            } catch (error) {
-                console.error('Error checking connecting incidents:', error);
+        // Listen for server notification of a new connecting incident
+        const handleNotifyConnecting = async (data: any) => {
+            if (!data) return;
+            // Only process if this opCen is the intended recipient
+            if (data.opCenId !== userId) return;
+            setLastIncidentId(data.incident._id);
+            setConnectingIncident(data.incident);
+            setShowStatusModal(true);
+            if (data.incident.incidentDetails?.coordinates?.lat && data.incident.incidentDetails?.coordinates?.lon) {
+                const formattedAddress = await getAddressFromCoordinates(
+                    data.incident.incidentDetails.coordinates.lat.toString(),
+                    data.incident.incidentDetails.coordinates.lon.toString()
+                );
+                setAddress(formattedAddress);
             }
         };
-    
-        const interval = setInterval(checkConnectingIncidents, 2000); 
-        return () => clearInterval(interval);
-    }, [userId, token, isInvisible, lastIncidentId]);
+        socket.on('notifyOpCenConnecting', handleNotifyConnecting);
+        return () => {
+            socket.off('notifyOpCenConnecting', handleNotifyConnecting);
+        };
+    }, [userId]);
     const getNextChannelId = async (incidentType: string, incidentId: string) => {
         try {
             const data = incidentId.substring(4,9);
@@ -801,46 +761,32 @@ useEffect(() => {
     };
     const handleAcceptIncident = async () => {
         if (!connectingIncident) return;
-    
         try {
             if (audioRef.current) {
                 audioRef.current.pause();
                 audioRef.current.currentTime = 0;
             }
-            
-            // Clear pending audio
             setPendingAudioType(null);
-            
             const channelId = await getNextChannelId(connectingIncident.incidentType, connectingIncident._id);
+            const userIdForChat = typeof connectingIncident.user === 'object' && connectingIncident.user !== null
+                ? connectingIncident.user._id
+                : connectingIncident.user;
             const channel = client.channel('messaging', channelId, {
                 name: `${connectingIncident.incidentType} Incident #${channelId.split('-')[1]}`,
-                members: [connectingIncident.user._id, userId]
+                members: [userIdForChat, userId]
             });
-            
             await channel.create();
-    
-            const response = await fetch(`${config.PERSONAL_API}/incidents/update/${connectingIncident._id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    opCenStatus: 'connected',
-                    opCenConnectedAt: new Date(),
-                    opCen: userId,
-                    channelId: channelId
-                })
+            // Emit socket event to accept the incident
+            socket.emit('opcenAcceptIncident', {
+                incidentId: connectingIncident._id,
+                opCenId: userId,
+                channelId,
             });
-    
-            if (response.ok) {
-                localStorage.setItem('currentIncidentId', connectingIncident._id);
-                localStorage.setItem('currentChannelId', channelId);
-    
-                setConnectingIncident(null);
-                setShowStatusModal(false);
-                fetchIncidents();
-            }
+            localStorage.setItem('currentIncidentId', connectingIncident._id);
+            localStorage.setItem('currentChannelId', channelId);
+            setConnectingIncident(null);
+            setShowStatusModal(false);
+            fetchIncidents();
         } catch (error) {
             console.error('Error accepting incident:', error);
         }
@@ -848,32 +794,19 @@ useEffect(() => {
     
     const handleDeclineIncident = async () => {
         if (!connectingIncident) return;
-    
         try {
             if (audioRef.current) {
                 audioRef.current.pause();
                 audioRef.current.currentTime = 0;
             }
-            
-            // Clear pending audio
             setPendingAudioType(null);
-            
-            const response = await fetch(`${config.PERSONAL_API}/incidents/update/${connectingIncident._id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    opCenStatus: 'idle',
-                    opCen: null
-                })
+            // Emit socket event to decline the incident
+            socket.emit('opcenDeclineIncident', {
+                incidentId: connectingIncident._id,
+                opCenId: userId,
             });
-    
-            if (response.ok) {
-                setConnectingIncident(null);
-                setShowStatusModal(false);
-            }
+            setConnectingIncident(null);
+            setShowStatusModal(false);
         } catch (error) {
             console.error('Error declining incident:', error);
         }
@@ -1438,10 +1371,13 @@ useEffect(() => {
                                 display: 'flex', 
                                 justifyContent: 'start',
                                 alignItems: 'center',
+                                position: 'relative'
                                 // gap: '1rem',
                             }}>
                                 <div style={{
                                     // backgroundColor: "red", 
+                                    position: 'absolute',
+                                    left: '14px',
                                     display: 'flex', 
                                     justifyContent: 'center',
                                     alignItems: 'center',
@@ -1460,6 +1396,9 @@ useEffect(() => {
                                         flexDirection: 'column',
                                         alignItems: 'center',
                                         justifyContent: 'center',
+                                        width: '100%',
+                                        textAlign: 'center',
+                                        height: '120px',
                                         // backgroundColor: "red",
                                     }}>
                                     <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '30px', textTransform: 'uppercase' }}>
