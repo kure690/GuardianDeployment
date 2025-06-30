@@ -1332,127 +1332,120 @@ useEffect(() => {
                 <div className="min-h-[250px] flex items-center justify-center" style={{ border: 'none', outline: 'none' }}>
                     {connectingIncident ? (
                         <Paper 
-                            elevation={0} 
-                            className="shake_me"
-                            sx={{ 
-                                width: '600px',
-                                margin: '0 auto',
-                                borderRadius: '20px',
-                                overflow: 'hidden',
-                                padding: 0,
-                                border: 'none'
-                            }}
-                        >
-                            <div style={{ 
-                                backgroundColor: "#1B4965", 
-                                padding: '24px',
-                                display: 'flex',
-                                height: "50px",
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                            }}>
+                        elevation={0} 
+                        className="shake_me"
+                        sx={{ 
+                            width: '600px',
+                            margin: '0 auto',
+                            borderRadius: '20px',
+                            overflow: 'hidden',
+                            padding: 0,
+                            border: 'none'
+                        }}
+                    >
+                        <div style={{ 
+                            backgroundColor: "#1B4965", 
+                            padding: '24px',
+                            display: 'flex',
+                            height: "50px",
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}>
+                        </div>
+                        <div style={{ 
+                            backgroundColor: "#F27572", 
+                            padding: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}>
+                            <div>
+                                <Typography variant="h4" sx={{ color: 'white', fontWeight: 'bold' }}>
+                                    NEW INCIDENT
+                                </Typography>
                             </div>
-                            <div style={{ 
-                                backgroundColor: "#F27572", 
-                                padding: '12px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                            }}>
-                                <div>
-                                    <Typography variant="h4" sx={{ color: 'white', fontWeight: 'bold' }}>
-                                        NEW INCIDENT
-                                    </Typography>
-                                </div>
-                            </div>
-                            <div style={{ 
-                                backgroundColor: "#4a7ab8", 
-                                padding: '14px', 
-                                display: 'flex', 
-                                justifyContent: 'start',
-                                alignItems: 'center',
-                                position: 'relative'
-                                // gap: '1rem',
-                            }}>
-                                <div style={{
-                                    // backgroundColor: "red", 
-                                    position: 'absolute',
-                                    left: '14px',
-                                    display: 'flex', 
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                }}>
-                                <Avatar 
-                                    src={getIncidentIcon(connectingIncident.incidentType?.toLowerCase() || 'general').icon}
-                                    sx={{ width: 120, height: 120,  }}
-                                    alt={avatarImg}
-                                />
-                                </div>
-
-                                
-                                <div
-                                    style={{ 
-                                        display: 'flex', 
-                                        flexDirection: 'column',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        width: '100%',
-                                        textAlign: 'center',
-                                        height: '120px',
-                                        // backgroundColor: "red",
-                                    }}>
-                                    <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '30px', textTransform: 'uppercase' }}>
-                                        {connectingIncident.incidentType}
-                                    </Typography>
-                                    <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                                        {connectingIncident.incidentDetails.incident}
-                                    </Typography>
-                                    <Typography variant="body1" align="center" sx={{
-                                        color: 'white',
-                                        display: '-webkit-box',
-                                        WebkitLineClamp: 2, 
-                                        WebkitBoxOrient: 'vertical',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                    }}
-                                    title={address || "Loading address..."}>
-                                        {address || 'Loading address...'}
-                                    </Typography>
-                                </div>
-                            </div>
-                            <div style={{ 
-                                backgroundColor: "#1B4965", 
-                                padding: '24px', 
+                        </div>
+                        <div style={{ 
+                            backgroundColor: "#4a7ab8", 
+                            padding: '14px', 
+                            display: 'grid',
+                            gridTemplateColumns: '120px 1fr 120px',
+                            alignItems: 'center',
+                            gap: '16px'
+                        }}>
+                            <div style={{
                                 display: 'flex', 
                                 justifyContent: 'center',
-                                gap: '16px'
+                                alignItems: 'center',
                             }}>
-                                <Button
-                                    variant="contained"
-                                    onClick={handleAcceptIncident}
-                                    sx={{
-                                        backgroundColor: '#4caf50',
-                                        '&:hover': {
-                                            backgroundColor: '#388e3c',
-                                        },
-                                    }}
-                                >
-                                    Accept
-                                </Button>
-                                <Button
-                                    variant="contained"
-                                    onClick={handleDeclineIncident}
-                                    sx={{
-                                        backgroundColor: '#f44336',
-                                        '&:hover': {
-                                            backgroundColor: '#d32f2f',
-                                        },
-                                    }}
-                                >
-                                    Decline
-                                </Button>
+                                <Avatar 
+                                    src={getIncidentIcon(connectingIncident.incidentType?.toLowerCase() || 'general').icon}
+                                    sx={{ width: 120, height: 120 }}
+                                    alt={avatarImg}
+                                />
                             </div>
-                        </Paper>
+                    
+                            <div style={{ 
+                                display: 'flex', 
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                textAlign: 'center'
+                            }}>
+                                <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '30px', textTransform: 'uppercase' }}>
+                                    {connectingIncident.incidentType}
+                                </Typography>
+                                <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                    {connectingIncident.incidentDetails.incident}
+                                </Typography>
+                                <Typography variant="body1" align="center" sx={{
+                                    color: 'white',
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2, 
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                }}
+                                title={address || "Loading address..."}>
+                                    {address || 'Loading address...'}
+                                </Typography>
+                            </div>
+                    
+                            <div></div>
+                        </div>
+                        <div style={{ 
+                            backgroundColor: "#1B4965", 
+                            padding: '24px', 
+                            display: 'flex', 
+                            justifyContent: 'center',
+                            gap: '16px'
+                        }}>
+                            <Button
+                                variant="contained"
+                                onClick={handleAcceptIncident}
+                                sx={{
+                                    backgroundColor: '#4caf50',
+                                    '&:hover': {
+                                        backgroundColor: '#388e3c',
+                                    },
+                                }}
+                            >
+                                Accept
+                            </Button>
+                            <Button
+                                variant="contained"
+                                onClick={handleDeclineIncident}
+                                sx={{
+                                    backgroundColor: '#f44336',
+                                    '&:hover': {
+                                        backgroundColor: '#d32f2f',
+                                    },
+                                }}
+                            >
+                                Decline
+                            </Button>
+                        </div>
+                    </Paper>
                     ) : (
                         <Box sx= {{
                             backgroundColor: 'gray',
