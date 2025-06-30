@@ -98,29 +98,29 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
     const [responderData, setResponderData] = useState<any>(null);
     
     // Fetch responder data if incident has a responder
-    useEffect(() => {
-        const fetchResponderData = async () => {
-            if (!incident.responder) return;
+    // useEffect(() => {
+    //     const fetchResponderData = async () => {
+    //         if (!incident.responder) return;
             
-            try {
-                const token = localStorage.getItem("token");
-                const response = await fetch(`${config.PERSONAL_API}/responders/${incident.responder}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+    //         try {
+    //             const token = localStorage.getItem("token");
+    //             const response = await fetch(`${config.PERSONAL_API}/responders/${incident.responder}`, {
+    //                 headers: {
+    //                     'Authorization': `Bearer ${token}`
+    //                 }
+    //             });
                 
-                if (response.ok) {
-                    const data = await response.json();
-                    setResponderData(data);
-                }
-            } catch (error) {
-                console.error("Error fetching responder data:", error);
-            }
-        };
+    //             if (response.ok) {
+    //                 const data = await response.json();
+    //                 setResponderData(data);
+    //             }
+    //         } catch (error) {
+    //             console.error("Error fetching responder data:", error);
+    //         }
+    //     };
         
-        fetchResponderData();
-    }, [incident.responder]);
+    //     fetchResponderData();
+    // }, [incident.responder]);
     
     const getResponderIcon = (responderData: any) => {
         if (!responderData) return ambulanceIcon;

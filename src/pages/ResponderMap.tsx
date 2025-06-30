@@ -27,6 +27,7 @@ import {
 } from "stream-chat-react";
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import socket from '../utils/socket';
 
 const containerStyle = {
   width: '100%',
@@ -66,11 +67,10 @@ const ResponderMap = () => {
   const userStr = localStorage.getItem("user");
   const userStr2 = userStr ? JSON.parse(userStr) : null;
   const userId = userStr2?.id;
-  const token = localStorage.getItem("token");
   const [lguStatus, setLguStatus] = useState<string>('connected');
   const [responderType, setResponderType] = useState<string>('ambulance');
   const [destinationType, setDestinationType] = useState<string>('incident'); // 'incident' or 'hospital'
-
+  const token = localStorage.getItem("token");
 
   const user = {
     id: userId,
@@ -356,29 +356,23 @@ const ResponderMap = () => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const incidentId = urlParams.get('incidentId');
-      
+      const dispatcherId = userId;
       if (!incidentId) {
         console.error('No incident ID found for dispatching responder');
         return;
       }
-      const response = await fetch(`${config.PERSONAL_API}/incidents/update/${incidentId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          responder: responderId
-        })
+      // Emit the assignment request via websocket
+      socket.emit('requestResponderAssignment', {
+        incidentId,
+        responderId,
+        dispatcherId,
       });
-      
-      if (!response.ok) {
-        console.error('Failed to dispatch responder');
-        return;
-      }
-      
-      console.log(`Successfully dispatched responder ${responderId} to incident ${incidentId}`);
-      
+      // Optionally, listen for confirmation or error events here
+      // socket.on('assignmentRequest', (data) => { ... });
+      // socket.on('error', (err) => { ... });
+      // You may want to show a UI notification or update state here
+      console.log(`Sent assignment request for responder ${responderId} to incident ${incidentId}`);
+      // Optionally, send the initial message as before
       await sendInitialMessage(responderId);
     } catch (error) {
       console.error('Error dispatching responder:', error);

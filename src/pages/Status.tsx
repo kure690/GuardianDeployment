@@ -1,6 +1,6 @@
 import { User } from "@stream-io/video-react-sdk";
 import avatarImg from "../assets/images/user.png";
-import { Paper, Avatar, Typography, Box, Button, Modal } from "@mui/material";
+import { Paper, Avatar, Typography, Box, Button, Modal, MenuItem, Menu } from "@mui/material";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useChatContext } from 'stream-chat-react';
 import { useState, useEffect, useRef } from 'react';
@@ -51,7 +51,10 @@ export default function Status() {
   const [address, setAddress] = useState<string>('');
   const userId = userData?.id;
   const userRole = userData?.role;
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const userName = userData?.name || "Jolony Tangpuy";
+  const openMenu = Boolean(anchorEl);
+
   if (!userData) {
     return <Navigate to="/" replace />;
   }
@@ -333,12 +336,26 @@ export default function Status() {
     name: userName,
   };
 
+  const handleAvatarClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    window.location.href = '/';
+  };
+
   return (
     <>
       <audio ref={audioRef} />
       <div className="min-h-screen bg-[#e3e5e8] flex items-center justify-center">
         <Avatar 
           src={avatarImg}
+          alt={user.name}
           sx={{ 
               position: 'absolute', 
               top: 16,  
@@ -349,8 +366,17 @@ export default function Status() {
               boxSizing: 'border-box',
               borderRadius: '50%'
           }}
-          alt={user.name}
+          onClick={handleAvatarClick}
           />
+          <Menu
+            anchorEl={anchorEl}
+            open={openMenu}
+            onClose={handleMenuClose}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            <MenuItem onClick={handleLogout}>Logout</MenuItem>
+          </Menu>
           {/* <Button
             variant="contained"
             onClick={handleLogout}

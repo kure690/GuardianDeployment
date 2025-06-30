@@ -544,6 +544,9 @@ const MainScreen = () => {
       if (response.ok) {
         const data = await response.json();
         setOpCenUsers(data || []);
+        // // Filter users to only those with dispatcherType === 'LGU'
+        // const filtered = (data || []).filter((user: any) => user.dispatcherType === 'LGU');
+        // setOpCenUsers(filtered);
       } else if (response.status === 404) {
         // If no opCen users found, set empty array
         setOpCenUsers([]);
