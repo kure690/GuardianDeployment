@@ -48,7 +48,7 @@ const MapView = () => {
   const [address, setAddress] = useState<string>('');
   const [incidentId, setIncidentId] = useState<string>('');
   const [incidentType, setIncidentType] = useState<string>('');
-  const [userData, setUserData] = useState<{ firstName: string; lastName: string; phone: string } | null>(null);
+  const [userData, setUserData] = useState<{ firstName: string; lastName: string; phone: string; profileImage: string } | null>(null);
   const [isGoogleLoaded, setIsGoogleLoaded] = useState(false);
   const [infoWindowPosition, setInfoWindowPosition] = useState<google.maps.LatLng | null>(null);
   const [routeInfo, setRouteInfo] = useState<{duration: string, distance: string} | null>(null);
@@ -380,7 +380,8 @@ const MapView = () => {
               setUserData({
                 firstName: userData.firstName,
                 lastName: userData.lastName,
-                phone: userData.phone
+                phone: userData.phone,
+                profileImage: userData.profileImage || ''
               });
             }
           }
@@ -523,6 +524,12 @@ const MapView = () => {
   }
 
   // console.log(`Channel ID: ${currentChannelId}`);
+
+  const getImageUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${config.PERSONAL_API}${url}`;
+  };
 
   return (
     <Box sx={{ position: 'relative', height: '100vh' }}>
@@ -685,7 +692,7 @@ const MapView = () => {
             }}>
               <Box 
                 component="img" 
-                src={avatarImg}
+                src={getImageUrl(userData?.profileImage || '')}
                 alt="Emergency Icon"
                 sx={{ width: 70, height: 70, borderRadius: '50%'}}
               />

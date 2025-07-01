@@ -52,8 +52,14 @@ export default function Status() {
   const userId = userData?.id;
   const userRole = userData?.role;
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const userName = userData?.name || "Jolony Tangpuy";
+  const userName = userData?.name;
   const openMenu = Boolean(anchorEl);
+
+  const getImageUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${config.PERSONAL_API}${url}`;
+  };
 
   if (!userData) {
     return <Navigate to="/" replace />;
@@ -354,7 +360,7 @@ export default function Status() {
       <audio ref={audioRef} />
       <div className="min-h-screen bg-[#e3e5e8] flex items-center justify-center">
         <Avatar 
-          src={avatarImg}
+          src={getImageUrl(userData?.profileImage) || ''}
           alt={user.name}
           sx={{ 
               position: 'absolute', 
@@ -367,33 +373,16 @@ export default function Status() {
               borderRadius: '50%'
           }}
           onClick={handleAvatarClick}
-          />
-          <Menu
-            anchorEl={anchorEl}
-            open={openMenu}
-            onClose={handleMenuClose}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-          >
-            <MenuItem onClick={handleLogout}>Logout</MenuItem>
-          </Menu>
-          {/* <Button
-            variant="contained"
-            onClick={handleLogout}
-            sx={{
-              position: 'absolute',
-              top: 16,
-              right: 100,
-              backgroundColor: "#ef5350",
-              color: "white",
-              marginTop: "0.5rem",
-              "&:hover": {
-                backgroundColor: "#d32f2f",
-              },
-            }}
-          >
-            Logout
-          </Button> */}
+        />
+        <Menu
+          anchorEl={anchorEl}
+          open={openMenu}
+          onClose={handleMenuClose}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          <MenuItem onClick={handleLogout}>Logout</MenuItem>
+        </Menu>
         <Paper elevation={3}
           sx={{ 
           padding: '0 4px 0 4px',
@@ -558,7 +547,7 @@ export default function Status() {
                     </Typography>
                   </div>
                   <Avatar 
-                    src={avatarImg}
+                    src={getImageUrl(userData?.profileImage) || ''}
                     sx={{ width: 120, height: 120 }}
                     alt={user.name}
                   />

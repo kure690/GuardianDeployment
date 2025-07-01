@@ -11,10 +11,11 @@ import {
   Button,
   Modal,
   Box,
-  TextField
+  TextField,
+  Menu,
+  MenuItem
 } from "@mui/material";
 import avatarImg from "../assets/images/user.png";
-import avatarImg2 from "../assets/images/avatar.jpg";
 import Icon from "../assets/images/Medical.png";
 import SystemSecurityUpdateWarningIcon from "@mui/icons-material/SystemSecurityUpdateWarning";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
@@ -105,7 +106,7 @@ const MainScreen = () => {
   const [incidentType, setIncidentType] = useState<string | null>(null);
   const [coordinates, setcoordinates] = useState<{ lat: string; long: string }>({ lat: "", long: "" });
   const [volunteerID, setVolunteerID] = useState<string>("");
-  const [userData, setUserData] = useState<{ firstName: string; lastName: string; phone: string } | null>(null);
+  const [userData, setUserData] = useState<{ firstName: string; lastName: string; phone: string; profileImage: string } | null>(null);
   const [isResolved, setIsResolved] = useState(false);
   const [acceptedAt, setAcceptedAt] = useState<string | null>(null);
   const [lapsTime, setLapsTime] = useState(0);
@@ -119,8 +120,17 @@ const MainScreen = () => {
   const [opCenConnectingAt, setOpCenConnectingAt] = useState<Date | null>(null);
   const [address, setAddress] = useState<string>('');
   const [responderCoordinates, setResponderCoordinates] = useState<{lat: number; lon: number} | null>(null);
-
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const openMenu = Boolean(anchorEl);
+  
   const socket = useContext(SocketContext);
+
+  const getImageUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${config.PERSONAL_API}${url}`;
+  };
 
   const getIncidentIcon = (incidentType: string) => {
     const type = incidentType?.toLowerCase() || '';
@@ -291,21 +301,24 @@ const MainScreen = () => {
             setUserData({
               firstName: userData.firstName || 'Unknown',
               lastName: userData.lastName || 'User',
-              phone: userData.phone || 'No phone number'
+              phone: userData.phone || 'No phone number',
+              profileImage: userData.profileImage || ''
             });
           } else if (userResponse.status === 404) {
             console.log('Volunteer not found, setting default values');
             setUserData({
               firstName: 'Unknown',
               lastName: 'User',
-              phone: 'No phone number'
+              phone: 'No phone number',
+              profileImage: ''
             });
           } else {
             console.error('Failed to fetch volunteer:', userResponse.status);
             setUserData({
               firstName: 'Unknown',
               lastName: 'User',
-              phone: 'No phone number'
+              phone: 'No phone number',
+              profileImage: ''
             });
           }
         }
@@ -331,8 +344,8 @@ const MainScreen = () => {
       await chat.connectUser(
         {
           id: userId,
-          image: avatarImg,
-          name: "Yuri Medalla"
+          image: user,
+          name: userStr2?.name
         },
         token
       );
@@ -393,10 +406,6 @@ const MainScreen = () => {
     }
   }, [userId, token]);
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate("/");
-  };
 
   const handleCreateRingCall = async () => {
     if (!videoClient || !volunteerID) {
@@ -416,6 +425,17 @@ const MainScreen = () => {
       const newCall = videoClient.call("default", callId);
       console.log("New call created with ID:", newCall.id);
       
+      // Update the callee's user object in Stream to include the profile image before making the call
+      if (chatClient && volunteerID && userData?.profileImage) {
+        try {
+          await chatClient.upsertUser({
+            id: volunteerID,
+            image: userData.profileImage,
+          });
+        } catch (e) {
+          console.warn('Failed to upsert callee user image in Stream:', e);
+        }
+      }
       await newCall.getOrCreate({
         ring: true,
         data: {
@@ -485,7 +505,8 @@ const MainScreen = () => {
               setUserData({
                 firstName: userData.firstName,
                 lastName: userData.lastName,
-                phone: userData.phone
+                phone: userData.phone,
+                profileImage: userData.profileImage
               });
             }
           }
@@ -494,7 +515,8 @@ const MainScreen = () => {
             setUserData({
               firstName: 'Unknown',
               lastName: 'User',
-              phone: 'No phone number'
+              phone: 'No phone number',
+              profileImage: ''
             });
           }
         } catch (error) {
@@ -502,7 +524,8 @@ const MainScreen = () => {
           setUserData({
             firstName: 'Unknown',
             lastName: 'User',
-            phone: 'No phone number'
+            phone: 'No phone number',
+            profileImage: ''
           });
         }
       }
@@ -652,11 +675,30 @@ const MainScreen = () => {
     }
   };
 
-  if (!user) {
-    return <Navigate to="/" replace />;
-  }
+  useEffect(() => {
+    const loadProfileImages = async () => {
+      if (!chatClient || !userId || !userStr2 || !userData || !volunteerID) return;
+      try {
+        // Upsert current user
+        await chatClient.upsertUser({
+          id: userId,
+          image: userStr2.profileImage || '',
+        });
+        // Upsert callee
+        await chatClient.upsertUser({
+          id: volunteerID,
+          image: userData.profileImage || '',
+        });
+        setImagesLoaded(true);
+      } catch (e) {
+        console.warn('Failed to upsert user images in Stream:', e);
+        setImagesLoaded(true); // Allow to proceed even if upsert fails
+      }
+    };
+    loadProfileImages();
+  }, [chatClient, userId, userStr2, userData, volunteerID]);
 
-  if (!chatClient || !userData || !incidentType ) {
+  if (!user || !chatClient || !userData || !incidentType || !imagesLoaded) {
     return <div>Loading chat...</div>;
   }
 
@@ -664,6 +706,19 @@ const MainScreen = () => {
   const handleOpenModal = () => setOpenModal(true);
 
   const { icon } = getIncidentIcon(incidentType || 'general');
+
+  const handleAvatarClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    window.location.href = '/';
+  };
 
   return (
     <div className="h-screen bg-[#1B4965] p-5">
@@ -723,7 +778,7 @@ const MainScreen = () => {
                 flexDirection={"row"}
                 alignItems={"center"}
                 gap={"1rem"}>
-                <Avatar src={avatarImg2} sx={{width: 105, height: 105}} />
+                <Avatar src={userData?.profileImage} sx={{width: 105, height: 105}}/>
                 <div className="text-white">
                 {userData && (
                   <div className="text-white">
@@ -819,28 +874,28 @@ const MainScreen = () => {
                           },
                         }}
                       />
-                      {/* <Button
-    variant="contained"
-    onClick={handleLogout}
-    sx={{
-      backgroundColor: "#ef5350",
-      color: "white",
-      marginTop: "0.5rem",
-      "&:hover": {
-        backgroundColor: "#d32f2f",
-      },
-    }}
-  >
-    Logout
-  </Button> */}
                     </div>
-                    <AccountCircleIcon
+                    <Avatar
+                      src={getImageUrl(userStr2?.profileImage) || ''}
+                      alt={userStr2?.name || 'User'}
                       sx={{
-                        fontSize: "4rem",
-                        color: "white",
+                        width: 64,
+                        height: 64,
+                        border: '2px solid white',
+                        boxSizing: 'border-box',
+                        backgroundColor: '#eee',
                       }}
+                      onClick={handleAvatarClick}
                     />
-                    
+                    <Menu
+                    anchorEl={anchorEl}
+                    open={openMenu}
+                    onClose={handleMenuClose}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                    transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                    >
+                    <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                    </Menu>
                   </div>
                   <div className="flex flex-row items-center gap-6">
                     <Paper

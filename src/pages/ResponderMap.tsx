@@ -56,7 +56,7 @@ const ResponderMap = () => {
   const [incidentId, setIncidentId] = useState<string>('');
   const [currentChannelId, setCurrentChannelId] = useState<string>('');
   const [secondChannelId, setSecondChannelId] = useState<string>('');
-  const [userData, setUserData] = useState<{ firstName: string; lastName: string; phone: string } | null>(null);
+  const [userData, setUserData] = useState<{ firstName: string; lastName: string; phone: string; profileImage: string } | null>(null);
   const [acceptedAt, setAcceptedAt] = useState<string | null>(null);
   const [lapsTime, setLapsTime] = useState(0);
   const [incident, setIncident] = useState<string>('');
@@ -79,6 +79,12 @@ const ResponderMap = () => {
     name: userStr2?.firstName && userStr2?.lastName 
       ? `${userStr2.firstName} ${userStr2.lastName}` 
       : userStr2?.email || "Unknown User",
+  };
+
+  const getImageUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${config.PERSONAL_API}${url}`;
   };
   
 
@@ -291,7 +297,8 @@ const ResponderMap = () => {
               setUserData({
                 firstName: userData.firstName,
                 lastName: userData.lastName,
-                phone: userData.phone
+                phone: userData.phone,
+                profileImage: userData.profileImage || ''
               });
             }
           }
@@ -1112,7 +1119,7 @@ const ResponderMap = () => {
         }}>
           <Box 
             component="img" 
-            src={avatarImg2}
+            src={getImageUrl(userData?.profileImage || '')}
             alt="Emergency Icon"
             sx={{ width: 70, height: 70, borderRadius: '50%'}}
           />
@@ -1128,7 +1135,7 @@ const ResponderMap = () => {
             {userData ? userData.phone : 'Loading...'}
           </Typography>
           <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-            GuardianPH Opcen
+            GuardianPH OpCen
           </Typography>
           </Box>
         </Box>
@@ -1192,7 +1199,7 @@ const ResponderMap = () => {
           }}>
             <Box 
                 component="img" 
-                src={avatarImg}
+                src={getImageUrl(userStr2?.profileImage) || ''}
                 alt="Emergency Icon"
                 sx={{ width: 70, height: 70, borderRadius: '50%'}}
               />

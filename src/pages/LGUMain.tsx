@@ -141,6 +141,7 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
         return ambulanceIcon; // Default
     };
 
+
     return (
         <Paper
             elevation={3}
@@ -436,6 +437,12 @@ const LGUMain = () => {
         setActiveCall(channelId);
         setIsChatExpanded(true);
     };
+
+    const getImageUrl = (url: string) => {
+        if (!url) return '';
+        if (url.startsWith('http')) return url;
+        return `${config.PERSONAL_API}${url}`;
+      };
     
     const fetchIncidents = async () => {
         if (!userId) {
@@ -1249,7 +1256,7 @@ useEffect(() => {
                     // backgroundColor = {"orange"}
                     gap={"1rem"}>
                         <Avatar 
-                        src={avatarImg}
+                        src={getImageUrl(userStr2?.profileImage) || ''}
                         sx={{   
                         width: 70, 
                         height: 70,

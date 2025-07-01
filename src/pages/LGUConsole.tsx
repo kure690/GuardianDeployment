@@ -11,8 +11,6 @@ import {
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import GuardianIcon from "../assets/images/icon.png";
-import avatarImg from "../assets/images/user.png";
-import GuardianLogo from "../assets/images/Guardian.png";
 import SearchIcon from '@mui/icons-material/Search';
 import Grid from "@mui/material/Grid2";
 import HomeIcon from '@mui/icons-material/Home';

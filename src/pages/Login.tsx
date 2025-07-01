@@ -76,6 +76,7 @@ const Login = () => {
         type: userType,
         name: `${successfulLogin.data.firstName} ${successfulLogin.data.lastName}`,
         dispatcherType: successfulLogin.data.dispatcherType,
+        profileImage: successfulLogin.data.profileImage || user.profileImage || null,
       }));
       localStorage.setItem("token", token);
       
