@@ -59,7 +59,8 @@ const MapView = () => {
   const [chatClient, setChatClient] = useState<StreamChat | null>(null);
   const [responderData, setResponderData] = useState({
     firstName: '',
-    lastName: ''
+    lastName: '',
+    assignment: 'ambulance', // default to ambulance
   });
   const [currentChannelId, setCurrentChannelId] = useState<string>('');
   const userStr = localStorage.getItem("user");
@@ -69,7 +70,6 @@ const MapView = () => {
   const [lguStatus, setLguStatus] = useState<string>('connected');
   const [responderAddress, setResponderAddress] = useState<string>('');
   const [responderStatus, setResponderStatus] = useState<string>('medicalFacility');
-  const [responderType, setResponderType] = useState<string>('ambulance');
   const [destinationType, setDestinationType] = useState<string>('incident'); // 'incident' or 'hospital'
 
   const getIncidentIcon = useCallback((type: string): google.maps.Icon | undefined => {
@@ -101,11 +101,11 @@ const MapView = () => {
   }, [isGoogleLoaded]);
 
 
-  const getIncidentIcon2 = useCallback((responderType: string): google.maps.Icon | undefined => {
+  const getIncidentIcon2 = useCallback((assignment: string): google.maps.Icon | undefined => {
     if (!isGoogleLoaded) return undefined;
 
     const iconUrl = (() => {
-      switch (responderType.toLowerCase()) {
+      switch (assignment?.toLowerCase()) {
         case 'ambulance':
           return ambulanceIcon;
         case 'firetruck':
@@ -395,18 +395,9 @@ const MapView = () => {
                 console.log("Responder data:", responderData);
                 setResponderData({
                   firstName: responderData.firstName,
-                  lastName: responderData.lastName
+                  lastName: responderData.lastName,
+                  assignment: responderData.assignment || 'ambulance',
                 });
-                
-                if (responderData.type) {
-                  setResponderType(responderData.type);
-                } else if (responderData.responderType) {
-                  setResponderType(responderData.responderType);
-                } else if (responderData.userType) {
-                  setResponderType(responderData.userType);
-                } else if (responderData.respondingUnit) {
-                  setResponderType(responderData.respondingUnit);
-                }
               } else {
                 console.error('Failed to fetch responder data');
               }
@@ -552,7 +543,7 @@ const MapView = () => {
           {responderCoords && (
             <Marker
               position={responderCoords}
-              icon={getIncidentIcon2(responderType)}
+              icon={getIncidentIcon2(responderData.assignment)}
               title="Responder Location"
             />
           )}
@@ -723,9 +714,9 @@ const MapView = () => {
               width: '33%',
             }}>
               <img className='w-20 ml-3'
-                src={destinationType === 'hospital' ? getHospitalIcon()?.url : getIncidentIcon2(responderType)?.url}
+                src={destinationType === 'hospital' ? getHospitalIcon()?.url : getIncidentIcon2(responderData.assignment)?.url}
                 alt="Responder Vehicle" 
-              />
+              /> 
               <Box sx ={{
                 display: 'flex',
                 flexDirection: 'column',

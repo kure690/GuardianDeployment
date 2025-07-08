@@ -69,10 +69,14 @@ const ResponderMap = () => {
   const userStr2 = userStr ? JSON.parse(userStr) : null;
   const userId = userStr2?.id;
   const [lguStatus, setLguStatus] = useState<string>('connected');
-  const [responderType, setResponderType] = useState<string>('ambulance');
   const [destinationType, setDestinationType] = useState<string>('incident'); // 'incident' or 'hospital'
   const token = localStorage.getItem("token");
   const socket = useContext(SocketContext);
+  const [responderData, setResponderData] = useState({
+    firstName: '',
+    lastName: '',
+    assignment: '',
+  });
 
   const user = {
     id: userId,
@@ -112,22 +116,19 @@ const ResponderMap = () => {
     };
   }, [isGoogleLoaded]);
 
-  const getIncidentIcon2 = useCallback((responderType: string): google.maps.Icon | undefined => {
+  const getIncidentIcon2 = useCallback((assignment: string): google.maps.Icon | undefined => {
     if (!isGoogleLoaded) return undefined;
-    
-    console.log("Current responder type:", responderType);
-    
+
     const iconUrl = (() => {
-      const typeLower = responderType?.toLowerCase() || 'ambulance';
-      
-      if (typeLower.includes('ambulance') || typeLower.includes('medical') || typeLower.includes('ambu')) {
-        return ambulanceIcon;
-      } else if (typeLower.includes('fire') || typeLower.includes('truck')) {
-        return firetruckIcon;
-      } else if (typeLower.includes('police') || typeLower.includes('cop')) {
-        return policecarIcon;
-      } else {
-        return ambulanceIcon;
+      switch (assignment?.toLowerCase()) {
+        case 'ambulance':
+          return ambulanceIcon;
+        case 'firetruck':
+          return firetruckIcon;
+        case 'police':
+          return policecarIcon;
+        default:
+          return ambulanceIcon; // Default to ambulance if unknown
       }
     })();
 
@@ -310,35 +311,12 @@ const ResponderMap = () => {
               const responderResponse = await fetch(`${config.PERSONAL_API}/responders/${responderId}`);
               if (responderResponse.ok) {
                 const responderData = await responderResponse.json();
-                console.log("Responder data:", responderData);
-                
-                // Set the responder type from the user data
-                if (responderData.type) {
-                  console.log("Setting responder type from responderData.type:", responderData.type);
-                  setResponderType(responderData.type);
-                } else if (responderData.responderType) {
-                  console.log("Setting responder type from responderData.responderType:", responderData.responderType);
-                  setResponderType(responderData.responderType);
-                } else if (responderData.userType) {
-                  console.log("Setting responder type from responderData.userType:", responderData.userType);
-                  setResponderType(responderData.userType);
-                } else if (responderData.respondingUnit) {
-                  console.log("Setting responder type from responderData.respondingUnit:", responderData.respondingUnit);
-                  setResponderType(responderData.respondingUnit);
-                } else {
-                  // Use firstName to infer type if no other type field is available
-                  const name = responderData.firstName?.toLowerCase() || '';
-                  if (name.includes('ambu')) {
-                    console.log("Inferring responder type from name as ambulance");
-                    setResponderType('ambulance');
-                  } else if (name.includes('fire')) {
-                    console.log("Inferring responder type from name as firetruck");
-                    setResponderType('firetruck');
-                  } else if (name.includes('police')) {
-                    console.log("Inferring responder type from name as police");
-                    setResponderType('police');
-                  }
-                }
+                setResponderData({
+                  firstName: responderData.firstName,
+                  lastName: responderData.lastName,
+                  assignment: responderData.assignment,
+                });
+                console.log("Current responder assignment:", responderData.assignment);
               } else {
                 console.error('Failed to fetch responder data');
               }
@@ -942,7 +920,7 @@ const ResponderMap = () => {
           {responderCoords && (
             <Marker
               position={responderCoords}
-              icon={getIncidentIcon2(responderType)}
+              icon={getIncidentIcon2(responderData.assignment)}
               title="Responder Location"/>
           )}
           
@@ -1183,7 +1161,7 @@ const ResponderMap = () => {
               1
             </Typography>
             <img className='w-20 ml-3'
-                src={getIncidentIcon2(responderType)?.url}
+                src={getIncidentIcon2(responderData.assignment)?.url}
                 alt="Responder Vehicle" 
               />
           </Grid>

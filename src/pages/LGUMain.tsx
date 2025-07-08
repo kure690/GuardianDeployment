@@ -100,41 +100,47 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
     const [responderData, setResponderData] = useState<any>(null);
     
     // Fetch responder data if incident has a responder
-    // useEffect(() => {
-    //     const fetchResponderData = async () => {
-    //         if (!incident.responder) return;
+    useEffect(() => {
+        const fetchResponderData = async () => {
+            if (!incident.responder) return;
             
-    //         try {
-    //             const token = localStorage.getItem("token");
-    //             const response = await fetch(`${config.PERSONAL_API}/responders/${incident.responder}`, {
-    //                 headers: {
-    //                     'Authorization': `Bearer ${token}`
-    //                 }
-    //             });
+            // Always use the responder's _id if responder is an object
+            const responderId = typeof incident.responder === 'object' && incident.responder !== null
+                ? incident.responder._id
+                : incident.responder;
+                console.log("This is the responder id", responderId);
+            if (!responderId) return;
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch(`${config.PERSONAL_API}/responders/${responderId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
                 
-    //             if (response.ok) {
-    //                 const data = await response.json();
-    //                 setResponderData(data);
-    //             }
-    //         } catch (error) {
-    //             console.error("Error fetching responder data:", error);
-    //         }
-    //     };
+                if (response.ok) {
+                    const data = await response.json();
+                    setResponderData(data);
+                }
+            } catch (error) {
+                console.error("Error fetching responder data:", error);
+            }
+        };
         
-    //     fetchResponderData();
-    // }, [incident.responder]);
+        fetchResponderData();
+    }, [incident.responder]);
+    
     
     const getResponderIcon = (responderData: any) => {
         if (!responderData) return ambulanceIcon;
         
-        const type = responderData.type?.toLowerCase() || '';
-        const firstName = responderData.firstName?.toLowerCase() || '';
-        
-        if (type.includes('ambulance') || type.includes('medical') || firstName.includes('ambu')) {
+        const assignment = responderData.assignment?.toLowerCase() || '';
+
+        if (assignment.includes('ambulance')) {
             return ambulanceIcon;
-        } else if (type.includes('fire') || firstName.includes('fire')) {
+        } else if (assignment.includes('fire')) {
             return firetruckIcon;
-        } else if (type.includes('police') || firstName.includes('police')) {
+        } else if (assignment.includes('police')) {
             return policecarIcon;
         }
         
@@ -304,7 +310,7 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
                         }}>
                             {responderData ? 
                                 `${responderData.firstName || ''} ${responderData.lastName || ''}`.trim() || 
-                                (responderData.type === "ambulance" ? "AMBU 123" : "RESPONDER") 
+                                (responderData.assignment === "ambulance" ? "AMBU 123" : "RESPONDER") 
                                 : 
                                 incident.responder ? "RESPONDER" : "UNKNOWN"
                             }
@@ -372,7 +378,7 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
             }}>
                 <Button 
                     sx={{ minWidth: 0, color: '#666', p: 0.4 }}
-                    onClick={() => incident.channelId && handleSelectIncidentForChat(incident.channelId)}
+                    onClick={() => handleSelectIncidentForChat(incident.channelId)}
                 >
                     💬
                 </Button>
@@ -384,6 +390,7 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
                 </Button>
                 <Button sx={{ minWidth: 0, color: '#666', p: 0.4 }}>📹</Button>
             </Box>
+            
             <Button
                 fullWidth
                 sx={{
@@ -427,16 +434,9 @@ const LGUMain = () => {
     const { client } = useChatContext();
     const [incidents, setIncidents] = useState<any[]>([]);
     const [activeCall, setActiveCall] = useState<string | null>(null);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-    const [audioEnabled, setAudioEnabled] = useState<boolean>(true);
-    const [pendingAudioType, setPendingAudioType] = useState<string | null>(null);
     const [closingIncident, setClosingIncident] = useState<any>(null);
     const [showClosingModal, setShowClosingModal] = useState(false);
     const socket = useContext(SocketContext);
-    const handleSelectIncidentForChat = (channelId: string) => {
-        setActiveCall(channelId);
-        setIsChatExpanded(true);
-    };
 
     const getImageUrl = (url: string) => {
         if (!url) return '';
@@ -640,62 +640,10 @@ useEffect(() => {
         preloadAudio(generalSound);
 
         // Initialize the main audio element
-        if (audioRef.current) {
-            audioRef.current.volume = 1.0;
-        }
+        // if (audioRef.current) {
+        //     audioRef.current.volume = 1.0;
+        // }
     }, []);
-
-    // Function to enable audio
-    const enableAudio = () => {
-        setAudioEnabled(true);
-        
-        // If there's a pending audio type, play it
-        if (pendingAudioType && audioRef.current) {
-            switch (pendingAudioType.toLowerCase()) {
-                case 'police':
-                    audioRef.current.src = policeSound;
-                    break;
-                case 'fire':
-                    audioRef.current.src = fireSound;
-                    break;
-                case 'medical':
-                    audioRef.current.src = ambulanceSound;
-                    break;
-                default:
-                    audioRef.current.src = generalSound;
-            }
-            
-            audioRef.current.currentTime = 0;
-            audioRef.current.volume = 1;
-            audioRef.current.play().catch(error => {
-                console.error('Error playing sound after user interaction:', error);
-            });
-        }
-    };
-
-    // Add event listeners for user interaction
-    useEffect(() => {
-        // Enable audio automatically when component mounts
-        setAudioEnabled(true);
-        
-        const handleUserInteraction = () => {
-            if (!audioEnabled) {
-                enableAudio();
-            }
-        };
-
-        // Add event listeners to various user interactions
-        document.addEventListener('click', handleUserInteraction);
-        document.addEventListener('keydown', handleUserInteraction);
-        document.addEventListener('touchstart', handleUserInteraction);
-
-        return () => {
-            document.removeEventListener('click', handleUserInteraction);
-            document.removeEventListener('keydown', handleUserInteraction);
-            document.removeEventListener('touchstart', handleUserInteraction);
-        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [audioEnabled]);
 
     const toggleStatus = async () => {
         try {
@@ -753,6 +701,15 @@ useEffect(() => {
                 );
                 setAddress(formattedAddress);
             }
+            if (data.incident.incidentType) {
+                let soundSrc = generalSound;
+                switch (data.incident.incidentType.toLowerCase()) {
+                    case 'police': soundSrc = policeSound; break;
+                    case 'fire': soundSrc = fireSound; break;
+                    case 'medical': soundSrc = ambulanceSound; break;
+                    default: soundSrc = generalSound;
+                }
+            }
         };
         if (socket) {
             socket.on('notifyOpCenConnecting', handleNotifyConnecting);
@@ -774,11 +731,6 @@ useEffect(() => {
     const handleAcceptIncident = async () => {
         if (!connectingIncident) return;
         try {
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-            }
-            setPendingAudioType(null);
             const channelId = await getNextChannelId(connectingIncident.incidentType, connectingIncident._id);
             const userIdForChat = typeof connectingIncident.user === 'object' && connectingIncident.user !== null
                 ? connectingIncident.user._id
@@ -809,11 +761,6 @@ useEffect(() => {
     const handleDeclineIncident = async () => {
         if (!connectingIncident) return;
         try {
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-            }
-            setPendingAudioType(null);
             // Emit socket event to decline the incident
             if (socket) {
                 socket.emit('opcenDeclineIncident', {
@@ -900,20 +847,6 @@ useEffect(() => {
         };
     }, [userId]);
 
-    // useEffect(() => {
-    //     const timer = setInterval(() => {
-    //         setCurrentTime(new Date());
-    //         if (receivedTime) {
-    //             const received = new Date(receivedTime);
-    //             const now = new Date();
-    //             const diff = Math.floor((now.getTime() - received.getTime()) / 1000);
-    //             setLapsTime(diff);
-    //         }
-    //     }, 1000);
-
-    //     return () => clearInterval(timer);
-    // }, [receivedTime]);
-
     useEffect(() => {
         if (!videoClient && userId && token) {
             console.log("Initializing video client for user:", userId);
@@ -980,8 +913,33 @@ useEffect(() => {
         
         try {
             setIsRinging(true);
-            const responderId = incident.responder.toString();
-            console.log("Creating new ring call with user ID:", userId);
+            // Always use the responder's _id if responder is an object
+            const responderId = typeof incident.responder === 'object' && incident.responder !== null
+                ? incident.responder._id
+                : incident.responder;
+            // Fetch responder data from backend to get name and image
+            let responderData = null;
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch(`${config.PERSONAL_API}/responders/${responderId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (response.ok) {
+                    responderData = await response.json();
+                }
+            } catch (error) {
+                console.error("Error fetching responder data for upsert:", error);
+            }
+            // Upsert responder user in Stream
+            if (chatClient && responderData) {
+                await chatClient.upsertUser({
+                    id: responderId,
+                    name: `${responderData.firstName || ''} ${responderData.lastName || ''}`.trim() || 'Responder',
+                    image: responderData.profileImage || undefined
+                });
+            }
             console.log("Calling responder ID:", responderId);
             console.log("Video client state:", videoClient.state);
             
@@ -1029,6 +987,38 @@ useEffect(() => {
             newWindow.focus();
         }
     };
+
+    function CallAudioHandler({ stopSound }: { stopSound: () => void }) {
+        const calls = useCalls();
+        // Watch all calls' callingState
+        useEffect(() => {
+            if (!calls || calls.length === 0) return;
+            // Track previous states to only stop sound on transition
+            let prevStates = calls.map(call => call.state.callingState);
+            const interval = setInterval(() => {
+                calls.forEach((call, idx) => {
+                    const currentState = call.state.callingState;
+                    // If the call was ringing and now is not, stop sound and leave call if not already left
+                    if (prevStates[idx] === 'ringing' && currentState !== 'ringing') {
+                        stopSound();
+                        if (typeof call.leave === 'function' && currentState !== 'left' && currentState !== 'idle') {
+                            call.leave({ reject: true, reason: 'cancel' });
+                        }
+                    }
+                    prevStates[idx] = currentState;
+                });
+            }, 200);
+            return () => clearInterval(interval);
+        }, [calls, stopSound]);
+        return null;
+    }
+
+    // Move this function up so it's defined before being used in JSX
+    const handleSelectIncidentForChat = (channelId: string) => {
+        setActiveCall(channelId);
+        setIsChatExpanded(true);
+    };
+
     if (isLoading) {
         return (
             <div className="min-h-screen bg-[#1B4965] flex items-center justify-center">
@@ -1039,7 +1029,6 @@ useEffect(() => {
 
     return (
         <div className="h-screen bg-[#1B4965] flex items-center justify-center">
-            <audio ref={audioRef} preload="auto" />
             <Container 
                 disableGutters={true}
                 maxWidth={false}
@@ -1325,6 +1314,7 @@ useEffect(() => {
 
             {videoClient && (
                 <StreamVideo client={videoClient}>
+                    <CallAudioHandler stopSound={() => {}} />
                     <VideoCallHandler />
                 </StreamVideo>
             )}

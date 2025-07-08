@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   AppBar,
   Typography,
@@ -47,8 +47,8 @@ const initialFacility = {
   email: '',
   location: {
     coordinates: {
-      lat: '',
-      lng: ''
+      lat: 0,
+      lng: 0
     }
   },
   contactPersons: []
@@ -68,6 +68,9 @@ const AddFacilities = () => {
   const navigate = useNavigate();
   const [isEditMode, setIsEditMode] = useState(false);
   const [facilityId, setFacilityId] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Facility form handlers
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,14 +133,45 @@ const AddFacilities = () => {
         location: {
           ...prev.location,
           coordinates: {
-            lat: result.lat.toString(),
-            lng: result.lng.toString()
+            lat: Number(result.lat),
+            lng: Number(result.lng)
           }
         }
       }));
     } else {
       setSnackbar({ open: true, message: 'Address not found', severity: 'error' });
     }
+  };
+
+  // Show existing images in edit mode
+  useEffect(() => {
+    if (isEditMode && formData.photos && formData.photos.length > 0) {
+      setImagePreviews(formData.photos);
+    }
+  }, [isEditMode, formData.photos]);
+
+  // Handle image selection
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      // Limit to 4 images
+      const newFiles = files.slice(0, 4 - selectedImages.length);
+      setSelectedImages(prev => [...prev, ...newFiles]);
+      // Create previews
+      newFiles.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImagePreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  // Remove image
+  const handleRemoveImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   // On mount, check for id in query string and fetch facility if present
@@ -180,7 +214,7 @@ const AddFacilities = () => {
     }
   }, [location.search]);
 
-  // Save facility
+  // Save facility (with image upload)
   const handleSave = async () => {
     if (!formData.name || !formData.description || !formData.assignment || !formData.telNo || !formData.location.coordinates.lat || !formData.location.coordinates.lng) {
       setSnackbar({ open: true, message: 'Please fill in all required fields', severity: 'error' });
@@ -188,14 +222,36 @@ const AddFacilities = () => {
     }
     try {
       const token = localStorage.getItem('token');
-      const payload = {
-        ...formData,
-        contactPersons: contactPersons
-      };
+      const payload = new FormData();
+      // Append all form fields (skip empty)
+      Object.entries(formData).forEach(([key, value]) => {
+        if (key === 'location' || key === 'contactPersons') {
+          payload.append(key, JSON.stringify(value));
+        } else if (Array.isArray(value) && value.length === 0) {
+          // skip empty arrays
+        } else if (typeof value === 'string' && value.trim() === '') {
+          // skip empty strings
+        } else if (value !== undefined && value !== null) {
+          payload.append(key, value as any);
+        }
+      });
+      // Append contactPersons as JSON (for consistency)
+      payload.set('contactPersons', JSON.stringify(contactPersons));
+      // Append images only if any are selected
+      if (selectedImages.length > 0) {
+        selectedImages.forEach((file) => {
+          payload.append('files', file);
+        });
+      }
+      // If editing, keep existing images if no new ones selected
+      if (isEditMode && selectedImages.length === 0 && imagePreviews.length > 0) {
+        payload.append('existingPhotos', JSON.stringify(imagePreviews));
+      }
       if (isEditMode && facilityId) {
         await axios.put(`${config.PERSONAL_API}/facilities/${facilityId}`, payload, {
           headers: {
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
           }
         });
         setSnackbar({ open: true, message: 'Facility updated successfully', severity: 'success' });
@@ -203,13 +259,16 @@ const AddFacilities = () => {
       } else {
         await axios.post(`${config.PERSONAL_API}/facilities/`, payload, {
           headers: {
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
           }
         });
         setSnackbar({ open: true, message: 'Facility created successfully', severity: 'success' });
         setFormData(initialFacility);
         setContactPersons([]);
         setAddress('');
+        setSelectedImages([]);
+        setImagePreviews([]);
       }
     } catch (err: any) {
       setSnackbar({ open: true, message: err.response?.data?.message || 'Error creating facility', severity: 'error' });
@@ -235,12 +294,51 @@ const AddFacilities = () => {
             {/* Left: Image uploads and marker */}
             <Grid size={{ xs: 12, md: 3 }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageSelect}
+                  style={{ display: 'none' }}
+                  ref={fileInputRef}
+                />
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2, mb: 2 }}>
-                  {[0,1,2,3].map(i => (
-                    <Avatar key={i} variant="rounded" sx={{ width: 90, height: 90, bgcolor: '#e0e0e0', border: '1px solid #bdbdbd' }} />
+                  {imagePreviews.map((preview, index) => (
+                    <Paper
+                      key={index}
+                      sx={{ width: 90, height: 90, position: 'relative', overflow: 'hidden' }}
+                    >
+                      <img
+                        src={preview}
+                        alt={`preview ${index + 1}`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={() => handleRemoveImage(index)}
+                        sx={{ position: 'absolute', top: 0, right: 0, bgcolor: 'rgba(0,0,0,0.5)', color: 'white', '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' } }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Paper>
+                  ))}
+                  {[...Array(4 - imagePreviews.length)].map((_, index) => (
+                    <Paper
+                      key={`empty-${index}`}
+                      sx={{ width: 90, height: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f5f5', cursor: 'pointer' }}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <img src="https://placehold.co/60x50" alt="placeholder" style={{ opacity: 0.5 }} />
+                    </Paper>
                   ))}
                 </Box>
-                <Button variant="contained" sx={{ bgcolor: '#43a047', color: 'white', width: '80%', fontWeight: 600, mb: 2 }}>Upload Photos</Button>
+                <Button
+                  variant="contained"
+                  sx={{ bgcolor: '#43a047', color: 'white', width: '80%', fontWeight: 600, mb: 2 }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Upload Photos
+                </Button>
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
                   <Avatar variant="rounded" sx={{ width: 90, height: 90, bgcolor: '#e0e0e0', border: '1px solid #bdbdbd' }} />
                   <Typography variant="caption" sx={{ mt: 1, color: '#222' }}>Marker to appear in Live Map</Typography>

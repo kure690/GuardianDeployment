@@ -360,7 +360,7 @@ const LGUConsole = () => {
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Add Team</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Manage Team</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Add Facility</Button>
+                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={() => navigate('/facilities')}>Add Facility</Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Manage Facility</Button>
                     </Box>
                   </Box>

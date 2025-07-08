@@ -10,7 +10,6 @@ import MainScreen from "./pages/MainScreen";
 import Register from "./pages/Register";
 import Calls from "./pages/Calls";
 import Status from "./pages/Status";
-import LGUStatus from "./pages/LGUStatus";
 import LGUMain from "./pages/LGUMain";
 import MapView from "./pages/MapView";
 import ResponderMap from "./pages/ResponderMap";
@@ -75,6 +74,7 @@ function App() {
   const [client, setClient] = useState<StreamChat | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [socketReady, setSocketReady] = useState(false);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -122,19 +122,20 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
     const socketInstance = io(config.GUARDIAN_SERVER_URL || "http://localhost:3000", {
-      transports: ["websocket"],
-      auth: { token },
+      transports: ["websocket"]
     });
     setSocket(socketInstance);
+    const handleConnect = () => setSocketReady(true);
+    socketInstance.on('connect', handleConnect);
     return () => {
+      socketInstance.off('connect', handleConnect);
       socketInstance.disconnect();
     };
   }, []);
 
-  if (isLoading) {
-    return null; 
+  if (isLoading || !socketReady) {
+    return <div style={{height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1B4965'}}><span style={{color: 'white', fontSize: 24}}>Connecting to server...</span></div>;
   }
 
   return (
