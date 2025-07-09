@@ -44,8 +44,8 @@ import policeSound from '../assets/sounds/police.mp3';
 import fireSound from '../assets/sounds/fire.mp3';
 import ambulanceSound from '../assets/sounds/ambulance.mp3';
 import generalSound from '../assets/sounds/general.mp3';
-import SocketContext from "../utils/socket";
-import { useContext } from "react";
+import { useSocket } from "../utils/socket";
+import { useReliableSocketEmit } from "../hooks/useReliableSocketEmit";
 
 const getIncidentIcon = (incidentType: string) => {
     const type = incidentType?.toLowerCase() || '';
@@ -436,7 +436,15 @@ const LGUMain = () => {
     const [activeCall, setActiveCall] = useState<string | null>(null);
     const [closingIncident, setClosingIncident] = useState<any>(null);
     const [showClosingModal, setShowClosingModal] = useState(false);
-    const socket = useContext(SocketContext);
+    const { socket: globalSocket, isConnected } = useSocket();
+    const reliableEmit = useReliableSocketEmit();
+
+    useEffect(() => {
+      if (globalSocket && isConnected && userId) {
+        globalSocket.emit('registerOpCen', { opCenId: userId });
+        console.log('[LGU] registerOpCen sent', userId);
+      }
+    }, [globalSocket, isConnected, userId]);
 
     const getImageUrl = (url: string) => {
         if (!url) return '';
@@ -711,14 +719,14 @@ useEffect(() => {
                 }
             }
         };
-        if (socket) {
-            socket.on('notifyOpCenConnecting', handleNotifyConnecting);
+        if (globalSocket && isConnected) {
+            globalSocket.on('notifyOpCenConnecting', handleNotifyConnecting);
             return () => {
-                socket.off('notifyOpCenConnecting', handleNotifyConnecting);
+                globalSocket.off('notifyOpCenConnecting', handleNotifyConnecting);
             };
         }
         return;
-    }, [userId, socket]);
+    }, [userId, globalSocket, isConnected]);
     const getNextChannelId = async (incidentType: string, incidentId: string) => {
         try {
             const data = incidentId.substring(4,9);
@@ -741,13 +749,11 @@ useEffect(() => {
             });
             await channel.create();
             // Emit socket event to accept the incident
-            if (socket) {
-                socket.emit('opcenAcceptIncident', {
-                    incidentId: connectingIncident._id,
-                    opCenId: userId,
-                    channelId,
-                });
-            }
+            reliableEmit('opcenAcceptIncident', {
+                incidentId: connectingIncident._id,
+                opCenId: userId,
+                channelId,
+            });
             localStorage.setItem('currentIncidentId', connectingIncident._id);
             localStorage.setItem('currentChannelId', channelId);
             setConnectingIncident(null);
@@ -762,12 +768,10 @@ useEffect(() => {
         if (!connectingIncident) return;
         try {
             // Emit socket event to decline the incident
-            if (socket) {
-                socket.emit('opcenDeclineIncident', {
-                    incidentId: connectingIncident._id,
-                    opCenId: userId,
-                });
-            }
+            reliableEmit('opcenDeclineIncident', {
+                incidentId: connectingIncident._id,
+                opCenId: userId,
+            });
             setConnectingIncident(null);
             setShowStatusModal(false);
         } catch (error) {

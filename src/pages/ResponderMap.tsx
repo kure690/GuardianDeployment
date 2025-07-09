@@ -27,8 +27,8 @@ import {
 } from "stream-chat-react";
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import SocketContext from "../utils/socket";
-import { useContext } from "react";
+import { useSocket } from "../utils/socket";
+import { useReliableSocketEmit } from "../hooks/useReliableSocketEmit";
 
 const containerStyle = {
   width: '100%',
@@ -71,7 +71,8 @@ const ResponderMap = () => {
   const [lguStatus, setLguStatus] = useState<string>('connected');
   const [destinationType, setDestinationType] = useState<string>('incident'); // 'incident' or 'hospital'
   const token = localStorage.getItem("token");
-  const socket = useContext(SocketContext);
+  const { socket, isConnected } = useSocket();
+  const reliableEmit = useReliableSocketEmit();
   const [responderData, setResponderData] = useState({
     firstName: '',
     lastName: '',
@@ -349,16 +350,14 @@ const ResponderMap = () => {
         return;
       }
       // Emit the assignment request via websocket
-      if (socket) {
-        socket.emit('requestResponderAssignment', {
-          incidentId,
-          responderId,
-          dispatcherId,
-        });
-      }
+      reliableEmit('requestResponderAssignment', {
+        incidentId,
+        responderId,
+        dispatcherId,
+      });
       // Optionally, listen for confirmation or error events here
-      // socket.on('assignmentRequest', (data) => { ... });
-      // socket.on('error', (err) => { ... });
+      // globalSocket.on('assignmentRequest', (data) => { ... });
+      // globalSocket.on('error', (err) => { ... });
       // You may want to show a UI notification or update state here
       console.log(`Sent assignment request for responder ${responderId} to incident ${incidentId}`);
       // Optionally, send the initial message as before

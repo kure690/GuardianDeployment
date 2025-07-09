@@ -27,8 +27,7 @@ import Facilities from "./pages/Facilities";
 import AddFacilities from "./pages/AddFacilities";
 import Announcements from "./pages/Announcements";
 import Messages from "./pages/Messages";
-import { io, Socket } from "socket.io-client";
-import SocketContext from "./utils/socket";
+import SocketProvider from "./utils/SocketProvider";
 // Create global theme with Verdana as default font
 const theme = createTheme({
   typography: {
@@ -73,8 +72,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [client, setClient] = useState<StreamChat | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [socketReady, setSocketReady] = useState(false);
+  // Removed socket and socketReady state
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -121,20 +119,9 @@ function App() {
     };
   }, []);
 
-  useEffect(() => {
-    const socketInstance = io(config.GUARDIAN_SERVER_URL || "http://localhost:3000", {
-      transports: ["websocket"]
-    });
-    setSocket(socketInstance);
-    const handleConnect = () => setSocketReady(true);
-    socketInstance.on('connect', handleConnect);
-    return () => {
-      socketInstance.off('connect', handleConnect);
-      socketInstance.disconnect();
-    };
-  }, []);
+  // Removed socket connection effect
 
-  if (isLoading || !socketReady) {
+  if (isLoading) {
     return <div style={{height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1B4965'}}><span style={{color: 'white', fontSize: 24}}>Connecting to server...</span></div>;
   }
 
@@ -142,7 +129,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <SocketContext.Provider value={socket}>
+        <SocketProvider>
           <main>
             {client ? (
               <Chat client={client}>
@@ -179,12 +166,12 @@ function App() {
                   <Route path="/teams" element={isAuthenticated ? <Teams /> : <Navigate to="/" replace />} />
                   <Route path="/mobile-assets" element={isAuthenticated ? <MobileAssets /> : <Navigate to="/" replace />} />
                   <Route path="/add-mobile-assets" element={isAuthenticated ? <AddMobileAssets /> : <Navigate to="/" replace />} />
-                  <Route path="/notification" element={isAuthenticated ? <Notification /> : <Navigate to="/" replace />} />
-                  <Route path="/add-teams" element={isAuthenticated ? <AddTeams /> : <Navigate to="/" replace />} />
-                  <Route path="/facilities" element={isAuthenticated ? <Facilities /> : <Navigate to="/" replace />} />
-                  <Route path="/add-facilities" element={isAuthenticated ? <AddFacilities /> : <Navigate to="/" replace />} />
-                  <Route path="/announcements" element={isAuthenticated ? <Announcements /> : <Navigate to="/" replace />} />
-                  <Route path="/messages" element={isAuthenticated ? <Messages /> : <Navigate to="/" replace />} />
+                  <Route path="/notification" element={<Notification />} />
+                  <Route path="/add-teams" element={<AddTeams />} />
+                  <Route path="/facilities" element={<Facilities />} />
+                  <Route path="/add-facilities" element={<AddFacilities />} />
+                  <Route path="/announcements" element={<Announcements />} />
+                  <Route path="/messages" element={<Messages />} />
                 </Routes>
               </Chat>
             ) : (
@@ -196,7 +183,7 @@ function App() {
               </Routes>
             )}
           </main>
-        </SocketContext.Provider>
+        </SocketProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

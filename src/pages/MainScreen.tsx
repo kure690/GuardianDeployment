@@ -53,8 +53,8 @@ import generalIcon from '../assets/images/General.png';
 import fireIcon from '../assets/images/Fire.png';
 import crimeIcon from '../assets/images/Police.png';
 import { getAddressFromCoordinates } from '../utils/geocoding';
-import SocketContext from "../utils/socket";
-import { useContext } from "react";
+import { useSocket } from "../utils/socket";
+import { useReliableSocketEmit } from "../hooks/useReliableSocketEmit";
 
 
 type User = {
@@ -92,7 +92,7 @@ const MainScreen = () => {
 
   const user = {
     id: userId,
-    name: userStr2?.firstName + " " + userStr2?.lastName,
+    name: userStr2?.name
   };
 
   const [chatClient, setChatClient] = useState<StreamChat | null>(null);
@@ -123,8 +123,10 @@ const MainScreen = () => {
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openMenu = Boolean(anchorEl);
+  const [lastUpsertedImages, setLastUpsertedImages] = useState<{[id: string]: string}>({});
   
-  const socket = useContext(SocketContext);
+  const { socket: globalSocket, isConnected } = useSocket();
+  const reliableEmit = useReliableSocketEmit();
 
   const getImageUrl = (url: string) => {
     if (!url) return '';
@@ -554,6 +556,13 @@ const MainScreen = () => {
       setConnectingOpCenName(null);
     }
   }, [opCenConnectingAt]);
+
+  // Add this handler for closing the connecting modal
+  const handleCloseConnectingModal = () => {
+    setConnectingModalOpen(false);
+    setConnectingOpCenName(null);
+    setOpCenConnectingAt(null);
+  };
   const formatLapsTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
@@ -606,21 +615,19 @@ const MainScreen = () => {
     setConnectingModalOpen(true);
     const incidentTypeToSend = modalIncident === "Other" ? customIncidentType : modalIncident;
     // Emit socket event to request opcen connection
-    if (socket) {
-      socket.emit('requestOpCenConnect', {
-        incidentId: id,
-        opCenId: opCenUser._id,
-        connectingTime,
-        incidentDetails: {
-          coordinates: {
-            lat: Number(coordinates.lat),
-            lon: Number(coordinates.long)
-          },
-          incident: incidentTypeToSend,
-          incidentDescription: modalIncidentDescription || "No description provided"
-        }
-      });
-    }
+    reliableEmit('requestOpCenConnect', {
+      incidentId: id,
+      opCenId: opCenUser._id,
+      connectingTime,
+      incidentDetails: {
+        coordinates: {
+          lat: Number(coordinates.lat),
+          lon: Number(coordinates.long)
+        },
+        incident: incidentTypeToSend,
+        incidentDescription: modalIncidentDescription || "No description provided"
+      }
+    });
     setSelectedOpCen(opCenUser);
   };
 
@@ -649,14 +656,14 @@ const MainScreen = () => {
         setSelectedOpCen(null);
       }
     };
-    if (socket) {
-      socket.on('opcen-connecting-status', handleStatus);
+    if (globalSocket && isConnected) {
+      globalSocket.on('opcen-connecting-status', handleStatus);
       return () => {
-        socket.off('opcen-connecting-status', handleStatus);
+        globalSocket.off('opcen-connecting-status', handleStatus);
       };
     }
     return;
-  }, [incidentId, chatClient, userId, socket]);
+  }, [incidentId, chatClient, userId, globalSocket, isConnected]);
 
 
   const handleLocationClick = () => {
@@ -678,17 +685,26 @@ const MainScreen = () => {
   useEffect(() => {
     const loadProfileImages = async () => {
       if (!chatClient || !userId || !userStr2 || !userData || !volunteerID) return;
+
+      const updates: any[] = [];
+      if (lastUpsertedImages[userId] !== (userStr2.profileImage || '')) {
+        updates.push({ id: userId, image: userStr2.profileImage || '' });
+      }
+      if (lastUpsertedImages[volunteerID] !== (userData.profileImage || '')) {
+        updates.push({ id: volunteerID, image: userData.profileImage || '' });
+      }
+      if (updates.length === 0) {
+        setImagesLoaded(true);
+        return;
+      }
       try {
-        // Upsert current user
-        await chatClient.upsertUser({
-          id: userId,
-          image: userStr2.profileImage || '',
-        });
-        // Upsert callee
-        await chatClient.upsertUser({
-          id: volunteerID,
-          image: userData.profileImage || '',
-        });
+        for (const user of updates) {
+          await chatClient.upsertUser(user);
+        }
+        setLastUpsertedImages((prev) => ({
+          ...prev,
+          ...Object.fromEntries(updates.map(u => [u.id, u.image]))
+        }));
         setImagesLoaded(true);
       } catch (e) {
         console.warn('Failed to upsert user images in Stream:', e);
@@ -696,7 +712,8 @@ const MainScreen = () => {
       }
     };
     loadProfileImages();
-  }, [chatClient, userId, userStr2, userData, volunteerID]);
+    // Only rerun if the images actually change
+  }, [chatClient, userId, userStr2?.profileImage, userData?.profileImage, volunteerID]);
 
   if (!user || !chatClient || !userData || !incidentType || !imagesLoaded) {
     return <div>Loading chat...</div>;
@@ -1428,7 +1445,7 @@ const MainScreen = () => {
       
       <Modal
         open={connectingModalOpen}
-        onClose={() => {}} 
+        onClose={handleCloseConnectingModal} 
         aria-labelledby="connecting-modal"
         sx={{
           display: 'flex',
