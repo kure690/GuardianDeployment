@@ -334,44 +334,37 @@ const MainScreen = () => {
 
   useEffect(() => {
     if (globalSocket && userId && incidentId) {
-        // Create an async function to fetch the opCenId and then rejoin
-        const rejoinIncident = async () => {
-            try {
-                console.log('Dispatcher attempting to rejoin incident:', incidentId);
-                const token = localStorage.getItem("token");
+        // Standard registration
+        globalSocket.emit('registerDispatcher', { dispatcherId: userId });
 
+        // --- Join the lobby immediately ---
+        const joinLobbyForIncident = async () => {
+            try {
+                const token = localStorage.getItem("token");
                 const response = await fetch(`${config.PERSONAL_API}/incidents/${incidentId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                    },
+                    headers: { 'Authorization': `Bearer ${token}` },
                 });
 
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch incident data for rejoin: ${response.status}`);
-                }
-
+                if (!response.ok) throw new Error('Failed to fetch incident data.');
+                
                 const incident = await response.json();
-                // The 'opCen' field in the incident holds the ID we need
-                const activeOpCenId = incident.opCen;
+                // Determine the OpCen ID from the incident data.
+                // This assumes an OpCen is assigned when the incident is created or updated.
+                const designatedOpCenId = incident.opCen; 
 
-                if (activeOpCenId) {
-                    console.log(`Found OpCen ID (${activeOpCenId}), rejoining room...`);
-                    globalSocket.emit('dispatcherRejoin', {
-                        incidentId: incidentId,
+                if (designatedOpCenId) {
+                    console.log(`Dispatcher joining lobby with OpCen: ${designatedOpCenId}`);
+                    globalSocket.emit('joinLobby', {
                         dispatcherId: userId,
-                        opCenId: activeOpCenId,
+                        opCenId: designatedOpCenId
                     });
-                } else {
-                    // This is normal if the incident is not yet connected to an OpCen
-                    console.log('No active OpCen found for this incident, no rejoin needed.');
                 }
             } catch (error) {
-                console.error('Error during dispatcher rejoin attempt:', error);
+                console.error("Error joining lobby:", error);
             }
         };
 
-        // Execute the async function
-        rejoinIncident();
+        joinLobbyForIncident();
     }
 }, [globalSocket, userId, incidentId, token]);
 

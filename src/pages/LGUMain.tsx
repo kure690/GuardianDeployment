@@ -445,46 +445,17 @@ const LGUMain = () => {
     // Standard registration
     globalSocket.emit('registerOpCen', { opCenId: userId });
 
-    // Check if we need to rejoin an active incident
-    const activeIncidentId = localStorage.getItem('currentIncidentId');
+    // --- Join the lobby immediately ---
+    // For this example, we'll hardcode the Dispatcher's ID.
+    // In a real app, you would get this from the user's profile or an API.
+    const designatedDispatcherId = "ID_OF_THE_DISPATCHER_THIS_OPCEN_WORKS_WITH"; 
 
-    if (activeIncidentId) {
-      // Create an async function to fetch the dispatcherId and then rejoin
-      const rejoinIncident = async () => {
-        try {
-          console.log('Attempting to rejoin incident:', activeIncidentId);
-          const token = localStorage.getItem("token"); 
-
-          const response = await fetch(`${config.PERSONAL_API}/incidents/${activeIncidentId}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-
-          if (!response.ok) {
-            throw new Error(`Failed to fetch incident data for rejoin: ${response.status}`);
-          }
-
-          const incident = await response.json();
-          const activeDispatcherId = incident.dispatcher;
-
-          if (activeDispatcherId) {
-            console.log(`Found Dispatcher ID (${activeDispatcherId}), rejoining room...`);
-            globalSocket.emit('opCenRejoin', {
-              incidentId: activeIncidentId,
-              opCenId: userId,
-              dispatcherId: activeDispatcherId,
-            });
-          } else {
-            console.error('Rejoin failed: Could not find a dispatcher ID in the incident data.');
-          }
-        } catch (error) {
-          console.error('Error during rejoin attempt:', error);
-          localStorage.removeItem('currentIncidentId');
-        }
-      };
-
-      rejoinIncident();
+    if (designatedDispatcherId) {
+        console.log(`OpCen joining lobby with Dispatcher: ${designatedDispatcherId}`);
+        globalSocket.emit('joinLobby', {
+            opCenId: userId,
+            dispatcherId: designatedDispatcherId
+        });
     }
   }
 }, [globalSocket, userId]);
