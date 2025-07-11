@@ -441,10 +441,24 @@ const LGUMain = () => {
 
     // Register OpCen on socket connect
     useEffect(() => {
-      if (globalSocket && userId) {
-        globalSocket.emit('registerOpCen', { opCenId: userId });
-      }
-    }, [globalSocket, userId]);
+  if (globalSocket && userId) {
+    // Standard registration
+    globalSocket.emit('registerOpCen', { opCenId: userId });
+
+    // Check if we need to rejoin an active incident
+    const activeIncidentId = localStorage.getItem('currentIncidentId');
+    const activeDispatcherId = localStorage.getItem('currentDispatcherId'); // You need to save this
+
+    if (activeIncidentId && activeDispatcherId) {
+      console.log('Rejoining incident:', activeIncidentId);
+      globalSocket.emit('opCenRejoin', {
+        incidentId: activeIncidentId,
+        opCenId: userId,
+        dispatcherId: activeDispatcherId,
+      });
+    }
+  }
+}, [globalSocket, userId]);
 
     const getImageUrl = (url: string) => {
         if (!url) return '';
