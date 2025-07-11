@@ -442,21 +442,9 @@ const LGUMain = () => {
     // Register OpCen on socket connect
     useEffect(() => {
   if (globalSocket && userId) {
-    // Standard registration
+    // Just register. The server will handle joining the lobby.
+    console.log(`Registering OpCen to join lobby: lobby_opcen_${userId}`);
     globalSocket.emit('registerOpCen', { opCenId: userId });
-
-    // --- Join the lobby immediately ---
-    // For this example, we'll hardcode the Dispatcher's ID.
-    // In a real app, you would get this from the user's profile or an API.
-    const designatedDispatcherId = "ID_OF_THE_DISPATCHER_THIS_OPCEN_WORKS_WITH"; 
-
-    if (designatedDispatcherId) {
-        console.log(`OpCen joining lobby with Dispatcher: ${designatedDispatcherId}`);
-        globalSocket.emit('joinLobby', {
-            opCenId: userId,
-            dispatcherId: designatedDispatcherId
-        });
-    }
   }
 }, [globalSocket, userId]);
 

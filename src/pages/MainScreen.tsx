@@ -332,41 +332,9 @@ const MainScreen = () => {
     }
   };
 
-  useEffect(() => {
-    if (globalSocket && userId && incidentId) {
-        // Standard registration
-        globalSocket.emit('registerDispatcher', { dispatcherId: userId });
+  
 
-        // --- Join the lobby immediately ---
-        const joinLobbyForIncident = async () => {
-            try {
-                const token = localStorage.getItem("token");
-                const response = await fetch(`${config.PERSONAL_API}/incidents/${incidentId}`, {
-                    headers: { 'Authorization': `Bearer ${token}` },
-                });
-
-                if (!response.ok) throw new Error('Failed to fetch incident data.');
-                
-                const incident = await response.json();
-                // Determine the OpCen ID from the incident data.
-                // This assumes an OpCen is assigned when the incident is created or updated.
-                const designatedOpCenId = incident.opCen; 
-
-                if (designatedOpCenId) {
-                    console.log(`Dispatcher joining lobby with OpCen: ${designatedOpCenId}`);
-                    globalSocket.emit('joinLobby', {
-                        dispatcherId: userId,
-                        opCenId: designatedOpCenId
-                    });
-                }
-            } catch (error) {
-                console.error("Error joining lobby:", error);
-            }
-        };
-
-        joinLobbyForIncident();
-    }
-}, [globalSocket, userId, incidentId, token]);
+  
 
   useEffect(() => {
     if (!incidentId) {
@@ -641,8 +609,7 @@ const MainScreen = () => {
   }, []);
 
   const handleConnect = (opCenUser: any) => {
-    const id = location.state?.incident?._id || incidentId;
-    if (!id) {
+    if (!incidentId) {
       console.error('No incident ID available');
       return;
     }
@@ -651,17 +618,14 @@ const MainScreen = () => {
     setConnectingOpCenName({ firstName: opCenUser.firstName, lastName: opCenUser.lastName });
     setConnectingModalOpen(true);
     const incidentTypeToSend = modalIncident === "Other" ? customIncidentType : modalIncident;
-    // Emit socket event to request opcen connection, now with dispatcherId
+
     reliableEmit('requestOpCenConnect', {
-      incidentId: id,
+      incidentId: incidentId,
       opCenId: opCenUser._id,
-      dispatcherId: userId, // <-- include dispatcherId
+      dispatcherId: userId,
       connectingTime,
       incidentDetails: {
-        coordinates: {
-          lat: Number(coordinates.lat),
-          lon: Number(coordinates.long)
-        },
+        coordinates: { lat: Number(coordinates.lat), lon: Number(coordinates.long) },
         incident: incidentTypeToSend,
         incidentDescription: modalIncidentDescription || "No description provided"
       }
