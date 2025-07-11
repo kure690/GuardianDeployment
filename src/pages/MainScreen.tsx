@@ -557,7 +557,6 @@ const MainScreen = () => {
     }
   }, [opCenConnectingAt]);
 
-  // Add this handler for closing the connecting modal
   const handleCloseConnectingModal = () => {
     setConnectingModalOpen(false);
     setConnectingOpCenName(null);
@@ -614,10 +613,11 @@ const MainScreen = () => {
     setConnectingOpCenName({ firstName: opCenUser.firstName, lastName: opCenUser.lastName });
     setConnectingModalOpen(true);
     const incidentTypeToSend = modalIncident === "Other" ? customIncidentType : modalIncident;
-    // Emit socket event to request opcen connection
+    // Emit socket event to request opcen connection, now with dispatcherId
     reliableEmit('requestOpCenConnect', {
       incidentId: id,
       opCenId: opCenUser._id,
+      dispatcherId: userId, // <-- include dispatcherId
       connectingTime,
       incidentDetails: {
         coordinates: {
@@ -646,14 +646,16 @@ const MainScreen = () => {
           });
         }
         setOpCenConnectingAt(null);
-        setConnectingModalOpen(false);
+        setConnectingModalOpen(false); // Always close modal on connected
         setConnectingOpCenName(null);
         setOpenModal(false);
       } else if (data.status === 'idle') {
         setOpCenConnectingAt(null);
-        setConnectingModalOpen(false);
+        setConnectingModalOpen(false); // Always close modal on idle
         setConnectingOpCenName(null);
         setSelectedOpCen(null);
+      } else if (data.status === 'connecting') {
+        setConnectingModalOpen(true); // Only open modal if status is connecting
       }
     };
     if (globalSocket && isConnected) {
@@ -714,6 +716,13 @@ const MainScreen = () => {
     loadProfileImages();
     // Only rerun if the images actually change
   }, [chatClient, userId, userStr2?.profileImage, userData?.profileImage, volunteerID]);
+
+  // Register dispatcher on socket connect
+  useEffect(() => {
+    if (globalSocket && userId) {
+      globalSocket.emit('registerDispatcher', { dispatcherId: userId });
+    }
+  }, [globalSocket, userId]);
 
   if (!user || !chatClient || !userData || !incidentType || !imagesLoaded) {
     return <div>Loading chat...</div>;

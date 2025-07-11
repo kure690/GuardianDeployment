@@ -439,12 +439,12 @@ const LGUMain = () => {
     const { socket: globalSocket, isConnected } = useSocket();
     const reliableEmit = useReliableSocketEmit();
 
+    // Register OpCen on socket connect
     useEffect(() => {
-      if (globalSocket && isConnected && userId) {
+      if (globalSocket && userId) {
         globalSocket.emit('registerOpCen', { opCenId: userId });
-        console.log('[LGU] registerOpCen sent', userId);
       }
-    }, [globalSocket, isConnected, userId]);
+    }, [globalSocket, userId]);
 
     const getImageUrl = (url: string) => {
         if (!url) return '';
@@ -740,18 +740,20 @@ useEffect(() => {
         if (!connectingIncident) return;
         try {
             const channelId = await getNextChannelId(connectingIncident.incidentType, connectingIncident._id);
-            const userIdForChat = typeof connectingIncident.user === 'object' && connectingIncident.user !== null
+            // Get dispatcherId from incident.user (object or string)
+            const dispatcherId = typeof connectingIncident.user === 'object' && connectingIncident.user !== null
                 ? connectingIncident.user._id
                 : connectingIncident.user;
             const channel = client.channel('messaging', channelId, {
                 name: `${connectingIncident.incidentType} Incident #${channelId.split('-')[1]}`,
-                members: [userIdForChat, userId]
+                members: [dispatcherId, userId]
             });
             await channel.create();
-            // Emit socket event to accept the incident
+            // Emit socket event to accept the incident, now with dispatcherId
             reliableEmit('opcenAcceptIncident', {
                 incidentId: connectingIncident._id,
                 opCenId: userId,
+                dispatcherId, // <-- include dispatcherId
                 channelId,
             });
             localStorage.setItem('currentIncidentId', connectingIncident._id);
@@ -767,10 +769,15 @@ useEffect(() => {
     const handleDeclineIncident = async () => {
         if (!connectingIncident) return;
         try {
-            // Emit socket event to decline the incident
+            // Get dispatcherId from incident.user (object or string)
+            const dispatcherId = typeof connectingIncident.user === 'object' && connectingIncident.user !== null
+                ? connectingIncident.user._id
+                : connectingIncident.user;
+            // Emit socket event to decline the incident, now with dispatcherId
             reliableEmit('opcenDeclineIncident', {
                 incidentId: connectingIncident._id,
                 opCenId: userId,
+                dispatcherId, // <-- include dispatcherId
             });
             setConnectingIncident(null);
             setShowStatusModal(false);
