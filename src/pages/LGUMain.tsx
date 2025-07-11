@@ -447,15 +447,44 @@ const LGUMain = () => {
 
     // Check if we need to rejoin an active incident
     const activeIncidentId = localStorage.getItem('currentIncidentId');
-    const activeDispatcherId = localStorage.getItem('currentDispatcherId'); // You need to save this
 
-    if (activeIncidentId && activeDispatcherId) {
-      console.log('Rejoining incident:', activeIncidentId);
-      globalSocket.emit('opCenRejoin', {
-        incidentId: activeIncidentId,
-        opCenId: userId,
-        dispatcherId: activeDispatcherId,
-      });
+    if (activeIncidentId) {
+      // Create an async function to fetch the dispatcherId and then rejoin
+      const rejoinIncident = async () => {
+        try {
+          console.log('Attempting to rejoin incident:', activeIncidentId);
+          const token = localStorage.getItem("token"); 
+
+          const response = await fetch(`${config.PERSONAL_API}/incidents/${activeIncidentId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch incident data for rejoin: ${response.status}`);
+          }
+
+          const incident = await response.json();
+          const activeDispatcherId = incident.dispatcher;
+
+          if (activeDispatcherId) {
+            console.log(`Found Dispatcher ID (${activeDispatcherId}), rejoining room...`);
+            globalSocket.emit('opCenRejoin', {
+              incidentId: activeIncidentId,
+              opCenId: userId,
+              dispatcherId: activeDispatcherId,
+            });
+          } else {
+            console.error('Rejoin failed: Could not find a dispatcher ID in the incident data.');
+          }
+        } catch (error) {
+          console.error('Error during rejoin attempt:', error);
+          localStorage.removeItem('currentIncidentId');
+        }
+      };
+
+      rejoinIncident();
     }
   }
 }, [globalSocket, userId]);
