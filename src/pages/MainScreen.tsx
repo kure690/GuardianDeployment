@@ -128,6 +128,8 @@ const MainScreen = () => {
   const { socket: globalSocket, isConnected } = useSocket();
   const reliableEmit = useReliableSocketEmit();
 
+  
+
   const getImageUrl = (url: string) => {
     if (!url) return '';
     if (url.startsWith('http')) return url;
@@ -329,6 +331,49 @@ const MainScreen = () => {
       console.error('Error fetching incident data:', error);
     }
   };
+
+  useEffect(() => {
+    if (globalSocket && userId && incidentId) {
+        // Create an async function to fetch the opCenId and then rejoin
+        const rejoinIncident = async () => {
+            try {
+                console.log('Dispatcher attempting to rejoin incident:', incidentId);
+                const token = localStorage.getItem("token");
+
+                const response = await fetch(`${config.PERSONAL_API}/incidents/${incidentId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch incident data for rejoin: ${response.status}`);
+                }
+
+                const incident = await response.json();
+                // The 'opCen' field in the incident holds the ID we need
+                const activeOpCenId = incident.opCen;
+
+                if (activeOpCenId) {
+                    console.log(`Found OpCen ID (${activeOpCenId}), rejoining room...`);
+                    globalSocket.emit('dispatcherRejoin', {
+                        incidentId: incidentId,
+                        dispatcherId: userId,
+                        opCenId: activeOpCenId,
+                    });
+                } else {
+                    // This is normal if the incident is not yet connected to an OpCen
+                    console.log('No active OpCen found for this incident, no rejoin needed.');
+                }
+            } catch (error) {
+                console.error('Error during dispatcher rejoin attempt:', error);
+            }
+        };
+
+        // Execute the async function
+        rejoinIncident();
+    }
+}, [globalSocket, userId, incidentId, token]);
 
   useEffect(() => {
     if (!incidentId) {
