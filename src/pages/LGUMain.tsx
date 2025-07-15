@@ -441,10 +441,12 @@ const LGUMain = () => {
 
     // Register OpCen on socket connect
     useEffect(() => {
-      if (globalSocket && userId) {
-        globalSocket.emit('registerOpCen', { opCenId: userId });
-      }
-    }, [globalSocket, userId]);
+  if (globalSocket && userId) {
+    // Just register. The server will handle joining the lobby.
+    console.log(`Registering OpCen to join lobby: lobby_opcen_${userId}`);
+    globalSocket.emit('registerOpCen', { opCenId: userId });
+  }
+}, [globalSocket, userId]);
 
     const getImageUrl = (url: string) => {
         if (!url) return '';

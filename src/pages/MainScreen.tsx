@@ -128,6 +128,8 @@ const MainScreen = () => {
   const { socket: globalSocket, isConnected } = useSocket();
   const reliableEmit = useReliableSocketEmit();
 
+  
+
   const getImageUrl = (url: string) => {
     if (!url) return '';
     if (url.startsWith('http')) return url;
@@ -329,6 +331,10 @@ const MainScreen = () => {
       console.error('Error fetching incident data:', error);
     }
   };
+
+  
+
+  
 
   useEffect(() => {
     if (!incidentId) {
@@ -603,8 +609,7 @@ const MainScreen = () => {
   }, []);
 
   const handleConnect = (opCenUser: any) => {
-    const id = location.state?.incident?._id || incidentId;
-    if (!id) {
+    if (!incidentId) {
       console.error('No incident ID available');
       return;
     }
@@ -613,17 +618,14 @@ const MainScreen = () => {
     setConnectingOpCenName({ firstName: opCenUser.firstName, lastName: opCenUser.lastName });
     setConnectingModalOpen(true);
     const incidentTypeToSend = modalIncident === "Other" ? customIncidentType : modalIncident;
-    // Emit socket event to request opcen connection, now with dispatcherId
+
     reliableEmit('requestOpCenConnect', {
-      incidentId: id,
+      incidentId: incidentId,
       opCenId: opCenUser._id,
-      dispatcherId: userId, // <-- include dispatcherId
+      dispatcherId: userId,
       connectingTime,
       incidentDetails: {
-        coordinates: {
-          lat: Number(coordinates.lat),
-          lon: Number(coordinates.long)
-        },
+        coordinates: { lat: Number(coordinates.lat), lon: Number(coordinates.long) },
         incident: incidentTypeToSend,
         incidentDescription: modalIncidentDescription || "No description provided"
       }
