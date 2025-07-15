@@ -24,6 +24,7 @@ interface Incident {
   user: {
     "firstName": string;
     "lastName": string;
+    "profileImage": string;
     _id: string;
   };
   createdAt: string;
@@ -547,7 +548,7 @@ export default function Status() {
                     </Typography>
                   </div>
                   <Avatar 
-                    src={getImageUrl(userData?.profileImage) || ''}
+                    src={currentIncident.user.profileImage || ''}
                     sx={{ width: 120, height: 120 }}
                     alt={user.name}
                   />
