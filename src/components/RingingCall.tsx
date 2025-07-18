@@ -8,7 +8,7 @@ import { Avatar, Paper, Typography, Button } from '@mui/material';
 import CallIcon from '@mui/icons-material/Call';
 import CallEndIcon from '@mui/icons-material/CallEnd';
 import medicalIcon from '../assets/images/Medical.png';
-import { useRingSound } from '../hooks/useRingSound';
+import { useRingSound } from '../hooks/utils/useRingSound';
 
 const CALLING_STATE_TO_LABEL: Record<CallingState, string> = {
   [CallingState.JOINING]: 'Joining',
@@ -24,25 +24,10 @@ const CALLING_STATE_TO_LABEL: Record<CallingState, string> = {
 };
 
 export type RingingCallProps = {
-  /**
-   * Whether to include the current user in the list of members to show.
-   * This prop is maintained for backward compatibility.
-   * @default false.
-   */
+  
   includeSelf?: boolean;
-
-  /**
-   * The maximum number of members to show.
-   * @default 3.
-   */
   totalMembersToShow?: number;
 
-  /**
-   * Whether to show only relevant users based on call direction.
-   * When true, caller sees recipients and callee sees caller.
-   * When false, behaves according to original implementation.
-   * @default true
-   */
   showRelevantUsersOnly?: boolean;
 };
 

@@ -1,16 +1,10 @@
 import { useCallback, useEffect, useRef } from "react";
-import { useSocket } from "../utils/socket";
+import { useSocket } from "../../utils/socket";
 
-/**
- * Reliable socket emit hook: buffers emits until socket is connected.
- * Usage: const reliableEmit = useReliableSocketEmit();
- *        reliableEmit('event', payload);
- */
 export function useReliableSocketEmit() {
   const { socket, isConnected } = useSocket();
   const queue = useRef<Array<{ event: string; args: any[] }>>([]);
 
-  // Log connection state changes
   useEffect(() => {
     if (isConnected) {
       console.log("[Socket] Connected");
@@ -19,7 +13,6 @@ export function useReliableSocketEmit() {
     }
   }, [isConnected]);
 
-  // Flush queue when connected
   useEffect(() => {
     if (isConnected && socket) {
       queue.current.forEach(({ event, args }) => {
@@ -29,7 +22,6 @@ export function useReliableSocketEmit() {
     }
   }, [isConnected, socket]);
 
-  // Reliable emit function
   const reliableEmit = useCallback(
     (event: string, ...args: any[]) => {
       if (socket && isConnected) {

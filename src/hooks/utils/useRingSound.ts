@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useCall, useCallStateHooks } from '@stream-io/video-react-sdk';
 import { CallingState } from '@stream-io/video-client';
 
-import generalRingSound from '../assets/sounds/general.mp3';
+import generalRingSound from '../../assets/sounds/general.mp3';
 
 export function useRingSound(soundUrl = generalRingSound) {
   const call = useCall();

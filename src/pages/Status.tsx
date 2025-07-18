@@ -1,19 +1,15 @@
 import { User } from "@stream-io/video-react-sdk";
-import avatarImg from "../assets/images/user.png";
-import { Paper, Avatar, Typography, Box, Button, Modal, MenuItem, Menu } from "@mui/material";
+import { Paper, Avatar, Typography, Box, Button, MenuItem, Menu } from "@mui/material";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useChatContext } from 'stream-chat-react';
 import { useState, useEffect, useRef } from 'react';
-import medicalIcon from '../assets/images/Medical.png';
-import generalIcon from '../assets/images/General.png';
-import fireIcon from '../assets/images/Fire.png';
-import crimeIcon from '../assets/images/Police.png';
 import policeSound from '../assets/sounds/police.mp3';
 import fireSound from '../assets/sounds/fire.mp3';
 import ambulanceSound from '../assets/sounds/ambulance.mp3';
 import generalSound from '../assets/sounds/general.mp3';
 import config from "../config";
 import { getAddressFromCoordinates } from '../utils/geocoding';
+import IncidentModal from '../components/IncidentModal';
 
 interface Incident {
   _id: string;
@@ -47,11 +43,9 @@ export default function Status() {
   const [isInvisible, setIsInvisible] = useState(true);
   const [openModal, setOpenModal] = useState(true);
   const [currentIncident, setCurrentIncident] = useState<Incident | null>(null);
-  const [lastCheck, setLastCheck] = useState(Date.now());
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [address, setAddress] = useState<string>('');
   const userId = userData?.id;
-  const userRole = userData?.role;
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const userName = userData?.name;
   const openMenu = Boolean(anchorEl);
@@ -143,7 +137,6 @@ export default function Status() {
 
           setCurrentIncident(relevantIncident);
           setOpenModal(true);
-          setLastCheck(Date.now());
 
           if (audioRef.current) {
             switch (relevantIncident.incidentType.toLowerCase()) {
@@ -178,16 +171,7 @@ export default function Status() {
         clearInterval(interval);
       }
     };
-  }, [currentIncident, lastCheck, isInvisible, userId, userData]);
-
-  // const handleLogout = () => {
-  //   if (audioRef.current) {
-  //     audioRef.current.pause();
-  //     audioRef.current.currentTime = 0;
-  //   }
-  //   localStorage.clear();
-  //   navigate("/", { replace: true });
-  // };
+  }, [currentIncident, isInvisible, userId, userData]);
 
   const handleCloseModal = () => {
     setOpenModal(false);
@@ -209,52 +193,9 @@ export default function Status() {
     }
   };
 
-  const getIncidentColors = (incidentType: string) => {
-    const type = incidentType?.toLowerCase() || '';
-    
-    switch (type) {
-      case 'medical':
-        return {
-          primary: '#1e4976',  
-          secondary: '#4a7ab8',
-          icon: medicalIcon
-        };
-      case 'fire':
-        return {
-          primary: '#1e4976',  
-          secondary: '#F27572',
-          icon: fireIcon
-          
-        };
-      case 'police':
-        return {
-          primary: '#1e4976',  
-          secondary: '#333333',
-          icon: crimeIcon
-        };
-      case 'general':
-      default:
-        return {
-          primary: '#1e4976',  
-          secondary: '#66bb6a',
-          icon: generalIcon
-        };
-    }
-  };
-
   const getNextChannelId = async (incidentType: string, incidentId: string) => {
     try {
-        // if (typeof window === 'undefined' || !crypto.subtle) {
-        //     throw new Error("Web Crypto API is not available in this environment.");
-        // }
-
-        // const encoder = new TextEncoder();
         const data = incidentId.substring(5,9);
-
-        // const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        // const hashArray = Array.from(new Uint8Array(hashBuffer));
-        // const shortHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 8);
-
         return `${incidentType.toLowerCase()}-${data}`;
     } catch (error) {
         console.error('Error generating channel ID:', error);
@@ -455,137 +396,14 @@ export default function Status() {
         </Paper>
         
         {currentIncident && (
-        <Modal
+        <IncidentModal
           open={openModal}
           onClose={handleCloseModal}
-          aria-labelledby="incident-modal"
-          aria-describedby="incident-description"
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
-          {(() => {
-            const colors = getIncidentColors(currentIncident.incidentType);
-            
-            return (
-              <Paper 
-                elevation={3} 
-                className="shake_me"
-                sx={{ 
-                  width: '600px',
-                  margin: '0 auto',
-                  borderRadius: '20px',
-                  overflow: 'hidden',
-                  padding: 0
-                }}
-              >
-                <div style={{ 
-                  backgroundColor: colors.primary, 
-                  padding: '24px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <div style={{ 
-                    width: '80px', 
-                    height: '80px', 
-                    marginRight: '24px', 
-                    borderRadius: '50%',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center'
-                  }}>
-                    <Avatar 
-                    src={colors.icon}
-                    sx={{ width: 96, height: 96 }}
-                    alt={colors.icon}
-                  />
-                  </div>
-                  <div>
-                    <Typography variant="h4" sx={{ color: 'white', fontWeight: 'bold' }}>
-                      {currentIncident.incidentType.toUpperCase()} INCIDENT
-                    </Typography>
-                    <Typography variant="body1" sx={{ 
-                      color: 'white',
-                      // backgroundColor: 'red',
-                      maxWidth: '300px',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2, 
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      }}
-                      title={address || "Loading address..."}>
-                      {address || "Loading address..."}
-                    </Typography>
-                  </div>
-                </div>
-                <div style={{ 
-                  backgroundColor: colors.secondary, 
-                  padding: '14px 40px 14px 40px', 
-                  display: 'flex', 
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <div>
-                    <Typography variant="h4" sx={{ color: 'white', fontWeight: 'bold', maxWidth: '400px', }}>
-                      {currentIncident.user.firstName.toUpperCase()} {currentIncident.user.lastName.toUpperCase()}
-                    </Typography>
-                    <Typography variant="h6" sx={{ 
-                      color: 'white', 
-                      // backgroundColor: 'red',
-                      maxWidth: '390px',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2, 
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      }}
-                      title={address || "Loading address..."}>
-                      {address || "Loading address..."}
-                    </Typography>
-                  </div>
-                  <Avatar 
-                    src={currentIncident.user.profileImage || ''}
-                    sx={{ width: 120, height: 120 }}
-                    alt={user.name}
-                  />
-                </div>
-                <div style={{ 
-                  backgroundColor: colors.primary, 
-                  padding: '24px', 
-                  display: 'flex', 
-                  justifyContent: 'center',
-                  gap: '16px'
-                }}>
-                  <Button 
-                    variant="contained" 
-                    onClick={handleAcceptIncident}
-                    sx={{ 
-                      backgroundColor: '#6ad37a',
-                      color: 'white',
-                      padding: '5px 24px',
-                      width: '40%',
-                      fontSize: '18px',
-                      fontWeight: 'bold',
-                      '&:hover': {
-                        backgroundColor: '#5bc26b'
-                      },
-                      '&:disabled': {
-                        backgroundColor: '#97d8a1',
-                        color: '#e0e0e0'
-                      }
-                    }}
-                  >
-                    ACCEPT
-                  </Button>
-                </div>
-              </Paper>
-            );
-          })()}
-        </Modal>
+          incident={currentIncident}
+          address={address}
+          onAccept={handleAcceptIncident}
+          userName={user.name ?? ''}
+        />
       )}
       </div>
     </>

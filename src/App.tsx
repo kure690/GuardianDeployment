@@ -28,7 +28,7 @@ import AddFacilities from "./pages/AddFacilities";
 import Announcements from "./pages/Announcements";
 import Messages from "./pages/Messages";
 import SocketProvider from "./utils/SocketProvider";
-// Create global theme with Verdana as default font
+
 const theme = createTheme({
   typography: {
     fontFamily: 'Verdana, sans-serif',
@@ -61,8 +61,8 @@ const theme = createTheme({
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: false, // disable automatic refetching on window focus
-      retry: 1, // only retry failed requests once
+      refetchOnWindowFocus: false, 
+      retry: 1, 
     },
   },
 });
@@ -72,7 +72,6 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [client, setClient] = useState<StreamChat | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  // Removed socket and socketReady state
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -100,7 +99,6 @@ function App() {
           setIsAuthenticated(true);
         } catch (error) {
           console.error('Error connecting to Stream Chat:', error);
-          // Clear stored data if connection fails
           localStorage.removeItem('user');
           localStorage.removeItem('token');
           localStorage.removeItem('chatClient');
@@ -119,7 +117,6 @@ function App() {
     };
   }, []);
 
-  // Removed socket connection effect
 
   if (isLoading) {
     return <div style={{height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1B4965'}}><span style={{color: 'white', fontSize: 24}}>Connecting to server...</span></div>;

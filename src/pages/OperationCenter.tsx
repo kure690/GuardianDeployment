@@ -15,7 +15,7 @@ import {
 import Grid from "@mui/material/Grid2";
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import SearchIcon from '@mui/icons-material/Search';
-import { useOpCen } from '../hooks/useOpCen';
+import { useOpCen } from '../hooks/opcen/useOpCen';
 import { getLatLngFromAddress, getAddressFromCoordinates } from '../utils/geocoding';
 import axios from 'axios';
 import config from '../config';

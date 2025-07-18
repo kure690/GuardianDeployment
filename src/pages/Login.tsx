@@ -6,7 +6,6 @@ import {useState} from "react";
 import axios from "axios";
 import config from "../config";
 import {useNavigate} from "react-router-dom";
-import {StreamChat} from 'stream-chat';
 
 type FormData = {
   email: string;
@@ -50,13 +49,11 @@ const Login = () => {
         password: formData.password,
       };
 
-      // Try logging in with each user type
       const results = await Promise.all([
         tryLogin('opcen'),
         tryLogin('dispatcher')
       ]);
 
-      // Find the first successful login
       const successfulLogin = results.find(result => result.success);
 
       if (!successfulLogin) {
@@ -69,7 +66,6 @@ const Login = () => {
 
       console.log('Login response:', successfulLogin.data);
       
-      // Store user data with type
       localStorage.setItem("user", JSON.stringify({
         ...user,
         id: user.id,
@@ -85,7 +81,6 @@ const Login = () => {
         token: token,
       }));
 
-      // Route based on user type
       if (userType === 'opcen') {
         window.location.href = '/lgu-console';
       } else if(userType === 'dispatcher'){

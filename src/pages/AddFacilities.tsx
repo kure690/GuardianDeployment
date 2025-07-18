@@ -72,7 +72,6 @@ const AddFacilities = () => {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Facility form handlers
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -89,7 +88,6 @@ const AddFacilities = () => {
     }));
   };
 
-  // Contact person handlers
   const handleContactChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setContactPerson(prev => ({
@@ -119,7 +117,6 @@ const AddFacilities = () => {
     setContactPersons(prev => prev.filter((_, i) => i !== idx));
   };
 
-  // Address search handler
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAddress(e.target.value);
   };
@@ -143,21 +140,17 @@ const AddFacilities = () => {
     }
   };
 
-  // Show existing images in edit mode
   useEffect(() => {
     if (isEditMode && formData.photos && formData.photos.length > 0) {
       setImagePreviews(formData.photos);
     }
   }, [isEditMode, formData.photos]);
 
-  // Handle image selection
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
-      // Limit to 4 images
       const newFiles = files.slice(0, 4 - selectedImages.length);
       setSelectedImages(prev => [...prev, ...newFiles]);
-      // Create previews
       newFiles.forEach(file => {
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -168,13 +161,11 @@ const AddFacilities = () => {
     }
   };
 
-  // Remove image
   const handleRemoveImage = (index: number) => {
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
     setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
-  // On mount, check for id in query string and fetch facility if present
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const id = params.get('id');
@@ -198,7 +189,6 @@ const AddFacilities = () => {
             photos: data.photos || [],
           });
           setContactPersons(data.contactPersons || []);
-          // Set address field from lat/lng if available
           if (data.location?.coordinates?.lat && data.location?.coordinates?.lng) {
             const addr = await getAddressFromCoordinates(
               data.location.coordinates.lat.toString(),
@@ -214,7 +204,6 @@ const AddFacilities = () => {
     }
   }, [location.search]);
 
-  // Save facility (with image upload)
   const handleSave = async () => {
     if (!formData.name || !formData.description || !formData.assignment || !formData.telNo || !formData.location.coordinates.lat || !formData.location.coordinates.lng) {
       setSnackbar({ open: true, message: 'Please fill in all required fields', severity: 'error' });
@@ -223,27 +212,21 @@ const AddFacilities = () => {
     try {
       const token = localStorage.getItem('token');
       const payload = new FormData();
-      // Append all form fields (skip empty)
       Object.entries(formData).forEach(([key, value]) => {
         if (key === 'location' || key === 'contactPersons') {
           payload.append(key, JSON.stringify(value));
         } else if (Array.isArray(value) && value.length === 0) {
-          // skip empty arrays
         } else if (typeof value === 'string' && value.trim() === '') {
-          // skip empty strings
         } else if (value !== undefined && value !== null) {
           payload.append(key, value as any);
         }
       });
-      // Append contactPersons as JSON (for consistency)
       payload.set('contactPersons', JSON.stringify(contactPersons));
-      // Append images only if any are selected
       if (selectedImages.length > 0) {
         selectedImages.forEach((file) => {
           payload.append('files', file);
         });
       }
-      // If editing, keep existing images if no new ones selected
       if (isEditMode && selectedImages.length === 0 && imagePreviews.length > 0) {
         payload.append('existingPhotos', JSON.stringify(imagePreviews));
       }
@@ -291,7 +274,6 @@ const AddFacilities = () => {
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
         <Paper sx={{ p: 4, borderRadius: 2, background: '#f7f7f7' }}>
           <Grid container spacing={3}>
-            {/* Left: Image uploads and marker */}
             <Grid size={{ xs: 12, md: 3 }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                 <input
@@ -345,7 +327,6 @@ const AddFacilities = () => {
                 </Box>
               </Box>
             </Grid>
-            {/* Center: Form fields and map */}
             <Grid size={{ xs: 12, md: 5 }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <TextField 
@@ -437,7 +418,6 @@ const AddFacilities = () => {
                 </Box>
               </Box>
             </Grid>
-            {/* Right: Add contact person and list */}
             <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%' }}>
                 <Typography sx={{ fontWeight: 600, fontSize: 18, mb: 1 }}>Add Contact Person:</Typography>

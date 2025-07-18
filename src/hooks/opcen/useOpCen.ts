@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import config from '../config';
+import config from '../../config';
 
 interface OpCenData {
   firstName: string;
@@ -46,9 +46,9 @@ export const useOpCen = (id: string) => {
       });
       return response.data;
     },
-    enabled: !!id, // Only run the query if we have an ID
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-    gcTime: 30 * 60 * 1000, // Keep data in cache for 30 minutes
+    enabled: !!id, 
+    staleTime: 5 * 60 * 1000, 
+    gcTime: 30 * 60 * 1000, 
   });
 
   const updateMutation = useMutation({
@@ -66,7 +66,6 @@ export const useOpCen = (id: string) => {
       return response.data;
     },
     onSuccess: () => {
-      // Invalidate and refetch the query to update the UI
       queryClient.invalidateQueries({ queryKey: ['opcen', id] });
     },
   });

@@ -45,7 +45,7 @@ import fireSound from '../assets/sounds/fire.mp3';
 import ambulanceSound from '../assets/sounds/ambulance.mp3';
 import generalSound from '../assets/sounds/general.mp3';
 import { useSocket } from "../utils/socket";
-import { useReliableSocketEmit } from "../hooks/useReliableSocketEmit";
+import { useReliableSocketEmit } from "../hooks/utils/useReliableSocketEmit";
 
 const getIncidentIcon = (incidentType: string) => {
     const type = incidentType?.toLowerCase() || '';
@@ -96,15 +96,12 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
 
     const shortId = incident._id ? incident._id.substring(5, 9) : "";
 
-    // State for responder data
     const [responderData, setResponderData] = useState<any>(null);
     
-    // Fetch responder data if incident has a responder
     useEffect(() => {
         const fetchResponderData = async () => {
             if (!incident.responder) return;
             
-            // Always use the responder's _id if responder is an object
             const responderId = typeof incident.responder === 'object' && incident.responder !== null
                 ? incident.responder._id
                 : incident.responder;
@@ -144,7 +141,7 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
             return policecarIcon;
         }
         
-        return ambulanceIcon; // Default
+        return ambulanceIcon; 
     };
 
 
@@ -158,7 +155,6 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
                 m: 1.5,
             }}
         >
-            {/* Header */}
             <Box sx={{
                 display: 'flex',
                 alignItems: 'flex-start',
@@ -213,7 +209,6 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
                 </Box>
             </Box>
             <Box sx={{
-                // bgcolor: '#e8f5e9',
                 p: 0.7,
                 display: 'flex',
                 alignItems: 'center',
@@ -258,7 +253,6 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
                 </Typography>
             </Box>
             {!incident.responder ? (
-                // Display "DISPATCH" if no responder is assigned
                 <Box sx={{
                     bgcolor: '#333',
                     color: 'white',
@@ -276,7 +270,6 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
                     </Typography>
                 </Box>
             ) : (
-                // Display responder info if a responder is assigned
                 <Box sx={{
                     p: 0,
                     display: 'flex',
@@ -284,9 +277,7 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
                     height: '70px',
                     bgcolor: '#4a90e2',
                 }}>
-                    {/* Blue responder name section */}
                     <Box sx={{
-                        // bgcolor: '#4a90e2',
                         color: 'white',
                         p: 0.5,
                         display: 'flex',
@@ -347,7 +338,6 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
                             flexDirection: 'column',
                             justifyContent: 'center',
                             alignItems: 'center',
-                            // backgroundColor: 'blue',
                             width: '50%',
                             }}>
                                 <Typography sx={{ 
@@ -439,10 +429,8 @@ const LGUMain = () => {
     const { socket: globalSocket, isConnected } = useSocket();
     const reliableEmit = useReliableSocketEmit();
 
-    // Register OpCen on socket connect
     useEffect(() => {
   if (globalSocket && userId) {
-    // Just register. The server will handle joining the lobby.
     console.log(`Registering OpCen to join lobby: lobby_opcen_${userId}`);
     globalSocket.emit('registerOpCen', { opCenId: userId });
   }
@@ -477,9 +465,7 @@ const LGUMain = () => {
             console.log(`Total incidents: ${data.length}`);
             
             const connectedIncidents = data.filter((incident: any) => {
-                // Get the opCen ID whether it's an object or string
                 const opCenId = incident.opCen ? (typeof incident.opCen === 'object' ? incident.opCen._id : incident.opCen) : null;
-                // Show incidents that are assigned to this opCen and are connected (not connecting)
                 const matches = opCenId === userId && 
                               incident.opCenStatus === 'connected' && 
                               !incident.isFinished;
@@ -577,15 +563,12 @@ const LGUMain = () => {
         };
     }, [isInvisible, userId, token]);
 
-    // Check for incidents with responderStatus "close"
     useEffect(() => {
         const checkForClosingIncidents = () => {
-            // Only show modal if we're not already showing it and there's no incident being processed
             if (showClosingModal || closingIncident) {
                 return;
             }
             
-            // Find an incident with responderStatus "close" that isn't finished yet
             const incidentToClose = incidents.find(incident => 
                 incident.responderStatus === 'rtb' && !incident.isFinished
             );
@@ -597,7 +580,6 @@ const LGUMain = () => {
             }
         };
         
-        // Only run the check if we have incidents loaded
         if (incidents.length > 0) {
             checkForClosingIncidents();
         }
@@ -634,22 +616,18 @@ useEffect(() => {
     return () => clearInterval(timer);
 }, []);
 
-    // Preload audio files
     useEffect(() => {
-        // Create and preload audio elements
         const preloadAudio = (src: string) => {
             const audio = new Audio();
             audio.src = src;
             audio.load();
         };
 
-        // Preload all sound files
         preloadAudio(policeSound);
         preloadAudio(fireSound);
         preloadAudio(ambulanceSound);
         preloadAudio(generalSound);
 
-        // Initialize the main audio element
         // if (audioRef.current) {
         //     audioRef.current.volume = 1.0;
         // }
@@ -681,7 +659,6 @@ useEffect(() => {
                 if (user.users && user.users.length > 0) {
                     setIsInvisible(!!user.users[0].invisible);
                     
-                    // Only show status modal if user is offline/invisible
                     if (user.users[0].invisible) {
                         setShowStatusModal(true);
                     }
@@ -696,10 +673,8 @@ useEffect(() => {
         checkUserStatus();
     }, [client, userId]);
     useEffect(() => {
-        // Listen for server notification of a new connecting incident
         const handleNotifyConnecting = async (data: any) => {
             if (!data) return;
-            // Only process if this opCen is the intended recipient
             if (data.opCenId !== userId) return;
             setLastIncidentId(data.incident._id);
             setConnectingIncident(data.incident);
@@ -742,7 +717,6 @@ useEffect(() => {
         if (!connectingIncident) return;
         try {
             const channelId = await getNextChannelId(connectingIncident.incidentType, connectingIncident._id);
-            // Get dispatcherId from incident.user (object or string)
             const dispatcherId = typeof connectingIncident.user === 'object' && connectingIncident.user !== null
                 ? connectingIncident.user._id
                 : connectingIncident.user;
@@ -751,11 +725,10 @@ useEffect(() => {
                 members: [dispatcherId, userId]
             });
             await channel.create();
-            // Emit socket event to accept the incident, now with dispatcherId
             reliableEmit('opcenAcceptIncident', {
                 incidentId: connectingIncident._id,
                 opCenId: userId,
-                dispatcherId, // <-- include dispatcherId
+                dispatcherId, 
                 channelId,
             });
             localStorage.setItem('currentIncidentId', connectingIncident._id);
@@ -771,15 +744,13 @@ useEffect(() => {
     const handleDeclineIncident = async () => {
         if (!connectingIncident) return;
         try {
-            // Get dispatcherId from incident.user (object or string)
             const dispatcherId = typeof connectingIncident.user === 'object' && connectingIncident.user !== null
                 ? connectingIncident.user._id
                 : connectingIncident.user;
-            // Emit socket event to decline the incident, now with dispatcherId
             reliableEmit('opcenDeclineIncident', {
                 incidentId: connectingIncident._id,
                 opCenId: userId,
-                dispatcherId, // <-- include dispatcherId
+                dispatcherId, 
             });
             setConnectingIncident(null);
             setShowStatusModal(false);
@@ -806,7 +777,6 @@ useEffect(() => {
             if (response.ok) {
                 console.log(`Incident ${closingIncident._id} marked as finished`);
                 
-                // Update the incident in the local state
                 setIncidents(prevIncidents => 
                     prevIncidents.map(incident => 
                         incident._id === closingIncident._id 
@@ -815,12 +785,9 @@ useEffect(() => {
                     )
                 );
                 
-                // Clear modal state
                 setClosingIncident(null);
                 setShowClosingModal(false);
                 
-                // Fetch the latest incidents (not immediately needed since we updated local state)
-                // This will run in the background to ensure data consistency
                 fetchIncidents();
             }
         } catch (error) {
@@ -926,11 +893,9 @@ useEffect(() => {
         
         try {
             setIsRinging(true);
-            // Always use the responder's _id if responder is an object
             const responderId = typeof incident.responder === 'object' && incident.responder !== null
                 ? incident.responder._id
                 : incident.responder;
-            // Fetch responder data from backend to get name and image
             let responderData = null;
             try {
                 const token = localStorage.getItem("token");
@@ -945,7 +910,6 @@ useEffect(() => {
             } catch (error) {
                 console.error("Error fetching responder data for upsert:", error);
             }
-            // Upsert responder user in Stream
             if (chatClient && responderData) {
                 await chatClient.upsertUser({
                     id: responderId,
@@ -1003,15 +967,12 @@ useEffect(() => {
 
     function CallAudioHandler({ stopSound }: { stopSound: () => void }) {
         const calls = useCalls();
-        // Watch all calls' callingState
         useEffect(() => {
             if (!calls || calls.length === 0) return;
-            // Track previous states to only stop sound on transition
             let prevStates = calls.map(call => call.state.callingState);
             const interval = setInterval(() => {
                 calls.forEach((call, idx) => {
                     const currentState = call.state.callingState;
-                    // If the call was ringing and now is not, stop sound and leave call if not already left
                     if (prevStates[idx] === 'ringing' && currentState !== 'ringing') {
                         stopSound();
                         if (typeof call.leave === 'function' && currentState !== 'left' && currentState !== 'idle') {
@@ -1026,7 +987,6 @@ useEffect(() => {
         return null;
     }
 
-    // Move this function up so it's defined before being used in JSX
     const handleSelectIncidentForChat = (channelId: string) => {
         setActiveCall(channelId);
         setIsChatExpanded(true);
@@ -1055,22 +1015,14 @@ useEffect(() => {
             >
             <Grid container spacing={1}>
                 <Grid size={{xs: 12}}
-                // backgroundColor = {"blue"}
                 display= {"flex"}>
                     <Grid
                     size={{md: 4.5}}
                     display={"flex"}
                     flexDirection={"row"}
                     alignItems={"center"}
-                    // backgroundColor = {"green"}
                     padding = {"1rem 1rem 1rem 3rem"}
                     gap={"1rem"}>
-                        {/* <AccountCircleIcon
-                        sx={{
-                            fontSize: "4rem",
-                            color: "black",
-                        }}
-                        /> */}
                         <Avatar 
                         src={GuardianIcon}
                         sx={{   
@@ -1101,7 +1053,6 @@ useEffect(() => {
                     flexDirection={"row"}
                     alignItems={"center"}
                     justifyContent={"center"}
-                    // backgroundColor = {"red"}
                     gap={"1rem"}>
                         <Typography variant="h4" sx={{fontWeight: "bold", color: "red", letterSpacing: '0.1em'}}>
                             INCIDENTS
@@ -1113,7 +1064,6 @@ useEffect(() => {
       display={"flex"}
       flexDirection={"column"} 
       alignItems={"CENTER"}
-    //   backgroundColor={"yellow"}
     >
         LIVE DATA
       <Grid 
@@ -1209,7 +1159,6 @@ useEffect(() => {
                         sx={{ width: 24, height: 24 }}
                         alt={Fire}
                       />
-          {/* <DirectionsCarIcon sx={{ color: 'white' }} /> */}
           <Typography sx={{ color: 'white', fontWeight: 'bold' }}>20</Typography>
         </Box>
         
@@ -1226,7 +1175,6 @@ useEffect(() => {
                         sx={{ width: 24, height: 24 }}
                         alt={Police }
                       />
-          {/* <DirectionsCarIcon sx={{ color: 'white' }} /> */}
           <Typography sx={{ color: 'white', fontWeight: 'bold' }}>20</Typography>
         </Box>
         
@@ -1243,7 +1191,6 @@ useEffect(() => {
                         sx={{ width: 24, height: 24 }}
                         alt={General}
                       />
-          {/* <TwoWheelerIcon sx={{ color: 'white' }} /> */}
           <Typography sx={{ color: 'white', fontWeight: 'bold' }}>10</Typography>
         </Box>
       </Grid>
@@ -1255,7 +1202,6 @@ useEffect(() => {
                     alignItems={"center"}
                     padding = {"1rem 3rem 1rem 1rem"}
                     justifyContent={"center"}
-                    // backgroundColor = {"orange"}
                     gap={"1rem"}>
                         <Avatar 
                         src={getImageUrl(userStr2?.profileImage) || ''}
@@ -1564,7 +1510,7 @@ useEffect(() => {
                     )}
                 </div>
             </Modal>
-            {/* Closing Incident Modal */}
+            
             <Modal
                 open={showClosingModal}
                 onClose={() => setShowClosingModal(false)}
@@ -1677,5 +1623,3 @@ const VideoCallHandler = () => {
 };
 
 export default LGUMain;
-
-

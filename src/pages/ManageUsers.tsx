@@ -95,7 +95,18 @@ const ManageUsers = () => {
   const fetchResponders = async () => {
     try {
       const response = await axios.get(`${config.PERSONAL_API}/responders/`);
-      setResponders(response.data);
+      // Filter responders to only those with operationCenter matching logged-in user
+      const filtered = response.data.filter((responder: any) => {
+        // If responder.operationCenter is null/undefined, skip
+        if (!responder.operationCenter) return false;
+        // If operationCenter is an object, check its _id
+        if (typeof responder.operationCenter === 'object' && responder.operationCenter !== null) {
+          return responder.operationCenter._id === loggedInUser?.id;
+        }
+        // Otherwise, compare as string
+        return responder.operationCenter === loggedInUser?.id;
+      });
+      setResponders(filtered);
       setLoading(false);
     } catch (err: any) {
       setSnackbar({
