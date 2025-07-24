@@ -1,60 +1,68 @@
 import { useEffect } from 'react';
 
+/**
+ * A custom hook to monitor the connection status with an OpCen.
+ * It listens for server events and updates the UI state accordingly.
+ *
+ * @param {object} props - The properties for the hook.
+ * @param {any} props.globalSocket - The active Socket.IO client instance.
+ * @param {boolean} props.isConnected - The current connection state of the socket.
+ * @param {string} props.incidentId - The ID of the incident being monitored.
+ * @param {function} props.setConnectingModalOpen - State setter to control the visibility of the "Connecting..." modal.
+ * @param {function} props.setOpCenConnectingAt - State setter for the timestamp when the connection attempt started.
+ * @param {function} props.setConnectionFinalStatus - State setter to pass the final status payload ('connected' or 'idle') back to the parent component.
+ */
 export function useOpCenConnectingStatus({
   globalSocket,
   isConnected,
   incidentId,
-  chatClient,
-  userId,
-  setOpCenConnectingAt,
   setConnectingModalOpen,
-  setConnectingOpCenName,
-  setOpenModal,
-  setSelectedOpCen,
+  setOpCenConnectingAt,
+  setConnectionFinalStatus,
 }: {
   globalSocket: any;
   isConnected: boolean;
   incidentId: string;
-  chatClient: any;
-  userId: string;
-  setOpCenConnectingAt: (value: any) => void;
   setConnectingModalOpen: (open: boolean) => void;
-  setConnectingOpCenName: (name: { firstName: string; lastName: string } | null) => void;
-  setOpenModal: (open: boolean) => void;
-  setSelectedOpCen: (opcen: any) => void;
+  setOpCenConnectingAt: (date: Date | null) => void;
+  setConnectionFinalStatus: (status: any) => void;
 }) {
   useEffect(() => {
-    const handleStatus = (data: any) => {
-      if (!incidentId) return;
-      if (data.incidentId !== incidentId) return;
-      if (data.status === 'connected') {
-        const channelId = `${data.incidentType.toLowerCase()}-${incidentId.substring(4,9)}`;
-        if (chatClient) {
-          const channel = chatClient.channel('messaging', channelId);
-          channel.sendMessage({
-            text: `Incident: ${data.incident || "Not specified"}\nDescription: ${data.incidentDescription || "No description provided"}`,
-            user_id: userId
-          });
-        }
-        setOpCenConnectingAt(null);
+    // Do not set up listeners if the socket is not ready.
+    if (!globalSocket || !isConnected) {
+      return;
+    }
+
+    const handleStatusUpdate = (data: any) => {
+      console.log('[DEBUG] Client hook received opcen-connecting-status event:', data);
+      // Ensure the event is for the incident we are currently viewing.
+      if (data.incidentId !== incidentId) {
+        return;
+      }
+
+      // Check for a final status (either accepted or declined).
+      if (data.status === 'connected' || data.status === 'idle') {
+        console.log(`[useOpCenConnectingStatus] Received status '${data.status}'. Closing modal.`);
+        
+        // Close the "Connecting..." modal.
         setConnectingModalOpen(false);
-        setConnectingOpCenName(null);
-        setOpenModal(false);
-      } else if (data.status === 'idle') {
+        
+        // Clear the connection start time.
         setOpCenConnectingAt(null);
-        setConnectingModalOpen(false);
-        setConnectingOpCenName(null);
-        setSelectedOpCen(null);
-      } else if (data.status === 'connecting') {
-        setConnectingModalOpen(true);
+        
+        // Pass the final status data back to the MainScreen component so it can perform other actions (like sending a chat message).
+        setConnectionFinalStatus(data);
       }
     };
-    if (globalSocket && isConnected) {
-      globalSocket.on('opcen-connecting-status', handleStatus);
-      return () => {
-        globalSocket.off('opcen-connecting-status', handleStatus);
-      };
-    }
-    return;
-  }, [incidentId, chatClient, userId, globalSocket, isConnected, setOpCenConnectingAt, setConnectingModalOpen, setConnectingOpCenName, setOpenModal, setSelectedOpCen]);
-} 
+
+    // Attach the event listener.
+    globalSocket.on('opcen-connecting-status', handleStatusUpdate);
+
+    // Cleanup: Remove the listener when the component unmounts or dependencies change.
+    return () => {
+      globalSocket.off('opcen-connecting-status', handleStatusUpdate);
+    };
+
+  // The dependency array includes all external variables used in the effect.
+  }, [globalSocket, isConnected, incidentId, setConnectingModalOpen, setOpCenConnectingAt, setConnectionFinalStatus]);
+}

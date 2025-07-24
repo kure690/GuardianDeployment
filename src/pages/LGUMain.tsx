@@ -45,7 +45,7 @@ import fireSound from '../assets/sounds/fire.mp3';
 import ambulanceSound from '../assets/sounds/ambulance.mp3';
 import generalSound from '../assets/sounds/general.mp3';
 import { useSocket } from "../utils/socket";
-import { useReliableSocketEmit } from "../hooks/utils/useReliableSocketEmit";
+
 
 const getIncidentIcon = (incidentType: string) => {
     const type = incidentType?.toLowerCase() || '';
@@ -427,14 +427,7 @@ const LGUMain = () => {
     const [closingIncident, setClosingIncident] = useState<any>(null);
     const [showClosingModal, setShowClosingModal] = useState(false);
     const { socket: globalSocket, isConnected } = useSocket();
-    const reliableEmit = useReliableSocketEmit();
 
-    useEffect(() => {
-  if (globalSocket && userId) {
-    console.log(`Registering OpCen to join lobby: lobby_opcen_${userId}`);
-    globalSocket.emit('registerOpCen', { opCenId: userId });
-  }
-}, [globalSocket, userId]);
 
     const getImageUrl = (url: string) => {
         if (!url) return '';
@@ -715,6 +708,10 @@ useEffect(() => {
     };
     const handleAcceptIncident = async () => {
         if (!connectingIncident) return;
+        if (!globalSocket || !isConnected) {
+            console.error("Socket not connected. Cannot accept incident.");
+            return;
+          }
         try {
             const channelId = await getNextChannelId(connectingIncident.incidentType, connectingIncident._id);
             const dispatcherId = typeof connectingIncident.user === 'object' && connectingIncident.user !== null
@@ -725,12 +722,12 @@ useEffect(() => {
                 members: [dispatcherId, userId]
             });
             await channel.create();
-            reliableEmit('opcenAcceptIncident', {
+            globalSocket.emit('opcenAcceptIncident', {
                 incidentId: connectingIncident._id,
                 opCenId: userId,
                 dispatcherId, 
                 channelId,
-            });
+              });
             localStorage.setItem('currentIncidentId', connectingIncident._id);
             localStorage.setItem('currentChannelId', channelId);
             setConnectingIncident(null);
@@ -743,15 +740,19 @@ useEffect(() => {
     
     const handleDeclineIncident = async () => {
         if (!connectingIncident) return;
+        if (!globalSocket || !isConnected) {
+            console.error("Socket not connected. Cannot decline incident.");
+            return;
+          }
         try {
             const dispatcherId = typeof connectingIncident.user === 'object' && connectingIncident.user !== null
                 ? connectingIncident.user._id
                 : connectingIncident.user;
-            reliableEmit('opcenDeclineIncident', {
-                incidentId: connectingIncident._id,
-                opCenId: userId,
-                dispatcherId, 
-            });
+                globalSocket.emit('opcenDeclineIncident', {
+                    incidentId: connectingIncident._id,
+                    opCenId: userId,
+                    dispatcherId, 
+                  });
             setConnectingIncident(null);
             setShowStatusModal(false);
         } catch (error) {
