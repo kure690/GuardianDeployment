@@ -28,7 +28,6 @@ import {
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { useSocket } from "../utils/socket";
-import { useReliableSocketEmit } from "../hooks/utils/useReliableSocketEmit";
 
 const containerStyle = {
   width: '100%',
@@ -72,7 +71,6 @@ const ResponderMap = () => {
   const [destinationType, setDestinationType] = useState<string>('incident'); // 'incident' or 'hospital'
   const token = localStorage.getItem("token");
   const { socket, isConnected } = useSocket();
-  const reliableEmit = useReliableSocketEmit();
   const [responderData, setResponderData] = useState({
     firstName: '',
     lastName: '',
@@ -341,27 +339,41 @@ const ResponderMap = () => {
   }, []);
 
   const handleDispatchResponder = async (responderId: string) => {
+
+    if (!socket || !isConnected) {
+      console.error('Socket not connected. Cannot dispatch responder.');
+      return;
+    }
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const incidentId = urlParams.get('incidentId');
-      const dispatcherId = userId;
+
       if (!incidentId) {
         console.error('No incident ID found for dispatching responder');
         return;
       }
-      // Emit the assignment request via websocket
-      reliableEmit('requestResponderAssignment', {
+      socket.emit('requestResponderAssignment', {
         incidentId,
         responderId,
-        dispatcherId,
       });
-      // Optionally, listen for confirmation or error events here
-      // globalSocket.on('assignmentRequest', (data) => { ... });
-      // globalSocket.on('error', (err) => { ... });
-      // You may want to show a UI notification or update state here
       console.log(`Sent assignment request for responder ${responderId} to incident ${incidentId}`);
-      // Optionally, send the initial message as before
       await sendInitialMessage(responderId);
+
+      // Immediately fetch responder data and update state so the marker icon updates right away
+      try {
+        const responderResponse = await fetch(`${config.PERSONAL_API}/responders/${responderId}`);
+        if (responderResponse.ok) {
+          const responderDataFetched = await responderResponse.json();
+          setResponderData({
+            firstName: responderDataFetched.firstName,
+            lastName: responderDataFetched.lastName,
+            assignment: responderDataFetched.assignment,
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching responder data after dispatch:', error);
+      }
+
     } catch (error) {
       console.error('Error dispatching responder:', error);
     }

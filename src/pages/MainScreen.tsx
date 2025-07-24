@@ -48,7 +48,6 @@ import fireIcon from '../assets/images/Fire.png';
 import crimeIcon from '../assets/images/Police.png';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 import { useSocket } from "../utils/socket";
-import { useReliableSocketEmit } from "../hooks/utils/useReliableSocketEmit";
 import OpCenConnectModal from '../components/OpCenConnectModal';
 import ConnectingModal from '../components/ConnectingModal';
 import { useIncidentData } from '../hooks/incident/useIncidentData';
@@ -56,7 +55,6 @@ import { useStreamChatClient } from '../hooks/chat/useStreamChatClient';
 import { useStreamVideoClient } from '../hooks/video/useStreamVideoClient';
 import { useElapsedTime } from '../hooks/utils/useElapsedTime';
 import { useProfileImageUpsert } from '../hooks/chat/useProfileImageUpsert';
-import { useRegisterDispatcher } from '../hooks/opcen/useRegisterDispatcher';
 import { useOpCenConnectingStatus } from '../hooks/opcen/useOpCenConnectingStatus';
 
 
@@ -109,12 +107,10 @@ const MainScreen = () => {
   const [connectingOpCenName, setConnectingOpCenName] = useState<{ firstName: string; lastName: string } | null>(null);
   const [opCenConnectingAt, setOpCenConnectingAt] = useState<Date | null>(null);
   const [selectedOpCen, setSelectedOpCen] = useState<any>(null);
+  const [connectionFinalStatus, setConnectionFinalStatus] = useState<any>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openMenu = Boolean(anchorEl);
   const [lastUpsertedImages, setLastUpsertedImages] = useState<{[id: string]: string}>({});
-  
-  const { socket: globalSocket, isConnected } = useSocket();
-  const reliableEmit = useReliableSocketEmit();
 
   const {
     isResolved,
@@ -143,19 +139,37 @@ const MainScreen = () => {
   const videoClient = useStreamVideoClient(userId, userStr2?.firstName + ' ' + userStr2?.lastName, token, avatarImg);
   const { lapsTime, formatLapsTime } = useElapsedTime(acceptedAt);
   const imagesLoaded = useProfileImageUpsert(chatClient, userId, userStr2, userData, volunteerID);
-  useRegisterDispatcher(globalSocket, userId);
+  const { socket: globalSocket, isConnected } = useSocket();
   useOpCenConnectingStatus({
     globalSocket,
     isConnected,
     incidentId: incidentId || '',
-    chatClient,
-    userId,
-    setOpCenConnectingAt,
     setConnectingModalOpen,
-    setConnectingOpCenName,
-    setOpenModal,
-    setSelectedOpCen
+    setOpCenConnectingAt,
+    setConnectionFinalStatus, 
   });
+
+  useEffect(() => {
+    if (!connectionFinalStatus) return;
+
+    if (connectionFinalStatus.status === 'connected') {
+      console.log('OpCen connected. Sending confirmation message.');
+      const { incidentType, incident, incidentDescription } = connectionFinalStatus;
+      const channelId = `${incidentType.toLowerCase()}-${incidentId?.substring(4, 9)}`;
+      if (chatClient) {
+        const channel = chatClient.channel('messaging', channelId);
+        channel.sendMessage({
+          text: `Incident: ${incident || "Not specified"}\nDescription: ${incidentDescription || "No description provided"}`,
+          user_id: userId,
+        });
+      }
+    } else if (connectionFinalStatus.status === 'idle') {
+      console.log('OpCen declined. Resetting selection.');
+      setSelectedOpCen(null);
+    }
+
+    setConnectionFinalStatus(null);
+  }, [connectionFinalStatus, chatClient, userId, incidentId, setSelectedOpCen]);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -238,12 +252,6 @@ const MainScreen = () => {
     return () => clearInterval(interval);
   }, [acceptedAt]);
 
-  useEffect(() => {
-    if (opCenConnectingAt === null) {
-      setConnectingModalOpen(false);
-      setConnectingOpCenName(null);
-    }
-  }, [opCenConnectingAt]);
 
   const handleCloseConnectingModal = () => {
     setConnectingModalOpen(false);
@@ -252,6 +260,11 @@ const MainScreen = () => {
   };
 
   const handleConnect = (opCenUser: any) => {
+    if (!globalSocket || !isConnected) {
+      console.error('Socket not connected, cannot send request.');
+      return;
+    }
+
     if (!incidentId) {
       console.error('No incident ID available');
       return;
@@ -262,10 +275,10 @@ const MainScreen = () => {
     setConnectingModalOpen(true);
     const incidentTypeToSend = modalIncident === "Other" ? customIncidentType : modalIncident;
 
-    reliableEmit('requestOpCenConnect', {
+    globalSocket.emit('requestOpCenConnect', {
       incidentId: incidentId,
       opCenId: opCenUser._id,
-      dispatcherId: userId,
+      dispatcherId: userId, // This comes from the authenticated user's state
       connectingTime,
       incidentDetails: {
         coordinates: { lat: Number(coordinates.lat), lon: Number(coordinates.long) },
@@ -308,7 +321,6 @@ const MainScreen = () => {
             image: userData.profileImage,
           });
       } catch (e) {
-          // Optionally handle error
         }
       }
       await newCall.getOrCreate({
@@ -328,7 +340,6 @@ const MainScreen = () => {
         }
       });
     } catch (error) {
-      // Optionally handle error
     } finally {
       setIsRinging(false);
     }

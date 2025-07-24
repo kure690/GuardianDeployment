@@ -639,6 +639,7 @@ const Notification = () => {
                   <MenuItem value="">Select</MenuItem>
                   <MenuItem value="Commercial">Commercial</MenuItem>
                   <MenuItem value="Emergency">Emergency</MenuItem>
+                  <MenuItem value="Awareness">Awareness</MenuItem>
                 </Select>
               </FormControl>
               <TextField 
