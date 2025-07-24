@@ -104,7 +104,6 @@ const Announcements = () => {
   const [barangayCoords, setBarangayCoords] = useState<{ lat: number; lng: number } | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
 
-  // Initialize map
   useEffect(() => {
     let isMounted = true;
     loadGoogleMapsScript(GOOGLE_MAPS_API_KEY).then(() => {
@@ -119,7 +118,6 @@ const Announcements = () => {
     return () => { isMounted = false; };
   }, [mapRef, map]);
 
-  // Update marker and circle when barangay or affectedArea changes
   useEffect(() => {
     if (!map) return;
     if (barangayCoords) {
@@ -132,7 +130,6 @@ const Announcements = () => {
         title: 'Barangay',
       });
       setMarker(newMarker);
-      // Draw circle
       if (circle) circle.setMap(null);
       const radius = formData.affectedArea ? parseFloat(formData.affectedArea) * 1000 : 0;
       if (radius > 0) {
@@ -246,7 +243,6 @@ const Announcements = () => {
         image: file
       }));
       
-      // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
@@ -267,7 +263,6 @@ const Announcements = () => {
     e.preventDefault();
 
     try {
-      // Validate required fields
       if (!formData.title || !formData.message) {
         setSnackbar({
           open: true,
@@ -277,17 +272,14 @@ const Announcements = () => {
         return;
       }
 
-      // Create FormData object for multipart/form-data
       const submitData = new FormData();
       
-      // Append form fields
       submitData.append('title', formData.title);
       submitData.append('message', formData.message);
       submitData.append('affectedArea', formData.affectedArea);
       submitData.append('demographics', JSON.stringify(formData.demographics));
       submitData.append('schedule', JSON.stringify(formData.schedule));
       
-      // Append image if exists
       if (formData.image) {
         submitData.append('file', formData.image);
       }
@@ -308,7 +300,6 @@ const Announcements = () => {
         severity: 'success'
       });
       
-      // Reset form
       setFormData({
         title: '',
         message: '',
@@ -363,7 +354,6 @@ const Announcements = () => {
       <Container maxWidth={false} sx={{ mt: 4, mb: 4, p: 2 }}>
         <form onSubmit={handleSubmit}>
           <Grid container spacing={4}>
-            {/* Left: Image Upload */}
             <Grid size={{ xs: 12, md: 3 }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               <input
                 type="file"
@@ -438,7 +428,6 @@ const Announcements = () => {
               </Button>
             </Grid>
 
-            {/* Center: Main Form */}
             <Grid size={{ xs: 12, md: 5 }} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <TextField 
                 label="Title" 
@@ -562,8 +551,7 @@ const Announcements = () => {
                 )}
               </Box>
             </Grid>
-
-            {/* Right: Map and Affected Area */}
+            
             <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <TextField 
                 label="Affected Area (km)" 

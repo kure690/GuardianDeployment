@@ -23,7 +23,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import config from '../config';
-import { useOpCen } from '../hooks/useOpCen';
+import { useOpCen } from '../hooks/opcen/useOpCen';
 
 const getImageUrl = (url: string) => {
   if (!url) return '';
@@ -33,7 +33,6 @@ const getImageUrl = (url: string) => {
 
 const LGUConsole = () => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    // Only get user id from localStorage
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const { data: opcenData } = useOpCen(user.id);
     const [respondersCount, setRespondersCount] = useState(0);
@@ -45,7 +44,6 @@ const LGUConsole = () => {
       const fetchResponders = async () => {
         try {
           const response = await axios.get(`${config.PERSONAL_API}/responders/`);
-          // Only count active responders with matching operationCenter
           const activeResponders = response.data.filter((responder: any) => 
             responder.status === 'active' && responder.operationCenter === user.id
           );
@@ -195,11 +193,9 @@ const LGUConsole = () => {
           </AppBar>
           
 
-          {/* Main content area: vertical column (AppBar + content) */}
           <div className="flex flex-row w-full h-screen">
             
 
-          {/* Sidebar */}
           {sidebarOpen && (
           <Box
             sx={{
@@ -309,11 +305,9 @@ const LGUConsole = () => {
 
           <div className="flex flex-row w-full h-screen">
             
-            {/* Main Content Area */}
           <Box sx={{ flex: 1, overflow: 'auto', background: 'white', width: '100%' }}>
             <Box sx={{ mt: 4, mb: 4, width: '100%', p: 4 }}>
               <Grid container spacing={3} justifyContent="center">
-                {/* Top Row: Users, Alerts, Reporting */}
                 <Grid size={{ xs: 12, md: 4 }}
                 sx={{
                   // backgroundColor: 'red',
@@ -412,7 +406,6 @@ const LGUConsole = () => {
                       <Button size="small" sx={{ textTransform: 'none' }}>Manage</Button>
                     </Box>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Add or manage users</Typography>
-                    {/* Add device actions here if needed */}
                   </Box>
                 </Grid>
                 <Grid size={{ xs: 12, md: 4 }}

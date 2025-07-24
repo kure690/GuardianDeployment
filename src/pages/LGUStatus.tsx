@@ -107,7 +107,6 @@ const LGUStatus = () => {
     try {
       const channelId = await getNextChannelId(connectingIncident.incidentType, connectingIncident._id);
       
-      // Create the chat channel
       const channel = client.channel('messaging', channelId, {
         name: `${connectingIncident.incidentType} Incident #${channelId.split('-')[1]}`,
         members: [connectingIncident.user._id, lguId]
@@ -314,13 +313,9 @@ const LGUStatus = () => {
             />
             <div
             style={{ 
-              // backgroundColor: "#4a7ab8", 
-              // padding: '14px 40px 14px 40px', 
               display: 'flex', 
               flexDirection: 'column',
-              // justifyContent: 'start',
               alignItems: 'center',
-              // gap: '1rem'
             }}>
               {connectingIncident && (
                 <>

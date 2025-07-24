@@ -1,16 +1,16 @@
 .speaker-view {
-  height: 100vh; /* Full viewport height */
+  height: 100vh; 
   width: 100%;
   display: flex;
   flex-direction: column;
-  position: relative; /* Add this */
+  position: relative; 
 }
 
 .spotlight {
   flex-grow: 1;
   width: 100%;
   position: relative;
-  min-height: 0; /* Add this to ensure proper scaling */
+  min-height: 0; 
 }
 
 .participants-bar {
@@ -18,10 +18,9 @@
   display: flex;
   gap: 8px;
   padding: 8px;
-  overflow: hidden; /* Add this to prevent overflow */
+  overflow: hidden; 
 }
 
-/* Add these additional styles */
 .str-video__call-controls {
   position: absolute;
   bottom: 24px;

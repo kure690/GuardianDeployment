@@ -154,7 +154,6 @@ const AddMobileAssets = () => {
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
         <Paper sx={{ p: 4, borderRadius: 2, background: '#f7f7f7' }}>
           <Grid container spacing={3}>
-            {/* Left: Image uploads and marker */}
             <Grid size={{ xs: 12, md: 3 }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2, mb: 2 }}>
@@ -169,7 +168,6 @@ const AddMobileAssets = () => {
                 </Box>
               </Box>
             </Grid>
-            {/* Center: Form fields and map */}
             <Grid size={{ xs: 12, md: 5 }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <TextField 
@@ -259,7 +257,6 @@ const AddMobileAssets = () => {
                 </Box>
               </Box>
             </Grid>
-            {/* Right: Assign team and assigned teams */}
             <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%' }}>
                 <Typography sx={{ fontWeight: 600, fontSize: 18, mb: 1 }}>Assign a team:</Typography>

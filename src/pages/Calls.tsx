@@ -13,7 +13,6 @@ import {
   SpeakingWhileMutedNotification,
   User,
 } from "@stream-io/video-react-sdk";
-// import CallContainer from "../components/CallContainer";
 
 import {useEffect, useState} from "react";
 import {useNavigate} from "react-router-dom";
@@ -228,16 +227,12 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
   const handleLeaveCall = async () => {
     try {
       if (call) {
-        // Cleanup function to ensure all resources are properly released
         const cleanup = async () => {
           try {
-            // First leave the call
             await call.leave();
             console.log("Successfully left the call");
             
-            // Aggressive approach to stop ALL media tracks
             try {
-              // Method 1: Stop camera and microphone through the Stream SDK
               if (call.camera) {
                 await call.camera.disable();
                 console.log("Camera disabled through SDK");
@@ -248,7 +243,6 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
                 console.log("Microphone disabled through SDK");
               }
               
-              // Method 2: Get all tracks from all video/audio elements and stop them
               const mediaElements = document.querySelectorAll('video, audio');
               let tracksCount = 0;
               
@@ -266,7 +260,6 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
               
               console.log(`Stopped ${tracksCount} tracks from media elements`);
               
-              // Method 3: Force a permission reset by getting and immediately stopping new streams
               const newStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
                 .catch(e => {
                   console.log("Could not get new media stream:", e);
@@ -280,7 +273,6 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
                 console.log("New test stream stopped to force permissions reset");
               }
               
-              // Attempt to release user media by enumeration
               const devices = await navigator.mediaDevices.enumerateDevices()
                 .catch(e => {
                   console.log("Could not enumerate devices:", e);
@@ -289,9 +281,7 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
                 
               console.log(`Found ${devices.length} media devices to check`);
               
-              // Extra safeguard: explicitly clear any active streams in the browser
               if (typeof window !== 'undefined') {
-                // Attempt to reset permission state
                 if (navigator.permissions && navigator.permissions.query) {
                   const camPermission = await navigator.permissions.query({ name: 'camera' as PermissionName })
                     .catch(() => null);

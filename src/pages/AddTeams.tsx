@@ -38,7 +38,6 @@ const AddTeams = () => {
   const [previewUrl, setPreviewUrl] = useState<string>('');
 
   useEffect(() => {
-    // Fetch responders from API
     const fetchResponders = async () => {
       try {
         const res = await axios.get(`${config.PERSONAL_API}/responders/`);
@@ -84,7 +83,6 @@ const AddTeams = () => {
       formData.append('teamLeader', teamLeader);
       formData.append('deputyDriver', deputyDriver);
       
-      // Always include teamLeader and deputyDriver in the members array, no duplicates
       const memberIds = [
         ...new Set([
           ...members.map(m => m._id),
@@ -121,11 +119,9 @@ const AddTeams = () => {
     }
   };
 
-  // Helper to get unique members (team leader, deputy, and added members)
   const getUniqueMembers = () => {
     const ids = new Set<string>();
     const result: any[] = [];
-    // Add team leader
     if (teamLeader) {
       const leader = responders.find(r => r._id === teamLeader);
       if (leader && !ids.has(leader._id)) {
@@ -133,7 +129,6 @@ const AddTeams = () => {
         result.push(leader);
       }
     }
-    // Add deputy
     if (deputyDriver) {
       const deputy = responders.find(r => r._id === deputyDriver);
       if (deputy && !ids.has(deputy._id)) {
@@ -141,7 +136,6 @@ const AddTeams = () => {
         result.push(deputy);
       }
     }
-    // Add other members
     for (const m of members) {
       if (!ids.has(m._id)) {
         ids.add(m._id);
@@ -151,7 +145,6 @@ const AddTeams = () => {
     return result;
   };
 
-  // List of responders available to add as members
   const availableResponders = responders.filter(r =>
     r._id !== teamLeader &&
     r._id !== deputyDriver &&
@@ -173,7 +166,6 @@ const AddTeams = () => {
       </AppBar>
       <Container maxWidth={false} sx={{ mt: 4, mb: 4 }}>
         <Grid container spacing={4}>
-          {/* Left: Team Badge */}
           <Grid size={{ md: 3, xs: 12 }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'start' }}>
             <Paper 
               sx={{ 
@@ -225,7 +217,6 @@ const AddTeams = () => {
               />
             <Typography variant="subtitle1" sx={{ color: '#888' }}>Team Badge</Typography>
           </Grid>
-          {/* Center: Team Info and Form */}
           <Grid size={{ md: 5, xs: 12 }}>
             <Box sx={{ mb: 2 }}>
               <FormControl fullWidth size="small" sx={{ mb: 2 }}>
@@ -266,7 +257,6 @@ const AddTeams = () => {
                 <MenuItem value="Medical">Medical</MenuItem>
               </Select>
             </FormControl>
-            {/* List of available responders to add as members */}
             <Paper sx={{ maxHeight: 160, minHeight: 80, overflowY: 'auto', mb: 2, background: '#fafbfc', boxShadow: 0, border: '1px solid #e0e0e0', borderRadius: 2 }}>
               <List>
                 {availableResponders.map(r => (
@@ -283,7 +273,6 @@ const AddTeams = () => {
               </List>
             </Paper>
           </Grid>
-          {/* Right: Members List */}
           <Grid size={{ md: 4, xs: 12 }}>
             <Paper sx={{ borderRadius: 3, overflow: 'hidden', mb: 2, height: '500px' }}>
               <Box sx={{ background: '#23607a', p: 1.5, }}>

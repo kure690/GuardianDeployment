@@ -28,7 +28,7 @@ import {
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { useSocket } from "../utils/socket";
-import { useReliableSocketEmit } from "../hooks/useReliableSocketEmit";
+import { useReliableSocketEmit } from "../hooks/utils/useReliableSocketEmit";
 
 const containerStyle = {
   width: '100%',

@@ -47,7 +47,6 @@ const Facilities = () => {
           }
         });
         setFacilities(res.data);
-        // Fetch addresses for each facility
         res.data.forEach(async (facility: any) => {
           const coords = facility.location?.coordinates;
           if (coords && coords.lat && coords.lng) {
@@ -87,14 +86,12 @@ const Facilities = () => {
         message: 'Facility deleted successfully',
         severity: 'success'
       });
-      // Refresh the list
       const res = await axios.get(`${config.PERSONAL_API}/facilities/`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
       setFacilities(res.data);
-      // Re-fetch addresses
       res.data.forEach(async (facility: any) => {
         const coords = facility.location?.coordinates;
         if (coords && coords.lat && coords.lng) {
@@ -152,7 +149,6 @@ const Facilities = () => {
         </Container>
       </AppBar>
       
-        {/* Header Row */}
         <Box sx={{ mx: 'auto', p: 4 }}>
           <Box sx={{ display: 'flex', background: '#e5e8ea', borderRadius: 1, p: 0.5, alignItems: 'center', border: '1.5px solid #d1d3d4' }}>
             <Box sx={{ flex: '0 0 10%', fontWeight: 700, fontSize: 18, textAlign: 'center', py: 1, borderRight: '2px solid #d1d3d4' }}>Photo</Box>
@@ -163,22 +159,18 @@ const Facilities = () => {
             <Box sx={{ flex: '0 0 10%', fontWeight: 700, fontSize: 18, textAlign: 'center', py: 1 }}>Actions</Box>
           </Box>
         </Box>
-        {/* Facility Rows */}
         <Box sx={{ mx: 'auto', p: 4 }}>
           {loading ? (
             <Box sx={{ p: 3, textAlign: 'center' }}>Loading...</Box>
           ) : (
             facilities.map((facility, idx) => (
               <Paper key={facility._id || idx} elevation={0} sx={{ display: 'flex', alignItems: 'center', borderRadius: 2, border: '2px solid #e0e0e0', mb: 3, px: 2, py: 2, minHeight: 100, boxShadow: 0 }}>
-                {/* Photo */}
                 <Box sx={{ flex: '0 0 10%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Avatar variant="rounded" sx={{ width: 70, height: 70, bgcolor: '#e0e0e0', border: '1.5px solid #bdbdbd' }} src={facility.photos && facility.photos[0]} />
                 </Box>
-                {/* Name/Call Sign */}
                 <Box sx={{ flex: '0 0 15%', display: 'flex', alignItems: 'center', justifyContent: 'center', px: 1 }}>
                   <Typography sx={{ fontWeight: 700, fontSize: 20, textAlign: 'center', wordBreak: 'break-word' }}>{facility.name}</Typography>
                 </Box>
-                {/* Contact Persons */}
                 <Box sx={{ flex: '0 0 20%', display: 'flex', alignItems: 'center', justifyContent: 'center', px: 1 }}>
                   <Box sx={{ width: '100%', background: '#ededed', borderRadius: 1, px: 2, py: 1, minHeight: 40, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     {facility.contactPersons?.map((person: any, i: number) => (
@@ -186,7 +178,6 @@ const Facilities = () => {
                     ))}
                   </Box>
                 </Box>
-                {/* Contact Numbers */}
                 <Box sx={{ flex: '0 0 18%', display: 'flex', alignItems: 'center', justifyContent: 'center', px: 1 }}>
                   <Box sx={{ width: '100%', borderRadius: 1, px: 2, py: 1, minHeight: 40, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     {facility.contactPersons?.map((person: any, i: number) => (
@@ -194,14 +185,12 @@ const Facilities = () => {
                     ))}
                   </Box>
                 </Box>
-                {/* Address */}
                 <Box sx={{ flex: '0 0 25%', display: 'flex', alignItems: 'center', justifyContent: 'center', px: 1, mr: 2 }}>
                   <Box sx={{ width: '100%', background: '#ededed', borderRadius: 1, px: 2, py: 1, minHeight: 40, display: 'flex', alignItems: 'center' }}>
                     <Typography sx={{ fontSize: 14, textAlign: 'left', wordBreak: 'break-word' }}>{addressMap[facility._id] || ''}</Typography>
                   </Box>
                 </Box>
 
-                {/* Actions */}
                 <Grid size={{ md: 1.6 }} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Button 
                     variant="contained" 
@@ -226,7 +215,6 @@ const Facilities = () => {
           )}
         </Box>
       
-      {/* Floating Add Button */}
       <Box sx={{ position: 'fixed', bottom: 40, right: 40, zIndex: 100 }}>
         <Tooltip title="Add Facility">
           <IconButton color="primary" sx={{ bgcolor: '#78909c', width: 80, height: 80, borderRadius: '50%', minWidth: 0, boxShadow: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 0, '&:hover': { bgcolor: '#607d8b' } }} onClick={() => navigate('/add-facilities')}>
@@ -234,7 +222,6 @@ const Facilities = () => {
           </IconButton>
         </Tooltip>
       </Box>
-      {/* Delete Confirmation Modal */}
       <Dialog
         open={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}

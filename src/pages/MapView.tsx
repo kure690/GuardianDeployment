@@ -60,17 +60,17 @@ const MapView = () => {
   const [responderData, setResponderData] = useState({
     firstName: '',
     lastName: '',
-    assignment: 'ambulance', // default to ambulance
+    assignment: 'ambulance',
   });
   const [currentChannelId, setCurrentChannelId] = useState<string>('');
   const userStr = localStorage.getItem("user");
   const userStr2 = userStr ? JSON.parse(userStr) : null;
   const userId = userStr2?.id;
   const token = localStorage.getItem("token");
-  const [lguStatus, setLguStatus] = useState<string>('connected');
+  const [opCenStatus, setopCenStatus] = useState<string>('connected');
   const [responderAddress, setResponderAddress] = useState<string>('');
   const [responderStatus, setResponderStatus] = useState<string>('medicalFacility');
-  const [destinationType, setDestinationType] = useState<string>('incident'); // 'incident' or 'hospital'
+  const [destinationType, setDestinationType] = useState<string>('incident');
 
   const getIncidentIcon = useCallback((type: string): google.maps.Icon | undefined => {
     if (!isGoogleLoaded) return undefined;
@@ -113,7 +113,7 @@ const MapView = () => {
         case 'police':
           return policecarIcon;
         default:
-          return ambulanceIcon; // Default to ambulance if unknown
+          return ambulanceIcon; 
       }
     })();
 
@@ -299,7 +299,7 @@ const MapView = () => {
           setIsResolved(data.isResolved);
           setAcceptedAt(data.acceptedAt);
           setIsVerified(data.isVerified);
-          setLguStatus(data.lguStatus);
+          setopCenStatus(data.opCenStatus);
           setCurrentChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${data._id.substring(4,9)}`);
           
           if (data.responderStatus) {
@@ -764,7 +764,7 @@ const MapView = () => {
           flex: '1',
           position: 'relative',
         }}>
-          {chatClient && currentChannelId && typeof lguStatus === 'string' && lguStatus === 'connected' && (
+          {chatClient && currentChannelId && typeof opCenStatus === 'string' && opCenStatus === 'connected' && (
             <Box
               sx={{
                 position: 'absolute',
