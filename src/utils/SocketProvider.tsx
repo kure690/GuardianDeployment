@@ -10,6 +10,7 @@ interface SocketProviderProps {
 const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isSocketReady, setIsSocketReady] = useState(false);
 
   // We only want to set up the socket once the token is available.
   // This useEffect will run when the component mounts and re-run if the token changes (e.g., on login/logout).
@@ -35,12 +36,22 @@ const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       const handleConnect = () => {
         console.log('[SocketProvider] Connected with socket ID:', socketInstance.id);
         setIsConnected(true);
+        setIsSocketReady(true);
       }
-      const handleDisconnect = () => setIsConnected(false);
+
+      const handleDisconnect = () => {
+        console.log('[SocketProvider] Socket disconnected.');
+        setIsConnected(false);
+        // If the socket disconnects, we should consider it not ready.
+        // You might adjust this based on your desired UX for temporary disconnects.
+        setIsSocketReady(false); 
+      };
+
       const handleConnectError = (err: any) => {
         // This will catch authentication errors from your middleware
         console.error('[SocketProvider] Connection Error:', err.message);
         // You might want to handle this globally, e.g., by logging the user out.
+        setIsSocketReady(false);
       };
 
       socketInstance.on("connect", handleConnect);
@@ -53,14 +64,34 @@ const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         socketInstance.off("connect_error", handleConnectError);
         socketInstance.disconnect();
         setSocket(null);
+        setIsSocketReady(false);
       };
+    }
+    else {
+      // If there's no token, the user is not authenticated.
+      // We can consider the "socket" part of the app ready to show the login page.
+      setIsSocketReady(true);
     }
   }, []); // Re-run if the user logs in/out, which should re-render the provider.
 
-  const contextValue: SocketContextType = useMemo(() => ({
+  const contextValue = useMemo(() => ({
     socket,
     isConnected,
   }), [socket, isConnected]);
+
+  if (!isSocketReady) {
+    return (
+      <div style={{
+        height: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        background: '#1B4965'
+      }}>
+        <span style={{color: 'white', fontSize: 24}}>Connecting to real-time service...</span>
+      </div>
+    );
+  }
 
   return (
     <SocketContext.Provider value={contextValue}>
