@@ -94,7 +94,7 @@ const ManageUsers = () => {
 
   const fetchResponders = async () => {
     try {
-      const response = await axios.get(`${config.PERSONAL_API}/responders/`);
+      const response = await axios.get(`${config.GUARDIAN_SERVER_URL}/responders/`);
       // Filter responders to only those with operationCenter matching logged-in user
       const filtered = response.data.filter((responder: any) => {
         // If responder.operationCenter is null/undefined, skip
@@ -120,7 +120,7 @@ const ManageUsers = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await axios.delete(`${config.PERSONAL_API}/responders/${id}`);
+      await axios.delete(`${config.GUARDIAN_SERVER_URL}/responders/${id}`);
       setSnackbar({
         open: true,
         message: 'Responder deleted successfully',
@@ -184,7 +184,7 @@ const ManageUsers = () => {
         operationCenter: loggedInUser?.id // Set operationCenter to logged-in user's id
       };
 
-      await axios.post(`${config.PERSONAL_API}/responders/`, submitData);
+      await axios.post(`${config.GUARDIAN_SERVER_URL}/responders/`, submitData);
       setSnackbar({
         open: true,
         message: 'Responder created successfully',
@@ -253,7 +253,7 @@ const ManageUsers = () => {
     try {
       if (!selectedResponder) return;
 
-      await axios.put(`${config.PERSONAL_API}/responders/${selectedResponder._id}`, editFormData);
+      await axios.put(`${config.GUARDIAN_SERVER_URL}/responders/${selectedResponder._id}`, editFormData);
       setSnackbar({
         open: true,
         message: 'Responder updated successfully',

@@ -45,7 +45,7 @@ const Register = () => {
 
     try {
       const response = await axios.post(
-        `${config.PERSONAL_API}/dispatchers/`,
+        `${config.GUARDIAN_SERVER_URL}/dispatchers/`,
           formData
       );
 

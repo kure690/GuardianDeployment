@@ -109,7 +109,7 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
             if (!responderId) return;
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch(`${config.PERSONAL_API}/responders/${responderId}`, {
+                const response = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderId}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -432,7 +432,7 @@ const LGUMain = () => {
     const getImageUrl = (url: string) => {
         if (!url) return '';
         if (url.startsWith('http')) return url;
-        return `${config.PERSONAL_API}${url}`;
+        return `${config.GUARDIAN_SERVER_URL}${url}`;
       };
     
     const fetchIncidents = async () => {
@@ -443,7 +443,7 @@ const LGUMain = () => {
         }
 
         try {
-            const response = await fetch(`${config.PERSONAL_API}/incidents`, {
+            const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -764,7 +764,7 @@ useEffect(() => {
         if (!closingIncident) return;
         
         try {
-            const response = await fetch(`${config.PERSONAL_API}/incidents/update/${closingIncident._id}`, {
+            const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/update/${closingIncident._id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -900,7 +900,7 @@ useEffect(() => {
             let responderData = null;
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch(`${config.PERSONAL_API}/responders/${responderId}`, {
+                const response = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderId}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }

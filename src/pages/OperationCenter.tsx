@@ -52,7 +52,7 @@ interface OpCenData {
 const getImageUrl = (url: string) => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
-  return `${config.PERSONAL_API}${url}`;
+  return `${config.GUARDIAN_SERVER_URL}${url}`;
 };
 
 const OperationCenter = () => {
@@ -138,7 +138,7 @@ const OperationCenter = () => {
       const formData = new FormData();
       formData.append(type === 'profile' ? 'profileImage' : type === 'cover' ? 'coverImage' : 'markerImage', file);
 
-      const response = await axios.put(`${config.PERSONAL_API}/opcens/${user.id}?imageType=${type}`, formData, {
+      const response = await axios.put(`${config.GUARDIAN_SERVER_URL}/opcens/${user.id}?imageType=${type}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
           'Authorization': `Bearer ${localStorage.getItem('token')}`

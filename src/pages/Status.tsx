@@ -53,7 +53,7 @@ export default function Status() {
   const getImageUrl = (url: string) => {
     if (!url) return '';
     if (url.startsWith('http')) return url;
-    return `${config.PERSONAL_API}${url}`;
+    return `${config.GUARDIAN_SERVER_URL}${url}`;
   };
 
   if (!userData) {
@@ -106,7 +106,7 @@ export default function Status() {
           return;
         }
 
-        const response = await fetch(`${config.PERSONAL_API}/incidents`, {
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -216,7 +216,7 @@ export default function Status() {
       
       console.log('Dispatcher Update Data:', updateData);
       
-      const response = await fetch(`${config.PERSONAL_API}/incidents/update/${currentIncident._id}`, {
+      const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/update/${currentIncident._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

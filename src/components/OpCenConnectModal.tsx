@@ -4,6 +4,14 @@ import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
 import config from '../config';
 
+// Define the structure of an OpCen user object
+interface OpCenUser {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  dispatcherType: string;
+}
+
 interface OpCenConnectModalProps {
   open: boolean;
   onClose: () => void;
@@ -17,6 +25,7 @@ interface OpCenConnectModalProps {
   modalIncidentDescription: string;
   setModalIncidentDescription: (val: string) => void;
   handleConnect: (user: any) => void;
+  onlineUsers: Set<string>; // Prop to receive the set of online user IDs
 }
 
 const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
@@ -31,15 +40,16 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
   setCustomIncidentType,
   modalIncidentDescription,
   setModalIncidentDescription,
-  handleConnect
+  handleConnect,
+  onlineUsers, // Destructure the new prop
 }) => {
-  const [opCenUsers, setOpCenUsers] = useState<any[]>([]);
+  const [opCenUsers, setOpCenUsers] = useState<OpCenUser[]>([]);
   const token = localStorage.getItem('token');
 
   useEffect(() => {
     const fetchOpCenUsers = async () => {
       try {
-        const response = await fetch(`${config.PERSONAL_API}/dispatchers`, {
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/dispatchers`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -48,8 +58,6 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
           const data = await response.json();
           const filtered = (data || []).filter((user: any) => user.dispatcherType === 'LGU');
           setOpCenUsers(filtered);
-        } else if (response.status === 404) {
-          setOpCenUsers([]);
         } else {
           setOpCenUsers([]);
         }
@@ -240,23 +248,44 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
             </div>
             <div style={{maxHeight: '200px', overflowY: 'auto'}}>
               {opCenUsers.length > 0 ? (
-                opCenUsers.map((user) => (
-                  <div key={user._id} style={{display: 'flex', alignItems: 'center', padding: '6px', borderBottom: '1px solid #eee', marginBottom: '3px'}}>
-                    <div style={{flex: 1}}>
-                      <div style={{fontSize: '14px'}}>{user.firstName} {user.lastName}</div>
+                opCenUsers.map((user) => {
+                  // Check if the current user is online
+                  const isOnline = onlineUsers.has(user._id);
+                  return (
+                    <div key={user._id} style={{display: 'flex', alignItems: 'center', padding: '6px', borderBottom: '1px solid #eee', marginBottom: '3px'}}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                        <Box
+                          sx={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: '50%',
+                            bgcolor: isOnline ? 'success.main' : 'error.main',
+                          }}
+                        />
+                        <div style={{fontSize: '14px'}}>{user.firstName} {user.lastName}</div>
+                      </Box>
+                      <div style={{marginRight: '10px', textAlign: 'right'}}>
+                        <div style={{fontSize: '12px'}}>13 Min</div>
+                        <div style={{fontSize: '12px'}}>2.3 KM</div>
+                      </div>
+                      <button 
+                        onClick={() => handleConnect(user)}
+                        disabled={!isOnline} // Disable button if offline
+                        style={{
+                          padding: '4px 8px', 
+                          background: isOnline ? '#1e5a71' : '#9E9E9E', // Grey out button when offline
+                          color: 'white', 
+                          border: 'none', 
+                          borderRadius: '4px', 
+                          fontSize: '12px',
+                          cursor: isOnline ? 'pointer' : 'not-allowed'
+                        }}
+                      >
+                        {isOnline ? 'Connect' : 'Offline'}
+                      </button>
                     </div>
-                    <div style={{marginRight: '10px', textAlign: 'right'}}>
-                      <div style={{fontSize: '12px'}}>13 Min</div>
-                      <div style={{fontSize: '12px'}}>2.3 KM</div>
-                    </div>
-                    <button 
-                      onClick={() => handleConnect(user)}
-                      style={{padding: '4px 8px', background: '#1e5a71', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px'}}
-                    >
-                      Connect
-                    </button>
-                  </div>
-                ))
+                  )
+                })
               ) : (
                 <div style={{textAlign: 'center', padding: '20px', color: '#666', fontSize: '14px',backgroundColor: '#f8f9fa',borderRadius: '4px',margin: '10px'}}>
                   No Operation Centers are currently available
@@ -274,4 +303,4 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
   );
 };
 
-export default OpCenConnectModal; 
+export default OpCenConnectModal;

@@ -329,7 +329,7 @@ const Notification = () => {
       }
 
       const response = await axios.post(
-        `${config.PERSONAL_API}/notifications/`,
+        `${config.GUARDIAN_SERVER_URL}/notifications/`,
         submitData,
         {
           headers: {
@@ -339,7 +339,7 @@ const Notification = () => {
       );
 
       const sendNotif = await axios.post(
-        `${config.PERSONAL_API}/notifications/send-to-all`,
+        `${config.GUARDIAN_SERVER_URL}/notifications/send-to-all`,
         {
           title: formData.title,
           body: formData.message

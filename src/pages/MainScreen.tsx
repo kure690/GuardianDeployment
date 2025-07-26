@@ -137,6 +137,7 @@ const MainScreen = () => {
 
   const chatClient = useStreamChatClient(userId, user, userStr2?.name, token);
   const videoClient = useStreamVideoClient(userId, userStr2?.firstName + ' ' + userStr2?.lastName, token, avatarImg);
+  const [onlineUsers, setOnlineUsers] = useState(new Set<string>());
   const { lapsTime, formatLapsTime } = useElapsedTime(acceptedAt);
   const imagesLoaded = useProfileImageUpsert(chatClient, userId, userStr2, userData, volunteerID);
   const { socket: globalSocket, isConnected } = useSocket();
@@ -148,6 +149,23 @@ const MainScreen = () => {
     setOpCenConnectingAt,
     setConnectionFinalStatus, 
   });
+
+  useEffect(() => {
+    if (globalSocket && isConnected) {
+      const handleOnlineUsersUpdate = (usersArray: string[]) => {
+        console.log('Received online users update:', usersArray);
+        setOnlineUsers(new Set(usersArray));
+      };
+
+      // Listen for the broadcast from the server
+      globalSocket.on('onlineUsersUpdate', handleOnlineUsersUpdate);
+
+      // Clean up the listener when the component unmounts or the socket disconnects
+      return () => {
+        globalSocket.off('onlineUsersUpdate', handleOnlineUsersUpdate);
+      };
+    }
+  }, [globalSocket, isConnected]);
 
   useEffect(() => {
     if (!connectionFinalStatus) return;
@@ -177,7 +195,7 @@ const MainScreen = () => {
       
       if (currentIncidentId) {
         try {
-          const incidentResponse = await fetch(`${config.PERSONAL_API}/incidents/${currentIncidentId}`, {
+          const incidentResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${currentIncidentId}`, {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -204,7 +222,7 @@ const MainScreen = () => {
           console.log('User ID extracted:', userId);
   
           if (userId) {
-            const userResponse = await fetch(`${config.PERSONAL_API}/volunteers/${userId}`);
+            const userResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/volunteers/${userId}`);
             if (userResponse.ok) {
               const userData = await userResponse.json();
               setUserData({
@@ -355,7 +373,7 @@ const MainScreen = () => {
   const getImageUrl = (url: string) => {
     if (!url) return '';
     if (url.startsWith('http')) return url;
-    return `${config.PERSONAL_API}${url}`;
+    return `${config.GUARDIAN_SERVER_URL}${url}`;
   };
   const getIncidentIcon = (incidentType: string) => {
     const type = incidentType?.toLowerCase() || '';
@@ -383,7 +401,7 @@ const MainScreen = () => {
         console.error('No incident ID available for update');
         return;
       }
-      const response = await fetch(`${config.PERSONAL_API}/incidents/update/${incidentId}`, {
+      const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/update/${incidentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -417,7 +435,7 @@ const MainScreen = () => {
   const handleCloseIncident = async () => {
     if (!incidentId) return;
     try {
-      const response = await fetch(`${config.PERSONAL_API}/incidents/update/${incidentId}`, {
+      const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/update/${incidentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -864,6 +882,7 @@ const MainScreen = () => {
         setCustomIncidentType={setCustomIncidentType}
         modalIncidentDescription={modalIncidentDescription}
         setModalIncidentDescription={setModalIncidentDescription}
+        onlineUsers={onlineUsers}
         handleConnect={handleConnect}
       />
       

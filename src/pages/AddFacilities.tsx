@@ -175,7 +175,7 @@ const AddFacilities = () => {
       const fetchFacility = async () => {
         try {
           const token = localStorage.getItem('token');
-          const res = await axios.get(`${config.PERSONAL_API}/facilities/${id}`, {
+          const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/facilities/${id}`, {
             headers: {
               Authorization: `Bearer ${token}`
             }
@@ -231,7 +231,7 @@ const AddFacilities = () => {
         payload.append('existingPhotos', JSON.stringify(imagePreviews));
       }
       if (isEditMode && facilityId) {
-        await axios.put(`${config.PERSONAL_API}/facilities/${facilityId}`, payload, {
+        await axios.put(`${config.GUARDIAN_SERVER_URL}/facilities/${facilityId}`, payload, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'multipart/form-data',
@@ -240,7 +240,7 @@ const AddFacilities = () => {
         setSnackbar({ open: true, message: 'Facility updated successfully', severity: 'success' });
         navigate('/facilities');
       } else {
-        await axios.post(`${config.PERSONAL_API}/facilities/`, payload, {
+        await axios.post(`${config.GUARDIAN_SERVER_URL}/facilities/`, payload, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'multipart/form-data',

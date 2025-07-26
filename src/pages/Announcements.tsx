@@ -285,7 +285,7 @@ const Announcements = () => {
       }
 
       const response = await axios.post(
-        `${config.PERSONAL_API}/announcements/`,
+        `${config.GUARDIAN_SERVER_URL}/announcements/`,
         submitData,
         {
           headers: {

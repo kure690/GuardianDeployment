@@ -295,7 +295,7 @@ const Messages = () => {
       }
 
       const response = await axios.post(
-        `${config.PERSONAL_API}/messages/`,
+        `${config.GUARDIAN_SERVER_URL}/messages/`,
         submitData,
         {
           headers: {
@@ -305,7 +305,7 @@ const Messages = () => {
       );
 
       const sendNotif = await axios.post(
-        `${config.PERSONAL_API}/notifications/send-to-all`,
+        `${config.GUARDIAN_SERVER_URL}/notifications/send-to-all`,
         {
           title: formData.title,
           body: formData.message

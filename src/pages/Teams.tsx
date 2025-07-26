@@ -38,7 +38,7 @@ import config from '../config';
 const getImageUrl = (url: string) => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
-  return `${config.PERSONAL_API}${url}`;
+  return `${config.GUARDIAN_SERVER_URL}${url}`;
 };
 
 const Teams = () => {
@@ -67,7 +67,7 @@ const Teams = () => {
   useEffect(() => {
     const fetchTeams = async () => {
       try {
-        const res = await axios.get(`${config.PERSONAL_API}/opcen-teams/`);
+        const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/opcen-teams/`);
         setTeams(res.data);
       } catch (err) {
         setTeams([]);
@@ -80,7 +80,7 @@ const Teams = () => {
   useEffect(() => {
     const fetchResponders = async () => {
       try {
-        const res = await axios.get(`${config.PERSONAL_API}/responders/`);
+        const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/responders/`);
         setResponders(res.data);
       } catch (err) {
         setResponders([]);
@@ -159,7 +159,7 @@ const Teams = () => {
         members: memberIds
       };
 
-      await axios.put(`${config.PERSONAL_API}/opcen-teams/${selectedTeam._id}`, payload);
+      await axios.put(`${config.GUARDIAN_SERVER_URL}/opcen-teams/${selectedTeam._id}`, payload);
       setSnackbar({
         open: true,
         message: 'Team updated successfully',
@@ -167,7 +167,7 @@ const Teams = () => {
       });
       handleEditClose();
       // Refresh teams list
-      const res = await axios.get(`${config.PERSONAL_API}/opcen-teams/`);
+      const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/opcen-teams/`);
       setTeams(res.data);
     } catch (err: any) {
       setSnackbar({
@@ -180,7 +180,7 @@ const Teams = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await axios.delete(`${config.PERSONAL_API}/opcen-teams/${id}`);
+      await axios.delete(`${config.GUARDIAN_SERVER_URL}/opcen-teams/${id}`);
       setSnackbar({
         open: true,
         message: 'Team deleted successfully',
@@ -188,7 +188,7 @@ const Teams = () => {
       });
       handleDeleteConfirmClose();
       // Refresh teams list
-      const res = await axios.get(`${config.PERSONAL_API}/opcen-teams/`);
+      const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/opcen-teams/`);
       setTeams(res.data);
     } catch (err: any) {
       setSnackbar({

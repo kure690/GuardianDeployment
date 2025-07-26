@@ -55,7 +55,7 @@ const RegisterOpcen = () => {
 
     try {
       const response = await axios.post(
-        `${config.PERSONAL_API}/opcens/`,
+        `${config.GUARDIAN_SERVER_URL}/opcens/`,
         formData
       );
 

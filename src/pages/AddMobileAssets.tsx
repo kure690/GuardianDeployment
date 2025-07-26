@@ -57,12 +57,12 @@ const AddMobileAssets = () => {
       try {
         const token = localStorage.getItem('token');
         const [opcenRes, teamsRes] = await Promise.all([
-          axios.get(`${config.PERSONAL_API}/opcens/`, {
+          axios.get(`${config.GUARDIAN_SERVER_URL}/opcens/`, {
             headers: {
               Authorization: `Bearer ${token}`
             }
           }),
-          axios.get(`${config.PERSONAL_API}/opcen-teams/`, {
+          axios.get(`${config.GUARDIAN_SERVER_URL}/opcen-teams/`, {
             headers: {
               Authorization: `Bearer ${token}`
             }
@@ -118,7 +118,7 @@ const AddMobileAssets = () => {
   const handleSubmit = async () => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${config.PERSONAL_API}/mobile-assets/`, formData, {
+      await axios.post(`${config.GUARDIAN_SERVER_URL}/mobile-assets/`, formData, {
         headers: {
           Authorization: `Bearer ${token}`
         }
