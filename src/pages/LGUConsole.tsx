@@ -28,7 +28,7 @@ import { useOpCen } from '../hooks/opcen/useOpCen';
 const getImageUrl = (url: string) => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
-  return `${config.PERSONAL_API}${url}`;
+  return `${config.GUARDIAN_SERVER_URL}${url}`;
 };
 
 const LGUConsole = () => {
@@ -43,7 +43,7 @@ const LGUConsole = () => {
     useEffect(() => {
       const fetchResponders = async () => {
         try {
-          const response = await axios.get(`${config.PERSONAL_API}/responders/`);
+          const response = await axios.get(`${config.GUARDIAN_SERVER_URL}/responders/`);
           const activeResponders = response.data.filter((responder: any) => 
             responder.status === 'active' && responder.operationCenter === user.id
           );

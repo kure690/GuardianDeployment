@@ -41,7 +41,7 @@ const Facilities = () => {
     const fetchFacilities = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`${config.PERSONAL_API}/facilities/`, {
+        const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/facilities/`, {
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -76,7 +76,7 @@ const Facilities = () => {
     if (!facilityToDelete) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${config.PERSONAL_API}/facilities/${facilityToDelete}`, {
+      await axios.delete(`${config.GUARDIAN_SERVER_URL}/facilities/${facilityToDelete}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -86,7 +86,7 @@ const Facilities = () => {
         message: 'Facility deleted successfully',
         severity: 'success'
       });
-      const res = await axios.get(`${config.PERSONAL_API}/facilities/`, {
+      const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/facilities/`, {
         headers: {
           Authorization: `Bearer ${token}`
         }

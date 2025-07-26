@@ -12,7 +12,7 @@ export function useIncidents(userId: string, token: string | null, isInvisible: 
       return;
     }
     try {
-      const response = await fetch(`${config.PERSONAL_API}/incidents`, {
+      const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

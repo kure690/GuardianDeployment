@@ -40,7 +40,7 @@ const AddTeams = () => {
   useEffect(() => {
     const fetchResponders = async () => {
       try {
-        const res = await axios.get(`${config.PERSONAL_API}/responders/`);
+        const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/responders/`);
         setResponders(res.data);
       } catch (err) {
         setResponders([]);
@@ -99,7 +99,7 @@ const AddTeams = () => {
         formData.append('teamBadge', teamBadge);
       }
 
-      await axios.post(`${config.PERSONAL_API}/opcen-teams/`, formData, {
+      await axios.post(`${config.GUARDIAN_SERVER_URL}/opcen-teams/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

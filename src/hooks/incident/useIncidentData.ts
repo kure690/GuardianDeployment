@@ -25,7 +25,7 @@ export function useIncidentData(incidentId: string | undefined, token: string | 
     if (!incidentId) return;
     const fetchIncidentData = async () => {
       try {
-        const response = await fetch(`${config.PERSONAL_API}/incidents/${incidentId}`);
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
         if (response.ok) {
           const data = await response.json();
           setIsResolved(data.isResolved);
@@ -48,7 +48,7 @@ export function useIncidentData(incidentId: string | undefined, token: string | 
           if (data.user) {
             let userId = typeof data.user === 'string' ? data.user : data.user._id;
             setVolunteerID(userId);
-            const userResponse = await fetch(`${config.PERSONAL_API}/volunteers/${userId}`, {
+            const userResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/volunteers/${userId}`, {
               headers: {
                 'Authorization': `Bearer ${token}`
               }

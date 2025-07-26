@@ -30,7 +30,7 @@ const Login = () => {
   const tryLogin = async (userType: UserType) => {
     try {
       const response = await axios.post(
-        `${config.PERSONAL_API}/${userType}s/login`,
+        `${config.GUARDIAN_SERVER_URL}/${userType}s/login`,
         formData
       );
       return { success: true, data: response.data, type: userType };

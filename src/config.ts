@@ -1,9 +1,7 @@
 const config = {
-  // SERVER_URL: "https://lionfish-app-8qrmo.ondigitalocean.app",
-  GUARDIAN_SERVER_URL: "https://guardiandemo-fgiyi.ondigitalocean.app",
-  // GUARDIAN_SERVER_URL: "http://localhost:3000",
-  STREAM_APIKEY: "ev66gd84qdfd",
-  PERSONAL_API: "https://guardiandemo-fgiyi.ondigitalocean.app"
+  GUARDIAN_SERVER_URL: import.meta.env.VITE_GUARDIAN_SERVER_URL,
+  STREAM_APIKEY: import.meta.env.VITE_STREAM_APIKEY,
+  GOOGLE_MAPS_API_KEY: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
 };
 
 export default config;

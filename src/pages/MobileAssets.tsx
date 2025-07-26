@@ -57,7 +57,7 @@ const MobileAssets = () => {
     const fetchAssets = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`${config.PERSONAL_API}/mobile-assets/`, {
+        const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/mobile-assets/`, {
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -79,7 +79,7 @@ const MobileAssets = () => {
         
         if (opcenIds.length > 0) {
           const opcenPromises = opcenIds.map((id: string) => 
-            axios.get(`${config.PERSONAL_API}/opcens/${id}`, {
+            axios.get(`${config.GUARDIAN_SERVER_URL}/opcens/${id}`, {
               headers: {
                 Authorization: `Bearer ${token}`
               }
@@ -117,7 +117,7 @@ const MobileAssets = () => {
     
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${config.PERSONAL_API}/mobile-assets/${assetToDelete}`, {
+      await axios.delete(`${config.GUARDIAN_SERVER_URL}/mobile-assets/${assetToDelete}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -128,7 +128,7 @@ const MobileAssets = () => {
         severity: 'success'
       });
       // Refresh the list
-      const res = await axios.get(`${config.PERSONAL_API}/mobile-assets/`, {
+      const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/mobile-assets/`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -166,7 +166,7 @@ const MobileAssets = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`${config.PERSONAL_API}/mobile-assets/${editingAsset._id}`, editFormData, {
+      await axios.put(`${config.GUARDIAN_SERVER_URL}/mobile-assets/${editingAsset._id}`, editFormData, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -177,7 +177,7 @@ const MobileAssets = () => {
         severity: 'success'
       });
       // Refresh the list
-      const res = await axios.get(`${config.PERSONAL_API}/mobile-assets/`, {
+      const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/mobile-assets/`, {
         headers: {
           Authorization: `Bearer ${token}`
         }

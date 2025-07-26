@@ -39,7 +39,7 @@ export const useOpCen = (id: string) => {
     queryKey: ['opcen', id],
     queryFn: async () => {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${config.PERSONAL_API}/opcens/${id}`, {
+      const response = await axios.get(`${config.GUARDIAN_SERVER_URL}/opcens/${id}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -55,7 +55,7 @@ export const useOpCen = (id: string) => {
     mutationFn: async (updatedData: Partial<OpCenData>) => {
       const token = localStorage.getItem('token');
       const response = await axios.put(
-        `${config.PERSONAL_API}/opcens/${id}`,
+        `${config.GUARDIAN_SERVER_URL}/opcens/${id}`,
         updatedData,
         {
           headers: {

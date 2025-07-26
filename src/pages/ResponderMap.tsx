@@ -87,7 +87,7 @@ const ResponderMap = () => {
   const getImageUrl = (url: string) => {
     if (!url) return '';
     if (url.startsWith('http')) return url;
-    return `${config.PERSONAL_API}${url}`;
+    return `${config.GUARDIAN_SERVER_URL}${url}`;
   };
   
 
@@ -221,7 +221,7 @@ const ResponderMap = () => {
 
       try {
         setLoading(true);
-        const response = await fetch(`${config.PERSONAL_API}/incidents/${incidentId}`);
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
         if (response.ok) {
           const data = await response.json();
           setIncidentType(data.incidentType);
@@ -237,7 +237,7 @@ const ResponderMap = () => {
             
             // Fetch hospital details
             try {
-              const hospitalResponse = await fetch(`${config.PERSONAL_API}/hospitals/${data.selectedHospital}`);
+              const hospitalResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/hospitals/${data.selectedHospital}`);
               if (hospitalResponse.ok) {
                 const hospitalData = await hospitalResponse.json();
                 
@@ -291,7 +291,7 @@ const ResponderMap = () => {
           }
 
           if (userId) {
-            const userResponse = await fetch(`${config.PERSONAL_API}/volunteers/${userId}`);
+            const userResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/volunteers/${userId}`);
             if (userResponse.ok) {
               const userData = await userResponse.json();
               setUserData({
@@ -307,7 +307,7 @@ const ResponderMap = () => {
             const responderId = data.responderId || data.responder;
             
             try {
-              const responderResponse = await fetch(`${config.PERSONAL_API}/responders/${responderId}`);
+              const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderId}`);
               if (responderResponse.ok) {
                 const responderData = await responderResponse.json();
                 setResponderData({
@@ -361,7 +361,7 @@ const ResponderMap = () => {
 
       // Immediately fetch responder data and update state so the marker icon updates right away
       try {
-        const responderResponse = await fetch(`${config.PERSONAL_API}/responders/${responderId}`);
+        const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderId}`);
         if (responderResponse.ok) {
           const responderDataFetched = await responderResponse.json();
           setResponderData({
@@ -394,7 +394,7 @@ const ResponderMap = () => {
         return;
       }
       
-      const response = await fetch(`${config.PERSONAL_API}/incidents/${incidentId}`);
+      const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
       if (!response.ok) {
         console.error('Failed to fetch incident data for initial message');
         return;
@@ -442,7 +442,7 @@ const ResponderMap = () => {
   useEffect(() => {
     const fetchResponderUsers = async () => {
       try {
-        const response = await fetch(`${config.PERSONAL_API}/responders`);
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/responders`);
         if (response.ok) {
           const data = await response.json();
           // Filter out inactive responders
@@ -535,7 +535,7 @@ const ResponderMap = () => {
     const pollInterval = setInterval(async () => {
       if (incidentId) {
         try {
-          const response = await fetch(`${config.PERSONAL_API}/incidents/${incidentId}`);
+          const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
           if (response.ok) {
             const data = await response.json();
             
@@ -544,7 +544,7 @@ const ResponderMap = () => {
               
               // Fetch hospital details if we have a new selected hospital
               try {
-                const hospitalResponse = await fetch(`${config.PERSONAL_API}/hospitals/${data.selectedHospital}`);
+                const hospitalResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/hospitals/${data.selectedHospital}`);
                 if (hospitalResponse.ok) {
                   const hospitalData = await hospitalResponse.json();
                   
@@ -578,7 +578,7 @@ const ResponderMap = () => {
     const responderPollInterval = setInterval(async () => {
       if (incidentId) {
         try {
-          const response = await fetch(`${config.PERSONAL_API}/incidents/${incidentId}`);
+          const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
           if (response.ok) {
             const data = await response.json();
             

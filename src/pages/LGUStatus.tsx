@@ -53,7 +53,7 @@ const LGUStatus = () => {
       if (!lguId || isInvisible) return; 
 
       try {
-        const response = await fetch(`${config.PERSONAL_API}/incidents`, {
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -114,7 +114,7 @@ const LGUStatus = () => {
       
       await channel.create();
 
-      const response = await fetch(`${config.PERSONAL_API}/incidents/update/${connectingIncident._id}`, {
+      const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/update/${connectingIncident._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -145,7 +145,7 @@ const LGUStatus = () => {
     if (!connectingIncident) return;
 
     try {
-      const response = await fetch(`${config.PERSONAL_API}/incidents/update/${connectingIncident._id}`, {
+      const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/update/${connectingIncident._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
