@@ -77,19 +77,17 @@ const ManageUsers = () => {
   }, []);
 
   useEffect(() => {
-    if (responders.length > 0) {
-      const filtered = responders.filter((responder: any) => {
-        const searchLower = searchQuery.toLowerCase();
-        return (
-          responder.firstName.toLowerCase().includes(searchLower) ||
-          responder.lastName.toLowerCase().includes(searchLower) ||
-          responder.email.toLowerCase().includes(searchLower) ||
-          responder.phone.toLowerCase().includes(searchLower) ||
-          responder.assignment.toLowerCase().includes(searchLower)
-        );
-      });
-      setFilteredResponders(filtered);
-    }
+    const filtered = responders.filter((responder: any) => {
+      const searchLower = searchQuery.toLowerCase();
+      return (
+        responder.firstName.toLowerCase().includes(searchLower) ||
+        responder.lastName.toLowerCase().includes(searchLower) ||
+        responder.email.toLowerCase().includes(searchLower) ||
+        responder.phone.toLowerCase().includes(searchLower) ||
+        responder.assignment.toLowerCase().includes(searchLower)
+      );
+    });
+    setFilteredResponders(filtered);
   }, [searchQuery, responders]);
 
   const fetchResponders = async () => {
@@ -126,7 +124,7 @@ const ManageUsers = () => {
         message: 'Responder deleted successfully',
         severity: 'success'
       });
-      fetchResponders(); // Refresh the list
+      fetchResponders(); 
     } catch (err: any) {
       setSnackbar({
         open: true,
