@@ -34,6 +34,13 @@ declare global {
   }
 }
 
+const messageTypes = [
+  "General Information",
+  "Warning and critical Messages",
+  "Incident Report Confirmation",
+  "Setting Reminder"
+];
+
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
 function loadGoogleMapsScript(apiKey: string): Promise<void> {
@@ -489,9 +496,10 @@ const Messages = () => {
                   onChange={handleSelectChange}
                   required
                 >
-                  <MenuItem value="">Select</MenuItem>
-                  <MenuItem value="Commercial">Commercial</MenuItem>
-                  <MenuItem value="Emergency">Emergency</MenuItem>
+                  <MenuItem value=""><em>Select a Main Type</em></MenuItem>
+                    {messageTypes.map(type => (
+                      <MenuItem key={type} value={type}>{type}</MenuItem>
+                    ))}
                 </Select>
               </FormControl>
               <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 1 }}>Demographics:</Typography>

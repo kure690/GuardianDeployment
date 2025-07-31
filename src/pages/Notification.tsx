@@ -38,10 +38,20 @@ declare global {
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
+const notificationTypes = {
+  "Crime": ["Abandoned Package", "Burglar Alarm", "Domestic Violence", "Hit and Run", "Shooting Incident"],
+  "Environmental": ["Earthquake", "Flash Flood", "Flood", "Gale Warning", "Landslide", "Volcanic Eruption"],
+  "Fire Alarm": ["Bush Fire", "Chemical Fire", "Commercial Fire", "Fire Drill", "Industrial Fire", "Residential Fire", "Rubbish Fire"],
+  "Maritime": ["Cancelled Trips", "Maritime Incident"],
+  "News": ["Breaking News", "News Update", "Special News"],
+  "Traffic Situation": ["Rerouting", "Road Closure", "Road Obstruction", "Road Repairs", "Traffic Situation", "Vehicle Collision"],
+  "Weather": ["Heavy Rainfall", "Low Pressure Area", "Rainfall Update", "Severe Weather", "Thunderstorm", "Weather Forecast"]
+};
 interface FormData {
   title: string;
   message: string;
-  type: string;
+  mainType: string;
+  subType: string;
   images: string[];
   affectedArea: string;
   demographics: {
@@ -98,7 +108,8 @@ const Notification = () => {
   const [formData, setFormData] = useState<FormData>({
     title: '',
     message: '',
-    type: '',
+    mainType: '',
+    subType: '',
     images: [],
     affectedArea: '',
     demographics: {
@@ -238,12 +249,20 @@ const Notification = () => {
         };
       });
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [name as string]: value
-      }));
-    }
-  };
+      if (name === 'mainType') {
+        setFormData(prev => ({
+          ...prev,
+          mainType: value,
+          subType: ''
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          [name as string]: value
+        }));
+      }
+    }
+  };
 
   const handleScheduleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const sendNow = e.target.value === 'now';
@@ -295,10 +314,10 @@ const Notification = () => {
 
     try {
       // Validate required fields
-      if (!formData.title || !formData.message || !formData.type) {
+      if (!formData.title || !formData.message || !formData.mainType || !formData.subType) {
         setSnackbar({
           open: true,
-          message: 'Title, message, and type are required',
+          message: 'Title, message, main type, and sub type are required',
           severity: 'error'
         });
         return;
@@ -352,7 +371,7 @@ const Notification = () => {
       );
 
         await Promise.all([response, sendNotif]).then((values) => {
-          console.log(values); // [3, 1337, "foo"]
+          console.log(values); 
         });
 
 
@@ -368,7 +387,8 @@ const Notification = () => {
       setFormData({
         title: '',
         message: '',
-        type: '',
+        mainType: '',
+        subType: '',
         images: [],
         affectedArea: '',
         demographics: {
@@ -627,19 +647,32 @@ const Notification = () => {
 
             {/* Right: Type, Map, Send */}
             <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Type</InputLabel>
+            <FormControl fullWidth size="small" required>
+                <InputLabel>Main Type</InputLabel>
                 <Select 
-                  label="Type" 
-                  name="type"
-                  value={formData.type}
+                  label="Main Type" 
+                  name="mainType"
+                  value={formData.mainType}
                   onChange={handleSelectChange}
-                  required
                 >
-                  <MenuItem value="">Select</MenuItem>
-                  <MenuItem value="Commercial">Commercial</MenuItem>
-                  <MenuItem value="Emergency">Emergency</MenuItem>
-                  <MenuItem value="Awareness">Awareness</MenuItem>
+                   <MenuItem value=""><em>Select a Main Type</em></MenuItem>
+                    {Object.keys(notificationTypes).map(type => (
+                      <MenuItem key={type} value={type}>{type}</MenuItem>
+                    ))}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth size="small" required disabled={!formData.mainType}>
+                <InputLabel>Sub Type</InputLabel>
+                <Select 
+                  label="Sub Type" 
+                  name="subType"
+                  value={formData.subType}
+                  onChange={handleSelectChange}
+                >
+                  <MenuItem value=""><em>Select a Sub Type</em></MenuItem>
+                    {formData.mainType && notificationTypes[formData.mainType as keyof typeof notificationTypes].map(subType => (
+                      <MenuItem key={subType} value={subType}>{subType}</MenuItem>
+                    ))}
                 </Select>
               </FormControl>
               <TextField 
