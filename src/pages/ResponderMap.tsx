@@ -339,11 +339,13 @@ const ResponderMap = () => {
   }, []);
 
   const handleDispatchResponder = async (responderId: string) => {
-
+    // Check if the socket is connected before trying to emit
     if (!socket || !isConnected) {
       console.error('Socket not connected. Cannot dispatch responder.');
+      // Optionally, show an error message to the user
       return;
     }
+
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const incidentId = urlParams.get('incidentId');
@@ -352,14 +354,19 @@ const ResponderMap = () => {
         console.error('No incident ID found for dispatching responder');
         return;
       }
+
+      // --- THIS IS THE KEY CHANGE ---
+      // The payload is now simpler. The server knows who the sender (OpCen) is
+      // from their authenticated token.
       socket.emit('requestResponderAssignment', {
         incidentId,
         responderId,
       });
+
       console.log(`Sent assignment request for responder ${responderId} to incident ${incidentId}`);
       await sendInitialMessage(responderId);
 
-      // Immediately fetch responder data and update state so the marker icon updates right away
+      // Your existing logic to immediately update the local UI is good
       try {
         const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderId}`);
         if (responderResponse.ok) {
