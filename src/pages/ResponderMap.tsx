@@ -68,7 +68,7 @@ const ResponderMap = () => {
   const userStr2 = userStr ? JSON.parse(userStr) : null;
   const userId = userStr2?.id;
   const [lguStatus, setLguStatus] = useState<string>('connected');
-  const [destinationType, setDestinationType] = useState<string>('incident'); // 'incident' or 'hospital'
+  const [destinationType, setDestinationType] = useState<string>('incident'); 
   const token = localStorage.getItem("token");
   const { socket, isConnected } = useSocket();
   const [responderData, setResponderData] = useState({

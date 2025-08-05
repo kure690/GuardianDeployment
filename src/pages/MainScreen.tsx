@@ -12,6 +12,8 @@ import {
   Menu,
   MenuItem,
   Box,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import avatarImg from "../assets/images/user.png";
 import SystemSecurityUpdateWarningIcon from "@mui/icons-material/SystemSecurityUpdateWarning";
@@ -56,6 +58,7 @@ import { useStreamVideoClient } from '../hooks/video/useStreamVideoClient';
 import { useElapsedTime } from '../hooks/utils/useElapsedTime';
 import { useProfileImageUpsert } from '../hooks/chat/useProfileImageUpsert';
 import { useOpCenConnectingStatus } from '../hooks/opcen/useOpCenConnectingStatus';
+import { useResponderStatus } from '../hooks/incident/useResponderStatus';
 
 
 type User = {
@@ -148,6 +151,11 @@ const MainScreen = () => {
     setConnectingModalOpen,
     setOpCenConnectingAt,
     setConnectionFinalStatus, 
+  });
+
+  const { responderStatus, showOnSceneNotification, dismissNotification } = useResponderStatus({
+    incidentId,
+    token
   });
 
   useEffect(() => {
@@ -891,6 +899,24 @@ const MainScreen = () => {
         onClose={handleCloseConnectingModal} 
         connectingOpCenName={connectingOpCenName}
       />
+
+      <Snackbar
+        open={showOnSceneNotification}
+        autoHideDuration={5000}
+        onClose={dismissNotification}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={dismissNotification} 
+          severity="success" 
+          sx={{ 
+            width: '100%',
+            backgroundColor: 'rgba(245, 248, 245, 0.8)', // transparent green
+          }}
+        >
+          Responder has arrived on scene!
+        </Alert>
+      </Snackbar>
   
     </div>
   );
