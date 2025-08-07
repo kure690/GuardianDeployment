@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import config from '../../config';
 
 interface UseResponderStatusProps {
@@ -9,6 +10,11 @@ interface UseResponderStatusProps {
 export const useResponderStatus = ({ incidentId, token }: UseResponderStatusProps) => {
   const [responderStatus, setResponderStatus] = useState<string | null>(null);
   const [showOnSceneNotification, setShowOnSceneNotification] = useState(false);
+  const [showFinishedNotification, setShowFinishedNotification] = useState(false);
+
+
+  const navigate = useNavigate();
+  const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!incidentId || !token) return;
@@ -23,6 +29,20 @@ export const useResponderStatus = ({ incidentId, token }: UseResponderStatusProp
 
         if (response.ok) {
           const incidentData = await response.json();
+
+          if (incidentData.isFinished) {
+            setShowFinishedNotification(true);
+            // Set a timeout to redirect, and store its ID
+            if (!redirectTimeoutRef.current) {
+              redirectTimeoutRef.current = setTimeout(() => {
+                navigate('/status');
+              }, 5000);
+            }
+            // Stop polling since the incident is over
+            clearInterval(interval);
+            return;
+          }
+
           const currentStatus = incidentData.responderStatus;
           const notificationStatus = incidentData.responderNotification; 
           
@@ -69,16 +89,31 @@ export const useResponderStatus = ({ incidentId, token }: UseResponderStatusProp
     // Set up interval to check every 3 seconds
     const interval = setInterval(checkResponderStatus, 3000);
 
-    return () => clearInterval(interval);
-  }, [incidentId, token]);
+    return () => {
+      clearInterval(interval);
+      // Clean up the timeout if the component unmounts
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+    };
+  }, [incidentId, token, navigate]);
 
-  const dismissNotification = () => {
+  const dismissOnSceneNotification = () => {
     setShowOnSceneNotification(false);
+  };
+
+  const dismissFinishedNotification = () => {
+    setShowFinishedNotification(false);
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
+    }
   };
 
   return {
     responderStatus,
     showOnSceneNotification,
-    dismissNotification
+    dismissOnSceneNotification, 
+    showFinishedNotification,     
+    dismissFinishedNotification
   };
 }; 

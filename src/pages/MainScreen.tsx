@@ -153,7 +153,13 @@ const MainScreen = () => {
     setConnectionFinalStatus, 
   });
 
-  const { responderStatus, showOnSceneNotification, dismissNotification } = useResponderStatus({
+  const { 
+    responderStatus, 
+    showOnSceneNotification, 
+    dismissOnSceneNotification, 
+    showFinishedNotification,   
+    dismissFinishedNotification 
+  } = useResponderStatus({
     incidentId,
     token
   });
@@ -483,26 +489,51 @@ const MainScreen = () => {
           <Grid size={{xs: 12}}
           width={"100%"}
           // backgroundColor={"red"} 
-          height={"18vh"}>
-            <Grid container spacing={8}>
+          height={"18vh"}
+          sx={{ 
+            minHeight: '120px', // Added a min-height for very small viewports
+          }}>
+            <Grid container spacing={{ xs: 1, md: 2 }} height={"100%"} sx={{ flexWrap: 'nowrap' }}>
               <Grid
-                size={{md: 4}}
-                display={"flex"}
-                flexDirection={"row"}
-                alignItems={"center"}
-                gap={"1rem"}>
+                sx={{
+                  flex: 1, 
+                  minWidth: 0, 
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'start',
+                  height: '100%',
+                  gap: { xs: 1, md: 2 },
+                  // backgroundColor: 'green',
+                }}
+              >
 
-                <img src={getIncidentIcon(incidentType || 'general').icon}
-                style={{
-                  width: '6.5rem',
-                  height: '6.5rem',
-                  borderRadius: '100%',
-                  border: 'solid white 1px',
-                  boxShadow: '0 0 7px 0 white'
+                <div style={{
+                  width: 'clamp(3.5rem, 10vw, 6.5rem)',
+                  height: 'clamp(3.5rem, 10vw, 6.5rem)',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  // backgroundColor: 'green',
+                }}>
+                  <img src={getIncidentIcon(incidentType || 'general').icon}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: '100%',
+                    border: 'solid white 1px',
+                    boxShadow: '0 0 7px 0 white',
+                    objectFit: 'contain'
                   }} />
+                </div>
 
 
-                <div className="text-white">
+                <div style={{
+                  color: 'white',
+                  width: '75%',
+                  // backgroundColor: 'red'
+                }}>
                   <Typography sx={{}}>
                     ID: {currentChannelId.toUpperCase()}
                   </Typography>
@@ -518,7 +549,7 @@ const MainScreen = () => {
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    maxWidth: '250px',
+                    maxWidth: '350px',
                     // backgroundColor: 'red'
                   }}
                   title={address || "Loading address..."}>
@@ -528,13 +559,28 @@ const MainScreen = () => {
                 </div>
               </Grid>
               <Grid
-                size={{md: 4}}
-                display={"flex"}
-                flexDirection={"row"}
-                alignItems={"center"}
-                gap={"1rem"}>
-                <Avatar src={userData?.profileImage} sx={{width: 105, height: 105}}/>
-                <div className="text-white">
+                sx={{
+                  flex: 1, 
+                  minWidth: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: { xs: 1, md: 2 },
+                  height: '100%',
+                  // backgroundColor: 'black',
+                }}
+              >
+                <Avatar src={userData?.profileImage}
+                sx={{
+                  width: { xs: 60, sm: 80, md: 105 },
+                  height: { xs: 60, sm: 80, md: 105 },
+                  flexShrink: 0
+                }}/>
+                <div style={{
+                  color: 'white',
+                  width: '75%',
+                  // backgroundColor: 'red'
+                }}>
                 {userData && (
                   <div className="text-white">
                     <Typography sx={{ fontWeight: "bold" }} variant="h5">
@@ -557,13 +603,48 @@ const MainScreen = () => {
                 </div>
               </Grid>
               
-              <Grid size={{md: 4}}>
-                <div className="flex flex-col gap-4 justify-center">
-                  <div className="flex flex-row items-center gap-6">
-                    <div className="flex flex-row items-center gap-3 border text-white p-1 rounded-lg">
+              <Grid
+                sx={{
+                flex: 1,
+                minWidth: 0,
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                // backgroundColor: 'red', 
+                }}
+              >
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  // backgroundColor: 'blue',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem' // A static gap between the two rows
+                }}>
+                  <Box sx={{
+                    display: 'flex',
+                    width: '100%',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexWrap: 'wrap', // Allows items to stack on small screens
+                    gap: { xs: 1, md: 2 }
+                    
+                  }}>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        border: '1px solid white',
+                        color: 'white',
+                        padding: '0.25rem',
+                        borderRadius: '0.5rem'
+                    }}>
                       <SystemSecurityUpdateWarningIcon
                         sx={{
-                          fontSize: "3rem",
+                          fontSize: { xs: "1.7rem", md: "3rem" },
                           border: "solid white 1px",
                           borderRadius: "4px",
                           cursor: "pointer",
@@ -576,7 +657,7 @@ const MainScreen = () => {
                       />
                       <NotificationsActiveIcon
                         sx={{
-                          fontSize: "3rem",
+                          fontSize: { xs: "1.7rem", md: "3rem" },
                           border: "solid white 1px",
                           borderRadius: "4px",
                           cursor: "pointer",
@@ -591,7 +672,7 @@ const MainScreen = () => {
                       <MyLocationIcon
                         onClick={handleLocationClick}
                         sx={{
-                          fontSize: "3rem",
+                          fontSize: { xs: "1.7rem", md: "3rem" },
                           border: "solid white 1px",
                           borderRadius: "4px",
                           cursor: "pointer",
@@ -605,7 +686,7 @@ const MainScreen = () => {
                       <VideoCallIcon
                         onClick={handleCreateRingCall}
                         sx={{
-                          fontSize: "3rem",
+                          fontSize: { xs: "1.7rem", md: "3rem" },
                           border: "solid white 1px",
                           borderRadius: "4px",
                           cursor: "pointer",
@@ -618,7 +699,7 @@ const MainScreen = () => {
                       />
                       <AddIcCallIcon
                         sx={{
-                          fontSize: "3rem",
+                          fontSize: { xs: "1.7rem", md: "3rem" },
                           border: "solid white 1px",
                           borderRadius: "4px",
                           cursor: "pointer",
@@ -632,15 +713,13 @@ const MainScreen = () => {
                     </div>
                     <Avatar
                       src={getImageUrl(userStr2?.profileImage) || ''}
+                      onClick={handleAvatarClick}
                       alt={userStr2?.name || 'User'}
                       sx={{
-                        width: 64,
-                        height: 64,
+                        width: { xs: 40, md: 64 },
+                        height: { xs: 40, md: 64 },
                         border: '2px solid white',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#eee',
                       }}
-                      onClick={handleAvatarClick}
                     />
                     <Menu
                     anchorEl={anchorEl}
@@ -651,15 +730,17 @@ const MainScreen = () => {
                     >
                     <MenuItem onClick={handleLogout}>Logout</MenuItem>
                     </Menu>
-                  </div>
-                  <div className="flex flex-row items-center gap-6">
+                  </Box>
+                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%',}}>
                     <Paper
                       sx={{
                         backgroundColor: "lightgreen",
                         flex: "1 1 auto",
                         width: "fit-content",
+                        maxWidth: '75%',
                         display: "flex",
                         justifyContent: "center",
+                        alignItems: "center",
                         paddingY: "3px",
                         color: 'white'
                       }}>
@@ -671,10 +752,9 @@ const MainScreen = () => {
                             disabled={ isUpdating}
                           />
                         }
-                        label={isUpdating ? "Updating..." : "Incident Verified"}
+                        label={<Typography sx={{ typography: { xs: 'caption', sm: 'body2' } }}>{isUpdating ? "..." : "Incident Verified"}</Typography>}
                       />
                     </Paper>
-                    <div style={{width: "4rem"}}></div>
                   </div>
                 </div>
               </Grid>
@@ -903,11 +983,11 @@ const MainScreen = () => {
       <Snackbar
         open={showOnSceneNotification}
         autoHideDuration={5000}
-        onClose={dismissNotification}
+        onClose={dismissOnSceneNotification}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
         <Alert 
-          onClose={dismissNotification} 
+          onClose={dismissOnSceneNotification} 
           severity="success" 
           sx={{ 
             width: '100%',
@@ -915,6 +995,25 @@ const MainScreen = () => {
           }}
         >
           Responder has arrived on scene!
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={showFinishedNotification}
+        onClose={(event, reason) => {
+          if (reason === 'clickaway') {
+            return;
+          }
+          dismissFinishedNotification();
+        }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={dismissFinishedNotification} 
+          severity="info" 
+          sx={{ width: '100%' }}
+        >
+          Incident has been closed. Redirecting to the status page in 5 seconds.
         </Alert>
       </Snackbar>
   
