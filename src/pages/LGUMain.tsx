@@ -406,6 +406,7 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
 const LGUMain = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const audioRef = useRef<HTMLAudioElement | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [chatClient, setChatClient] = useState<StreamChat | null>(null);
     const [videoClient, setVideoClient] = useState<StreamVideoClient | null>(null);
@@ -427,6 +428,14 @@ const LGUMain = () => {
     const [closingIncident, setClosingIncident] = useState<any>(null);
     const [showClosingModal, setShowClosingModal] = useState(false);
     const { socket: globalSocket, isConnected } = useSocket();
+
+    const stopAlertSound = () => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0; 
+            audioRef.current = null; 
+        }
+    };
 
 
     const getImageUrl = (url: string) => {
@@ -628,12 +637,17 @@ useEffect(() => {
 
     const toggleStatus = async () => {
         try {
-            if (!client || !userId) return;
+            if (!client || !userId || !globalSocket) return;
+
+            const newInvisibleStatus = !isInvisible;
             
             await client.upsertUser({
                 id: userId,
                 invisible: !isInvisible,
             });
+
+            const availabilityStatus = newInvisibleStatus ? 'unavailable' : 'available';
+            globalSocket.emit('updateOpCenAvailability', { status: availabilityStatus });
 
             setIsInvisible(!isInvisible);
             if (!isInvisible) {
@@ -667,8 +681,7 @@ useEffect(() => {
     }, [client, userId]);
     useEffect(() => {
         const handleNotifyConnecting = async (data: any) => {
-            if (!data) return;
-            if (data.opCenId !== userId) return;
+            if (!data || data.opCenId !== userId) return;
             setLastIncidentId(data.incident._id);
             setConnectingIncident(data.incident);
             setShowStatusModal(true);
@@ -687,6 +700,14 @@ useEffect(() => {
                     case 'medical': soundSrc = ambulanceSound; break;
                     default: soundSrc = generalSound;
                 }
+            if (audioRef.current) {
+                audioRef.current.pause();
+            }
+            audioRef.current = new Audio(soundSrc);
+                audioRef.current.loop = true; 
+                audioRef.current.play().catch(error => {
+                    console.error("Audio playback failed:", error);
+                });
             }
         };
         if (globalSocket && isConnected) {
@@ -708,6 +729,7 @@ useEffect(() => {
     };
     const handleAcceptIncident = async () => {
         if (!connectingIncident) return;
+        stopAlertSound();
         if (!globalSocket || !isConnected) {
             console.error("Socket not connected. Cannot accept incident.");
             return;
@@ -740,6 +762,7 @@ useEffect(() => {
     
     const handleDeclineIncident = async () => {
         if (!connectingIncident) return;
+        stopAlertSound();
         if (!globalSocket || !isConnected) {
             console.error("Socket not connected. Cannot decline incident.");
             return;
