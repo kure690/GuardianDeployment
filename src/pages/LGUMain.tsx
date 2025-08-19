@@ -637,15 +637,23 @@ useEffect(() => {
 
     const toggleStatus = async () => {
         try {
-            if (!client || !userId) return;
+            if (!client || !userId || !globalSocket || !isConnected) {
+                console.error("Client or socket not ready.");
+                return;
+            }
+
+            const newInvisibleState = !isInvisible;
+            const newStatus = newInvisibleState ? 'unavailable' : 'available';
             
             await client.upsertUser({
                 id: userId,
-                invisible: !isInvisible,
+                invisible: !newInvisibleState,
             });
 
-            setIsInvisible(!isInvisible);
-            if (!isInvisible) {
+            globalSocket.emit('updateOpCenAvailability', { status: newStatus });
+
+            setIsInvisible(newInvisibleState);
+            if (!newInvisibleState) {
                 setShowStatusModal(false);
             }
         } catch (error) {
