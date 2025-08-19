@@ -647,7 +647,7 @@ useEffect(() => {
             
             await client.upsertUser({
                 id: userId,
-                invisible: !newInvisibleState,
+                invisible: newInvisibleState,
             });
 
             globalSocket.emit('updateOpCenAvailability', { status: newStatus });
@@ -662,26 +662,35 @@ useEffect(() => {
     };
     useEffect(() => {
         const checkUserStatus = async () => {
-            if (!client || !userId) return;
+            if (!client || !userId || !globalSocket || !isConnected) return;
             
             try {
-                const user = await client.queryUsers({ id: userId });
-                if (user.users && user.users.length > 0) {
-                    setIsInvisible(!!user.users[0].invisible);
+                const response = await client.queryUsers({ id: userId });
+                if (response.users && response.users.length > 0) {
+                    const userIsInvisible = !!response.users[0].invisible;
                     
-                    if (user.users[0].invisible) {
-                        setShowStatusModal(true);
-                    }
+                    setIsInvisible(userIsInvisible);
+                const currentStatus = userIsInvisible ? 'unavailable' : 'available';
+                console.log(`Syncing status with backend on initial load: ${currentStatus}`);
+                globalSocket.emit('updateOpCenAvailability', { status: currentStatus });
+                if (userIsInvisible) {
+                    setShowStatusModal(true);
                 }
+            }
+
+                
             } catch (error) {
                 console.error('Error checking user status:', error);
                 setIsInvisible(true);
+                globalSocket.emit('updateOpCenAvailability', { status: 'unavailable' });
                 setShowStatusModal(true);
             }
         };
         
         checkUserStatus();
-    }, [client, userId]);
+    }, [client, userId, globalSocket, isConnected]); 
+
+    
     useEffect(() => {
         const handleNotifyConnecting = async (data: any) => {
             if (!data || data.opCenId !== userId) return;
