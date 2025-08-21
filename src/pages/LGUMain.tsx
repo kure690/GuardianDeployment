@@ -812,6 +812,28 @@ useEffect(() => {
             
             if (response.ok) {
                 console.log(`Incident ${closingIncident._id} marked as finished`);
+                // Create direct message to the reporting volunteer
+                try {
+                    const volunteerId =
+                        typeof closingIncident.user === 'object' && closingIncident.user !== null
+                            ? closingIncident.user._id
+                            : closingIncident.user;
+                    await fetch(`${config.GUARDIAN_SERVER_URL}/messages/direct`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                            title: 'Incident Closed',
+                            message: `Your incident (ID: ${closingIncident._id}) has been marked as finished. Thank you for your report. If you need further assistance, please contact your local operation center.`,
+                            type: 'Incident Report Confirmation',
+                            volunteerId,
+                        }),
+                    });
+                } catch (e) {
+                    console.error('Failed to create direct message:', e);
+                }
                 
                 setIncidents(prevIncidents => 
                     prevIncidents.map(incident => 
