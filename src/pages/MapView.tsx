@@ -524,7 +524,7 @@ const MapView = () => {
 
   return (
     <Box sx={{ position: 'relative', height: '100vh' }}>
-      <LoadScript googleMapsApiKey={apiKey}>
+      
         <GoogleMap
           mapContainerStyle={containerStyle}
           center={incidentCoords || { lat: 10.3157, lng: 123.8854 }}
@@ -609,7 +609,7 @@ const MapView = () => {
             </OverlayView>
           )}
         </GoogleMap>
-      </LoadScript>
+      
 
       <Box sx={{ 
         position: 'absolute', 

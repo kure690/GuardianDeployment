@@ -97,6 +97,53 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
     const shortId = incident._id ? incident._id.substring(5, 9) : "";
 
     const [responderData, setResponderData] = useState<any>(null);
+    const [routeInfo, setRouteInfo] = useState({ duration: '...', distance: '...' });
+
+    // Add this new useEffect inside the IncidentCard component
+useEffect(() => {
+    // Guard clause: Exit if we don't have the required data
+    if (
+        !responderData?.coordinates ||
+        !incident.incidentDetails?.coordinates ||
+        !window.google // Check if the Google Maps script is loaded
+    ) {
+        return;
+    }
+
+    const service = new window.google.maps.DistanceMatrixService();
+
+    const origin = {
+        lat: responderData.coordinates.lat,
+        lng: responderData.coordinates.lon, // Convert lon to lng for Google Maps
+    };
+
+    const destination = {
+        lat: incident.incidentDetails.coordinates.lat,
+        lng: incident.incidentDetails.coordinates.lon,
+    };
+
+    service.getDistanceMatrix(
+        {
+            origins: [origin],
+            destinations: [destination],
+            travelMode: google.maps.TravelMode.DRIVING,
+        },
+        (response, status) => {
+            if (status === 'OK' && response) {
+                const result = response.rows[0]?.elements[0];
+                if (result?.status === 'OK') {
+                    // Update the state with the real data
+                    setRouteInfo({
+                        duration: result.duration.text,
+                        distance: result.distance.text,
+                    });
+                }
+            } else {
+                console.error(`Distance Matrix error for incident ${incident._id}:`, status);
+            }
+        }
+    );
+}, [responderData, incident]); // Re-run this effect if responder or incident data changes
     
     useEffect(() => {
         const fetchResponderData = async () => {
@@ -345,14 +392,14 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
                                     fontSize: '0.7rem',
                                     textAlign: 'center',
                                 }}>
-                                    13 min
+                                    {routeInfo.duration}
                                 </Typography>
                                 <Typography sx={{ 
                                     color: 'white',
                                     fontSize: '0.7rem',
                                     textAlign: 'center',
                                 }}>
-                                    2.3 km
+                                    {routeInfo.distance}
                                 </Typography>
                             </Box>
                         </Box>

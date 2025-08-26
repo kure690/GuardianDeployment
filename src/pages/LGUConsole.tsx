@@ -426,7 +426,7 @@ const LGUConsole = () => {
                   }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Typography variant="h6">Reporting</Typography>
-                      <Button size="small" sx={{ textTransform: 'none' }}>Manage</Button>
+                      <Button size="small" sx={{ textTransform: 'none' }} onClick={() =>navigate('/reports')}>Manage</Button>
                     </Box>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>View and download reports</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>

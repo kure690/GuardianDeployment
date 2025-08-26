@@ -27,7 +27,9 @@ import Facilities from "./pages/Facilities";
 import AddFacilities from "./pages/AddFacilities";
 import Announcements from "./pages/Announcements";
 import Messages from "./pages/Messages";
+import Reports from "./pages/ManageReporting"
 import SocketProvider from "./utils/SocketProvider";
+import { LoadScript } from '@react-google-maps/api';
 
 const theme = createTheme({
   typography: {
@@ -66,6 +68,8 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -126,6 +130,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
+        <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY}>
+
+        
         <SocketProvider>
           <main>
             {client ? (
@@ -169,6 +176,7 @@ function App() {
                   <Route path="/add-facilities" element={<AddFacilities />} />
                   <Route path="/announcements" element={<Announcements />} />
                   <Route path="/messages" element={<Messages />} />
+                  <Route path="/reports" element={<Reports />} />
                 </Routes>
               </Chat>
             ) : (
@@ -181,6 +189,7 @@ function App() {
             )}
           </main>
         </SocketProvider>
+        </LoadScript>
       </ThemeProvider>
     </QueryClientProvider>
   );

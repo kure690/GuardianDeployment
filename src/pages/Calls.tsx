@@ -54,6 +54,7 @@ export default function Calls() {
 
         console.log("User connected successfully");
 
+
         const newCall = videoClient.call("default", "fad-call");
         console.log("Call created:", newCall.id);
         
