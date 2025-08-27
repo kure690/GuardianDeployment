@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef } from 'react'
 import {
   AppBar,
   Typography,
@@ -18,6 +18,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Avatar,
 } from '@mui/material'
 import Grid from "@mui/material/Grid2"
 import SearchIcon from '@mui/icons-material/Search'
@@ -25,6 +26,10 @@ import SearchIcon from '@mui/icons-material/Search'
 import axios from 'axios'
 import dayjs from 'dayjs'
 import config from '../config'
+import { getAddressFromCoordinates } from '../utils/geocoding'
+import GuardianIcon from "../assets/images/icon.png"
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 
 type Incident = {
   _id: string
@@ -35,11 +40,23 @@ type Incident = {
   isAccepted: boolean
   acceptedAt?: string | null
   resolvedAt?: string | null
+  onsceneAt?: string | null
+  onSceneAt?: string | null
   user?: any
   dispatcher?: any
   opCen?: any
   opCenStatus?: 'idle' | 'connecting' | 'connected'
-  responder?: any
+  responder?: {
+    _id: string
+    firstName?: string
+    lastName?: string
+    operationCenter?: {
+      _id: string
+      profileImage?: string
+      firstName?: string
+      lastName?: string
+    }
+  }
   isAcceptedResponder?: boolean
   responderStatus?: 'enroute' | 'onscene' | 'facility' | 'rtb' | null
   responderNotification?: 'unread' | 'read'
@@ -65,6 +82,9 @@ const ManageReporting: React.FC = () => {
   const [openEdit, setOpenEdit] = useState<boolean>(false)
   const [openDelete, setOpenDelete] = useState<boolean>(false)
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
+  const [openView, setOpenView] = useState<boolean>(false)
+  const [viewAddress, setViewAddress] = useState<string>('—')
+  const modalContentRef = useRef<HTMLDivElement>(null)
 
   // edit form
   const [editForm, setEditForm] = useState<{
@@ -152,6 +172,32 @@ const ManageReporting: React.FC = () => {
     setSelectedIncident(null)
   }
 
+  const handleOpenView = (row: Incident) => {
+    setSelectedIncident(row)
+    setOpenView(true)
+  }
+  const handleCloseView = () => {
+    setOpenView(false)
+    setSelectedIncident(null)
+    setViewAddress('—')
+  }
+
+  useEffect(() => {
+    const loadAddress = async () => {
+      if (!openView || !selectedIncident) return
+      const lat = selectedIncident.incidentDetails?.coordinates?.lat
+      const lon = selectedIncident.incidentDetails?.coordinates?.lon
+      if (lat !== null && lat !== undefined && lon !== null && lon !== undefined) {
+        setViewAddress('Loading address...')
+        const addr = await getAddressFromCoordinates(String(lat), String(lon))
+        setViewAddress(addr)
+      } else {
+        setViewAddress('—')
+      }
+    }
+    loadAddress()
+  }, [openView, selectedIncident])
+
   const submitEdit = async () => {
     try {
       if (!selectedIncident) return
@@ -185,6 +231,43 @@ const ManageReporting: React.FC = () => {
       fetchIncidents()
     } catch (e: any) {
       setSnackbar({ open: true, message: e?.response?.data?.message || 'Error deleting incident', severity: 'error' })
+    }
+  }
+
+  const exportToPDF = async () => {
+    if (!modalContentRef.current) return
+    
+    try {
+      // Capture the modal content directly with padding
+      const canvas = await html2canvas(modalContentRef.current, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        width: modalContentRef.current.scrollWidth + 80, // Add 80px for padding
+        height: modalContentRef.current.scrollHeight + 80, // Add 80px for padding
+        x: -40, // Offset to create padding effect
+        y: -40
+      })
+      
+      // Calculate PDF dimensions based on the actual content
+      const imgWidth = 210 // A4 width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      
+      // Add the image to fit the content naturally
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight)
+      
+      const fileName = `incident-report-${selectedIncident?.incidentType || 'unknown'}-${dayjs().format('YYYY-MM-DD-HH-mm')}.pdf`
+      pdf.save(fileName)
+      
+      setSnackbar({ open: true, message: 'PDF exported successfully', severity: 'success' })
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      setSnackbar({ open: true, message: 'Error generating PDF', severity: 'error' })
     }
   }
 
@@ -256,7 +339,8 @@ const ManageReporting: React.FC = () => {
                 {row.createdAt ? dayjs(row.createdAt).format('MMM D, YYYY h:mm A') : '—'}
               </Grid>
               <Grid size={{ md: 1 }} sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end', pr: 1 }}>
-                <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }} onClick={() => handleOpenEdit(row)}>Edit</Button>
+                <Button variant="contained" sx={{ bgcolor: '#546e7a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }} onClick={() => handleOpenView(row)}>View</Button>
+                {/* <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }} onClick={() => handleOpenEdit(row)}>Edit</Button> */}
                 <Button variant="contained" sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5, '&:hover': { bgcolor: '#d32f2f' } }} onClick={() => handleOpenDelete(row)}>Delete</Button>
               </Grid>
             </Grid>
@@ -313,6 +397,151 @@ const ManageReporting: React.FC = () => {
         <DialogActions sx={{ justifyContent: 'flex-end', p: 3, pt: 1 }}>
           <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, mr: 2 }} onClick={handleCloseDelete}>Cancel</Button>
           <Button variant="contained" sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, '&:hover': { bgcolor: '#d32f2f' } }} onClick={submitDelete}>Delete</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* View Incident Modal */}
+      <Dialog open={openView} onClose={handleCloseView} maxWidth="md" fullWidth slotProps={{ paper: { sx: { borderRadius: 2 } } }}>
+        <DialogContent sx={{ p: 3 }}>
+          {selectedIncident && (
+            <div ref={modalContentRef}>
+              <Box sx={{ display: 'flex', flexDirection: 'row', gap: 4 }}>
+                {/* Left column */}
+                <Box sx={{ flex: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }} data-pdf-section>
+                  {/* <Box
+                sx={{
+                  // backgroundColor: 'green',
+                  width: { xs: '100%', md: '5%' },
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderBottom: '1px solid #e0e0e0',
+                  height: '100%',
+                }}
+              > */}
+                <Box sx={{ width: 48, height: 48, bgcolor: 'red', borderRadius: 1 }}>
+                <Avatar 
+                        src={GuardianIcon}
+                        alt="Avatar Image"
+                        sx={{   
+                          color: 'white',
+                          width: 50, 
+                          height: 50,
+                          boxSizing: 'border-box',
+                          borderRadius: '0',
+                        }}
+                      />
+              </Box>
+                    <Box>
+                      <Typography variant="h6" sx={{ lineHeight: 1, fontWeight: 800 }}>GUARDIANPH</Typography>
+                      <Typography variant="subtitle2" sx={{ lineHeight: 1, letterSpacing: 1 }}>AFTER INCIDENT REPORT</Typography>
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ mb: 2, mt: 5, ml: 2 }} data-pdf-section>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>TYPE: {selectedIncident.incidentType || '—'}</Typography>
+                    <Box sx={{ height: 2, bgcolor: '#222', width: '75%', mt: 1 }} />
+                  </Box>
+
+                  <Box sx={{ mb: 2, ml: 2 }} data-pdf-section>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>REPORTED BY:</Typography>
+                    <Typography variant="body2">{selectedIncident.user ? `${selectedIncident.user.firstName || ''} ${selectedIncident.user.lastName || ''}`.trim() : '—'}</Typography>
+                    <Typography variant="body2">Volunteer ID: {selectedIncident.user?._id || '—'}</Typography>
+                    <Box sx={{ height: 2, bgcolor: '#222', width: '75%', mt: 1 }} />
+                  </Box>
+
+                  <Box sx={{ mb: 2, ml: 2 }} data-pdf-section>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>LOCATION:</Typography>
+                    <Typography variant="body2">{viewAddress}</Typography>
+                    <Box sx={{ height: 2, bgcolor: '#222', width: '75%', mt: 1 }} />
+                  </Box>
+
+                  <Box sx={{ mb: 2, ml: 2 }} data-pdf-section>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>TYPE:</Typography>
+                    <Typography variant="body2">{selectedIncident.incidentDetails?.incident || '—'}</Typography>
+                    <Box sx={{ height: 2, bgcolor: '#222', width: '75%', mt: 1 }} />
+                  </Box>
+
+                  <Box sx={{ mb: 2, ml: 2 }} data-pdf-section>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>TIME RECEIVED</Typography>
+                    <Typography variant="body2">{selectedIncident.createdAt ? dayjs(selectedIncident.createdAt).format('HH:mm:ss') : '—'}</Typography>
+                    <Box sx={{ height: 2, bgcolor: '#222', width: '75%', mt: 1 }} />
+                  </Box>
+
+                  <Box sx={{ mb: 2, ml: 2 }} data-pdf-section>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>RESPONDERS DISPATCHED</Typography>
+                    <Typography variant="body2">{selectedIncident.responder ? `${selectedIncident.responder.firstName || ''} ${selectedIncident.responder.lastName || ''}`.trim() : '—'}</Typography>
+                    <Typography variant="body2">ONSCENE: {(selectedIncident.onSceneAt || selectedIncident.onsceneAt) ? dayjs(selectedIncident.onSceneAt || selectedIncident.onsceneAt).format('HH:mm:ss') : '—'}</Typography>
+                    <Box sx={{ height: 2, bgcolor: '#222', width: '75%', mt: 1 }} />
+                  </Box>
+
+                  <Box sx={{ mt: 6, }} data-pdf-section>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 800, textTransform: 'uppercase', textAlign: 'center' }}>{selectedIncident.opCen?.name || 'Cloyd Bere Dedicatoria'}</Typography>
+                    <Box sx={{ height: 2, bgcolor: '#222', width: '100%', mt: 1 }} />
+                    <Typography variant="h6" sx={{ fontWeight: 800, textAlign: 'center' }}>OPCEN ADMINISTRATOR</Typography>
+                  </Box>
+                </Box>
+
+                {/* Right column */}
+                <Box sx={{ width: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }} data-pdf-section>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ width: 170, height: 170, bgcolor: '#f5f5f5', border: '2px solid #e0e0e0', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Box sx={{ width: 130, height: 130, bgcolor: '#e0e0e0', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Typography variant="h4" sx={{ color: '#9e9e9e' }}>QR</Typography>
+                      </Box>
+                    </Box>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#666' }}>VERIFICATION VIDEO</Typography>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ width: 170, height: 170, bgcolor: '#f5f5f5', border: '2px solid #e0e0e0', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Box sx={{ width: 130, height: 130, bgcolor: '#e0e0e0', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Typography variant="h4" sx={{ color: '#9e9e9e' }}>QR</Typography>
+                      </Box>
+                    </Box>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#666' }}>CHAT CONVERSATION</Typography>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ width: 130, height: 130, bgcolor: '#f5f5f5', border: '2px solid #e0e0e0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {selectedIncident.responder?.operationCenter?.profileImage ? (
+                        <img 
+                          src={selectedIncident.responder.operationCenter.profileImage} 
+                          alt="OPCEN Logo"
+                          style={{ 
+                            width: '100%', 
+                            height: '100%', 
+                            objectFit: 'cover',
+                            borderRadius: '50%'
+                          }} 
+                        />
+                      ) : (
+                        <Box sx={{ width: 120, height: 120, bgcolor: '#e0e0e0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Typography variant="h6" sx={{ color: '#9e9e9e' }}>LOGO</Typography>
+                        </Box>
+                      )}
+                    </Box>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#666' }}>OPCEN LOGO</Typography>
+                  </Box>
+                </Box>
+              </Box>
+
+              <Box sx={{ mt: 5, textAlign: 'center' }} data-pdf-section>
+                <Typography variant="caption" sx={{ color: '#e53935', fontWeight: 700 }}>
+                  THIS REPORT IS NOT VALID WITHOUT THE SIGNATURE OF THE COMMAND CENTER ADMINISTRATOR
+                </Typography>
+              </Box>
+            </div>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, justifyContent: 'space-between' }}>
+          <Button variant="contained" onClick={exportToPDF} sx={{ bgcolor: '#4caf50', textTransform: 'none' }}>
+            Export PDF
+          </Button>
+          <Button variant="contained" onClick={handleCloseView} sx={{ textTransform: 'none' }}>
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
 
