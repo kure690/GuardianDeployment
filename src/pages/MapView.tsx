@@ -57,6 +57,7 @@ const MapView = () => {
   const [isVerified, setIsVerified] = useState(false);
   const [isChatExpanded, setIsChatExpanded] = useState(false);
   const [chatClient, setChatClient] = useState<StreamChat | null>(null);
+  const [responderId, setResponderId] = useState<string | null>(null);
   const [responderData, setResponderData] = useState({
     firstName: '',
     lastName: '',
@@ -241,21 +242,19 @@ const MapView = () => {
           const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
           if (response.ok) {
             const data = await response.json();
-            
+
             if (data.responderCoordinates) {
               const newResponderCoords = {
                 lat: Number(data.responderCoordinates.lat),
                 lng: Number(data.responderCoordinates.lon)
               };
               
-              // Only update if coordinates have changed
               if (!responderCoords || 
                   responderCoords.lat !== newResponderCoords.lat || 
                   responderCoords.lng !== newResponderCoords.lng) {
                 
                 setResponderCoords(newResponderCoords);
                 
-                // Update responder address
                 try {
                   const responderFormattedAddress = await getAddressFromCoordinates(
                     newResponderCoords.lat.toString(),
@@ -267,15 +266,66 @@ const MapView = () => {
                 }
               }
             }
+
+            const newResponderId = data.responderId || data.responder;
+            if (newResponderId && newResponderId !== responderId) {
+              setResponderId(newResponderId); // Update the tracked ID
+
+              try {
+                const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${newResponderId}`);
+                if (responderResponse.ok) {
+                  const newResponderData = await responderResponse.json();
+                  setResponderData({
+                    firstName: newResponderData.firstName,
+                    lastName: newResponderData.lastName,
+                    assignment: newResponderData.assignment || 'ambulance',
+                  });
+                }
+              } catch (e) {
+                console.error("Error fetching newly assigned responder's data:", e);
+              }
+            }
           }
         } catch (error) {
           console.error('Error polling for responder updates:', error);
         }
       }
-    }, 5000); // Poll every 5 seconds
+    }, 5000); 
+            
+    //         if (data.responderCoordinates) {
+    //           const newResponderCoords = {
+    //             lat: Number(data.responderCoordinates.lat),
+    //             lng: Number(data.responderCoordinates.lon)
+    //           };
+              
+    //           // Only update if coordinates have changed
+    //           if (!responderCoords || 
+    //               responderCoords.lat !== newResponderCoords.lat || 
+    //               responderCoords.lng !== newResponderCoords.lng) {
+                
+    //             setResponderCoords(newResponderCoords);
+                
+    //             // Update responder address
+    //             try {
+    //               const responderFormattedAddress = await getAddressFromCoordinates(
+    //                 newResponderCoords.lat.toString(),
+    //                 newResponderCoords.lng.toString()
+    //               );
+    //               setResponderAddress(responderFormattedAddress);
+    //             } catch (error) {
+    //               console.error('Error fetching responder address:', error);
+    //             }
+    //           }
+    //         }
+    //       }
+    //     } catch (error) {
+    //       console.error('Error polling for responder updates:', error);
+    //     }
+    //   }
+    // }, 5000); // Poll every 5 seconds
     
     return () => clearInterval(responderPollInterval);
-  }, [incidentId, responderCoords]);
+  }, [incidentId, responderCoords, responderId]);
 
   useEffect(() => {
     const fetchIncidentData = async () => {
@@ -386,10 +436,11 @@ const MapView = () => {
             }
           }
           if (data.responderId || (data.responder && typeof data.responder === 'string')) {
-            const responderId = data.responderId || data.responder;
+            const responderIdValue = data.responderId || data.responder;
+            setResponderId(responderIdValue); 
             
             try {
-              const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderId}`);
+              const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderIdValue}`);
               if (responderResponse.ok) {
                 const responderData = await responderResponse.json();
                 console.log("Responder data:", responderData);

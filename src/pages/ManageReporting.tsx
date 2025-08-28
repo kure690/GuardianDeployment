@@ -30,6 +30,7 @@ import { getAddressFromCoordinates } from '../utils/geocoding'
 import GuardianIcon from "../assets/images/icon.png"
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import AddIcon from '@mui/icons-material/Add'
 
 type Incident = {
   _id: string
@@ -83,6 +84,7 @@ const ManageReporting: React.FC = () => {
   const [openDelete, setOpenDelete] = useState<boolean>(false)
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
   const [openView, setOpenView] = useState<boolean>(false)
+  const [openAdd, setOpenAdd] = useState<boolean>(false)
   const [viewAddress, setViewAddress] = useState<string>('—')
   const modalContentRef = useRef<HTMLDivElement>(null)
 
@@ -96,6 +98,16 @@ const ManageReporting: React.FC = () => {
     incident?: string
     incidentDescription?: string
   }>({ incidentType: '', isVerified: false, isAccepted: false, isResolved: false, isFinished: false })
+
+  // add form
+  const [addForm, setAddForm] = useState<{
+    incidentType: string
+    userId: string
+    incident?: string
+    incidentDescription?: string
+    lat?: string
+    lon?: string
+  }>({ incidentType: '', userId: '', incident: '', incidentDescription: '', lat: '', lon: '' })
 
   // Get logged-in user (dispatcher/opcen) for filtering
   const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null
@@ -180,6 +192,40 @@ const ManageReporting: React.FC = () => {
     setOpenView(false)
     setSelectedIncident(null)
     setViewAddress('—')
+  }
+
+  const handleOpenAdd = () => setOpenAdd(true)
+  const handleCloseAdd = () => {
+    setOpenAdd(false)
+    setAddForm({ incidentType: '', userId: '', incident: '', incidentDescription: '', lat: '', lon: '' })
+  }
+
+  const submitAdd = async () => {
+    try {
+      if (!addForm.incidentType || !addForm.userId) {
+        setSnackbar({ open: true, message: 'Incident type and userId are required', severity: 'error' })
+        return
+      }
+      const payload: any = {
+        incidentType: addForm.incidentType,
+        userId: addForm.userId,
+        opCen: loggedInUser?.id || null,
+        incidentDetails: {
+          incident: addForm.incident || null,
+          incidentDescription: addForm.incidentDescription || null,
+          coordinates: {
+            lat: addForm.lat ? Number(addForm.lat) : null,
+            lon: addForm.lon ? Number(addForm.lon) : null,
+          },
+        },
+      }
+      await axios.post(`${config.GUARDIAN_SERVER_URL}/incidents/`, payload)
+      setSnackbar({ open: true, message: 'Incident created', severity: 'success' })
+      handleCloseAdd()
+      fetchIncidents()
+    } catch (e: any) {
+      setSnackbar({ open: true, message: e?.response?.data?.message || 'Error creating incident', severity: 'error' })
+    }
   }
 
   useEffect(() => {
@@ -340,7 +386,7 @@ const ManageReporting: React.FC = () => {
               </Grid>
               <Grid size={{ md: 1 }} sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end', pr: 1 }}>
                 <Button variant="contained" sx={{ bgcolor: '#546e7a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }} onClick={() => handleOpenView(row)}>View</Button>
-                {/* <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }} onClick={() => handleOpenEdit(row)}>Edit</Button> */}
+                <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }} onClick={() => handleOpenEdit(row)}>Edit</Button>
                 <Button variant="contained" sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5, '&:hover': { bgcolor: '#d32f2f' } }} onClick={() => handleOpenDelete(row)}>Delete</Button>
               </Grid>
             </Grid>
@@ -353,6 +399,13 @@ const ManageReporting: React.FC = () => {
             <Button variant="outlined" size="small" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
           </Box>
         )}
+      </Box>
+
+      {/* Floating Add Button */}
+      <Box sx={{ position: 'fixed', bottom: 40, right: 40, zIndex: 100 }}>
+        <Button variant="contained" sx={{ bgcolor: '#29516a', width: 80, height: 80, borderRadius: '50%', minWidth: 0, boxShadow: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 0 }} onClick={handleOpenAdd}>
+          <AddIcon sx={{ fontSize: 48 }} />
+        </Button>
       </Box>
 
       {/* Add flow removed by request */}
@@ -368,7 +421,7 @@ const ManageReporting: React.FC = () => {
             <Select label="Incident Type" value={editForm.incidentType} onChange={(e) => setEditForm((p) => ({ ...p, incidentType: e.target.value }))}>
               <MenuItem value="Fire">Fire</MenuItem>
               <MenuItem value="Medical">Medical</MenuItem>
-              <MenuItem value="Crime">Crime</MenuItem>
+              <MenuItem value="Police">Police</MenuItem>
             </Select>
           </FormControl>
           <TextField label="Short Title" variant="outlined" size="small" fullWidth value={editForm.incident} onChange={(e) => setEditForm((p) => ({ ...p, incident: e.target.value }))} sx={{ mb: 2 }} />
@@ -397,6 +450,34 @@ const ManageReporting: React.FC = () => {
         <DialogActions sx={{ justifyContent: 'flex-end', p: 3, pt: 1 }}>
           <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, mr: 2 }} onClick={handleCloseDelete}>Cancel</Button>
           <Button variant="contained" sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, '&:hover': { bgcolor: '#d32f2f' } }} onClick={submitDelete}>Delete</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Incident Modal */}
+      <Dialog open={openAdd} onClose={handleCloseAdd} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: 4 } } }}>
+        <Box sx={{ background: '#6b8e9e', p: 0}}>
+          <DialogTitle sx={{ color: 'white', fontSize: 32, fontWeight: 400, p: 2, pb: 2 }}>Add Incident</DialogTitle>
+        </Box>
+        <DialogContent sx={{ p: 4, pt: 2 }}>
+          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+            <InputLabel>Incident Type</InputLabel>
+            <Select label="Incident Type" value={addForm.incidentType} onChange={(e) => setAddForm((p) => ({ ...p, incidentType: e.target.value }))}>
+              <MenuItem value="Fire">Fire</MenuItem>
+              <MenuItem value="Medical">Medical</MenuItem>
+              <MenuItem value="Police">Police</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField label="User ID" variant="outlined" size="small" fullWidth value={addForm.userId} onChange={(e) => setAddForm((p) => ({ ...p, userId: e.target.value }))} sx={{ mb: 2 }} />
+          <TextField label="Short Title" variant="outlined" size="small" fullWidth value={addForm.incident} onChange={(e) => setAddForm((p) => ({ ...p, incident: e.target.value }))} sx={{ mb: 2 }} />
+          <TextField label="Description" variant="outlined" size="small" fullWidth multiline rows={3} value={addForm.incidentDescription} onChange={(e) => setAddForm((p) => ({ ...p, incidentDescription: e.target.value }))} sx={{ mb: 2 }} />
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <TextField label="Latitude" variant="outlined" size="small" fullWidth value={addForm.lat} onChange={(e) => setAddForm((p) => ({ ...p, lat: e.target.value }))} />
+            <TextField label="Longitude" variant="outlined" size="small" fullWidth value={addForm.lon} onChange={(e) => setAddForm((p) => ({ ...p, lon: e.target.value }))} />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'flex-end', p: 3, pt: 0 }}>
+          <Button variant="contained" sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, '&:hover': { bgcolor: '#d32f2f' } }} onClick={handleCloseAdd}>Cancel</Button>
+          <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, mr: 2 }} onClick={submitAdd}>Create Incident</Button>
         </DialogActions>
       </Dialog>
 
