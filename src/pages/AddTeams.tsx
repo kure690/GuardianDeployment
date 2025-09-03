@@ -146,6 +146,7 @@ const AddTeams = () => {
   };
 
   const availableResponders = responders.filter(r =>
+    !r.team && // << THE KEY CHANGE: check if responder's team field is null
     r._id !== teamLeader &&
     r._id !== deputyDriver &&
     !members.some(m => m._id === r._id)
@@ -227,7 +228,10 @@ const AddTeams = () => {
                   onChange={e => setTeamLeader(e.target.value)}
                 >
                   <MenuItem value="">Select Team Leader</MenuItem>
-                  {responders.map(r => (
+                  {/* Show current leader if already selected, plus all available */}
+                  {responders
+                    .filter(r => !r.team || r._id === teamLeader)
+                    .map(r => (
                     <MenuItem key={r._id} value={r._id}>{r.firstName} {r.lastName}</MenuItem>
                   ))}
                 </Select>
@@ -240,7 +244,9 @@ const AddTeams = () => {
                   onChange={e => setDeputyDriver(e.target.value)}
                 >
                   <MenuItem value="">Select Deputy/Driver</MenuItem>
-                  {responders.map(r => (
+                  {responders
+                    .filter(r => !r.team || r._id === deputyDriver) // Filter for unassigned or currently selected
+                    .map(r => (
                     <MenuItem key={r._id} value={r._id}>{r.firstName} {r.lastName}</MenuItem>
                   ))}
                 </Select>

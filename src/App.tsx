@@ -30,6 +30,7 @@ import Messages from "./pages/Messages";
 import Reports from "./pages/ManageReporting"
 import SocketProvider from "./utils/SocketProvider";
 import { LoadScript } from '@react-google-maps/api';
+import ClusterManagement from "./pages/ClusterManager";
 
 const theme = createTheme({
   typography: {
@@ -177,6 +178,7 @@ function App() {
                   <Route path="/announcements" element={<Announcements />} />
                   <Route path="/messages" element={<Messages />} />
                   <Route path="/reports" element={<Reports />} />
+                  <Route path="/cluster-management" element={<ClusterManagement />} />
                 </Routes>
               </Chat>
             ) : (

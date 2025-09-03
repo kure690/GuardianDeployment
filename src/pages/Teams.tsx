@@ -150,8 +150,8 @@ const Teams = () => {
         ...new Set([
           ...editMembers.map(m => m._id),
           editFormData.teamLeader,
-          editFormData.deputyDriver
-        ])
+          editFormData.deputyDriver,
+        ].filter(Boolean))
       ];
 
       const payload = {
