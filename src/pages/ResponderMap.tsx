@@ -1,433 +1,322 @@
-  import { useEffect, useState, useCallback} from 'react';
-  import { useNavigate } from 'react-router-dom';
-  import { GoogleMap, LoadScript, Marker, DirectionsRenderer, TrafficLayer, OverlayView } from '@react-google-maps/api';
-  import { Box, Typography, Alert, IconButton, Drawer, Button } from '@mui/material';
-  import config from "../config";
-  import medicalIcon from '../assets/images/Medical.png';
-  import generalIcon from '../assets/images/General.png';
-  import fireIcon from '../assets/images/Fire.png';
-  import crimeIcon from '../assets/images/Police.png';
-  import ambulanceIcon from '../assets/images/ambulance.png';
-  import policecarIcon from '../assets/images/policecar.png';
-  import firetruckIcon from '../assets/images/firetruck.png';
-  import hospitalIcon from '../assets/images/hospital.png';
-  import Grid from "@mui/material/Grid2";
-  import avatarImg from "../assets/images/user.png";
-  import avatarImg2 from "../assets/images/avatar.jpg";
-  import { getAddressFromCoordinates } from '../utils/geocoding';
-  import { TextField, InputAdornment} from '@mui/material';
-  import SearchIcon from '@mui/icons-material/Search';
-  import { StreamChat } from 'stream-chat';
-  import {
-    Chat,
-    Channel,
-    MessageList,
-    MessageInput,
-    Window,
-  } from "stream-chat-react";
-  import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
-  import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-  import { useSocket } from "../utils/socket";
+import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { GoogleMap, LoadScript, Marker, DirectionsRenderer, TrafficLayer, OverlayView } from '@react-google-maps/api';
+import { Box, Typography, Alert, IconButton, Drawer, Button, TextField, InputAdornment } from '@mui/material';
+import Grid from "@mui/material/Grid2";
+import SearchIcon from '@mui/icons-material/Search';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import config from "../config";
+import medicalIcon from '../assets/images/Medical.png';
+import generalIcon from '../assets/images/General.png';
+import fireIcon from '../assets/images/Fire.png';
+import crimeIcon from '../assets/images/Police.png';
+import ambulanceIcon from '../assets/images/ambulance.png';
+import policecarIcon from '../assets/images/policecar.png';
+import firetruckIcon from '../assets/images/firetruck.png';
+import hospitalIcon from '../assets/images/hospital.png';
+import avatarImg from "../assets/images/user.png";
+import { getAddressFromCoordinates } from '../utils/geocoding';
+import { StreamChat } from 'stream-chat';
+import { Chat, Channel, MessageList, MessageInput, Window } from "stream-chat-react";
+import { useSocket } from "../utils/socket";
+import ConnectingResponderModal from '../components/ConnectingResponderModal';
 
-  const containerStyle = {
-    width: '100%',
-    height: '100vh'
+const containerStyle = {
+  width: '100%',
+  height: '100vh'
+};
+
+const ResponderMap = () => {
+  const navigate = useNavigate();
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [responderCoords, setResponderCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [incidentCoords, setIncidentCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [hospitalCoords, setHospitalCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedHospital, setSelectedHospital] = useState<string | null>(null);
+  const [hospitalName, setHospitalName] = useState<string>('');
+  const [hospitalAddress, setHospitalAddress] = useState<string>('');
+  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [incidentType, setIncidentType] = useState<string>('');
+  const [isGoogleLoaded, setIsGoogleLoaded] = useState(false);
+  const [infoWindowPosition, setInfoWindowPosition] = useState<google.maps.LatLng | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{ duration: string, distance: string } | null>(null);
+  const [address, setAddress] = useState<string>('');
+  const [incidentId, setIncidentId] = useState<string>('');
+  const [currentChannelId, setCurrentChannelId] = useState<string>('');
+  const [secondChannelId, setSecondChannelId] = useState<string>('');
+  const [userData, setUserData] = useState<{ firstName: string; lastName: string; phone: string; profileImage: string } | null>(null);
+  const [acceptedAt, setAcceptedAt] = useState<string | null>(null);
+  const [lapsTime, setLapsTime] = useState(0);
+  const [incident, setIncident] = useState<string>('');
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [responderUsers, setResponderUsers] = useState<any[]>([]);
+  const [onlineResponders, setOnlineResponders] = useState<any[]>([]);
+  const [onlineRespondersWithDistance, setOnlineRespondersWithDistance] = useState<any[]>([]);
+  const [chatClient, setChatClient] = useState<StreamChat | null>(null);
+  const [isChatExpanded, setIsChatExpanded] = useState(false);
+  const [isSecondChatExpanded, setIsSecondChatExpanded] = useState(false);
+  const userStr = localStorage.getItem("user");
+  const userStr2 = userStr ? JSON.parse(userStr) : null;
+  const userId = userStr2?.id;
+  const [destinationType, setDestinationType] = useState<string>('incident');
+  const token = localStorage.getItem("token");
+  const { socket, isConnected } = useSocket();
+  const [responderData, setResponderData] = useState({
+    firstName: '',
+    lastName: '',
+    assignment: '',
+  });
+
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [dispatchedResponder, setDispatchedResponder] = useState<any>(null);
+
+  const getImageUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${config.GUARDIAN_SERVER_URL}${url}`;
+  };
+    
+
+  const getIncidentIcon = useCallback((type: string): google.maps.Icon | undefined => {
+    if (!isGoogleLoaded || !type) return undefined;
+    const iconUrl = (() => {
+      switch (type.toLowerCase()) {
+        case 'medical': return medicalIcon;
+        case 'fire': return fireIcon;
+        case 'police': return crimeIcon;
+        default: return generalIcon;
+      }
+    })();
+    return { url: iconUrl, scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 40) };
+  }, [isGoogleLoaded]);
+
+  const getIncidentIcon2 = useCallback((assignment: string): google.maps.Icon | undefined => {
+    if (!isGoogleLoaded || !assignment) return undefined;
+    const iconUrl = (() => {
+      switch (assignment.toLowerCase()) {
+        case 'ambulance': return ambulanceIcon;
+        case 'firetruck': return firetruckIcon;
+        case 'police': return policecarIcon;
+        default: return ambulanceIcon;
+      }
+    })();
+    return { url: iconUrl, scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 40) };
+  }, [isGoogleLoaded]);
+
+  const getHospitalIcon = useCallback((): google.maps.Icon | undefined => {
+    if (!isGoogleLoaded) return undefined;
+    return { url: hospitalIcon, scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 40) };
+  }, [isGoogleLoaded]);
+
+  const fetchDirections = useCallback(async (origin: { lat: number; lng: number } | null, destination: { lat: number; lng: number } | null) => {
+    if (!isGoogleLoaded || !origin || !destination) return;
+    const directionsService = new google.maps.DirectionsService();
+    try {
+      const result = await directionsService.route({
+        origin,
+        destination,
+        travelMode: google.maps.TravelMode.DRIVING,
+      });
+      setDirections(result);
+      if (result.routes[0]?.legs[0]) {
+        const leg = result.routes[0].legs[0];
+        setRouteInfo({
+          duration: leg.duration?.text || '',
+          distance: leg.distance?.text || ''
+        });
+        const path = result.routes[0].overview_path;
+        if (path?.length > 0) {
+          setInfoWindowPosition(path[Math.floor(path.length / 2)]);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching directions:', error);
+    }
+  }, [isGoogleLoaded]);
+
+  const getIncidentIconUrl = useCallback((type: string): string => {
+    switch (type?.toUpperCase()) {
+      case 'MEDICAL': return medicalIcon;
+      case 'FIRE': return fireIcon;
+      case 'POLICE': return crimeIcon;
+      default: return generalIcon;
+    }
+  }, []);
+
+  useEffect(() => {
+    const fetchIncidentData = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const incidentIdFromUrl = urlParams.get('incidentId');
+      
+      if (!incidentIdFromUrl) {
+        setError('No incident ID found');
+        setLoading(false);
+        return;
+      }
+
+      setIncidentId(incidentIdFromUrl);
+      setLoading(true);
+
+      try {
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentIdFromUrl}`);
+        if (!response.ok) throw new Error('Failed to fetch incident data');
+
+        const data = await response.json();
+        setIncidentType(data.incidentType);
+        setIncident(data.incidentDetails?.incident || "Not specified");
+        setCurrentChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${data._id.substring(4, 9)}`);
+        setSecondChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${data._id.substring(5,10)}`);
+        setAcceptedAt(data.acceptedAt);
+
+        // --- THIS IS THE FIX ---
+        // It now correctly parses the GeoJSON format from the database
+        const geoCoords = data.incidentDetails?.coordinates;
+        if (geoCoords && geoCoords.type === 'Point' && Array.isArray(geoCoords.coordinates)) {
+          const [lon, lat] = geoCoords.coordinates;
+          setIncidentCoords({ lat, lng: lon });
+          const formattedAddress = await getAddressFromCoordinates(lat, lon);
+          setAddress(formattedAddress);
+        }
+
+        if (data.responderCoordinates) {
+          setResponderCoords({
+            lat: Number(data.responderCoordinates.lat),
+            lng: Number(data.responderCoordinates.lon)
+          });
+        }
+
+        const volunteerId = data.user?._id || data.user;
+        if (volunteerId) {
+          const userResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/volunteers/${volunteerId}`);
+          if (userResponse.ok) setUserData(await userResponse.json());
+        }
+
+        const responderIdValue = data.responder?._id || data.responder;
+        if (responderIdValue) {
+          const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderIdValue}`);
+          if (responderResponse.ok) setResponderData(await responderResponse.json());
+        }
+
+      } catch (err) {
+        console.error('Error fetching incident data:', err);
+        setError('Error fetching incident data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchIncidentData();
+  }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleAssignmentResponse = (data: any) => {
+      // Check if the response is for the responder we are waiting on
+      if (dispatchedResponder && data.responderId === dispatchedResponder._id) {
+        setIsConnecting(false); // Close the modal
+        setDispatchedResponder(null); // Clear the dispatched responder
+        // You can add a success/failure toast message here
+        console.log('Received assignment response:', data.message);
+      }
+    };
+    
+    socket.on('assignmentAccepted', handleAssignmentResponse);
+    socket.on('assignmentDeclined', handleAssignmentResponse);
+
+    // Cleanup listeners
+    return () => {
+      socket.off('assignmentAccepted', handleAssignmentResponse);
+      socket.off('assignmentDeclined', handleAssignmentResponse);
+    };
+  }, [socket, dispatchedResponder]);
+
+  // --- NEW: FUNCTION TO HANDLE CANCELLING THE DISPATCH ---
+  const handleCancelDispatch = () => {
+    // We could optionally emit a 'cancelDispatch' event to the server here
+    // For now, we'll just close the modal on the client side.
+    console.log('Dispatch cancelled by user.');
+    setIsConnecting(false);
+    setDispatchedResponder(null);
   };
 
-  const ResponderMap = () => {
-    const navigate = useNavigate();
-    const [map, setMap] = useState<google.maps.Map | null>(null);
-    const [responderCoords, setResponderCoords] = useState<{ lat: number; lng: number } | null>(null);
-    const [incidentCoords, setIncidentCoords] = useState<{ lat: number; lng: number } | null>(null);
-    const [hospitalCoords, setHospitalCoords] = useState<{ lat: number; lng: number } | null>(null);
-    const [selectedHospital, setSelectedHospital] = useState<string | null>(null);
-    const [hospitalName, setHospitalName] = useState<string>('');
-    const [hospitalAddress, setHospitalAddress] = useState<string>('');
-    const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [incidentType, setIncidentType] = useState<string>('');
-    const [isGoogleLoaded, setIsGoogleLoaded] = useState(false);
-    const [infoWindowPosition, setInfoWindowPosition] = useState<google.maps.LatLng | null>(null);
-    const [routeInfo, setRouteInfo] = useState<{duration: string, distance: string} | null>(null);
-    const [coordinates, setCoordinates] = useState({ lat: '', long: '' });
-    const [address, setAddress] = useState<string>('');
-    const [incidentId, setIncidentId] = useState<string>('');
-    const [currentChannelId, setCurrentChannelId] = useState<string>('');
-    const [secondChannelId, setSecondChannelId] = useState<string>('');
-    const [userData, setUserData] = useState<{ firstName: string; lastName: string; phone: string; profileImage: string } | null>(null);
-    const [acceptedAt, setAcceptedAt] = useState<string | null>(null);
-    const [lapsTime, setLapsTime] = useState(0);
-    const [incident, setIncident] = useState<string>('');
-    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-    const [responderUsers, setResponderUsers] = useState<any[]>([]);
-    const [onlineResponders, setOnlineResponders] = useState<any[]>([]);
-    const [onlineRespondersWithDistance, setOnlineRespondersWithDistance] = useState<any[]>([]);
-    const [chatClient, setChatClient] = useState<StreamChat | null>(null);
-    const [isChatExpanded, setIsChatExpanded] = useState(false);
-    const [isSecondChatExpanded, setIsSecondChatExpanded] = useState(false);
-    const userStr = localStorage.getItem("user");
-    const userStr2 = userStr ? JSON.parse(userStr) : null;
-    const userId = userStr2?.id;
-    const [lguStatus, setLguStatus] = useState<string>('connected');
-    const [destinationType, setDestinationType] = useState<string>('incident'); 
-    const token = localStorage.getItem("token");
-    const { socket, isConnected } = useSocket();
-    const [responderData, setResponderData] = useState({
-      firstName: '',
-      lastName: '',
-      assignment: '',
-    });
+  const handleDispatchResponder = async (responderToDispatch: any) => {
+    if (!socket || !isConnected) {
+      console.error('Socket not connected. Cannot dispatch responder.');
+      return;
+    }
 
-    const user = {
-      id: userId,
-      name: userStr2?.firstName && userStr2?.lastName 
-        ? `${userStr2.firstName} ${userStr2.lastName}` 
-        : userStr2?.email || "Unknown User",
-    };
-
-    const getImageUrl = (url: string) => {
-      if (!url) return '';
-      if (url.startsWith('http')) return url;
-      return `${config.GUARDIAN_SERVER_URL}${url}`;
-    };
-    
-
-    const getIncidentIcon = useCallback((type: string): google.maps.Icon | undefined => {
-      if (!isGoogleLoaded) return undefined;
-
-      const iconUrl = (() => {
-        switch (type.toLowerCase()) {
-          case 'medical':
-            return medicalIcon;
-          case 'fire':
-            return fireIcon;
-          case 'police':
-            return crimeIcon;
-          case 'general':
-          default:
-            return generalIcon;
-        }
-      })();
-
-      return {
-        url: iconUrl,
-        scaledSize: new google.maps.Size(40, 40),
-        anchor: new google.maps.Point(20, 40)
-      };
-    }, [isGoogleLoaded]);
-
-    const getIncidentIcon2 = useCallback((assignment: string): google.maps.Icon | undefined => {
-      if (!isGoogleLoaded) return undefined;
-
-      const iconUrl = (() => {
-        switch (assignment?.toLowerCase()) {
-          case 'ambulance':
-            return ambulanceIcon;
-          case 'firetruck':
-            return firetruckIcon;
-          case 'police':
-            return policecarIcon;
-          default:
-            return ambulanceIcon; // Default to ambulance if unknown
-        }
-      })();
-
-      return {
-        url: iconUrl,
-        scaledSize: new google.maps.Size(40, 40),
-        anchor: new google.maps.Point(20, 40)
-      };
-    }, [isGoogleLoaded]);
-
-    const getHospitalIcon = useCallback((): google.maps.Icon | undefined => {
-      if (!isGoogleLoaded) return undefined;
-
-      return {
-        url: hospitalIcon,
-        scaledSize: new google.maps.Size(40, 40),
-        anchor: new google.maps.Point(20, 40)
-      };
-    }, [isGoogleLoaded]);
-
-    const fetchDirections = useCallback(async (origin: { lat: number; lng: number } | null, destination: { lat: number; lng: number } | null) => {
-      if (!isGoogleLoaded || !origin || !destination) {
-        console.log('Cannot fetch directions: Google Maps not loaded or missing coordinates');
-        return;
-      }
-
-      const directionsService = new google.maps.DirectionsService();
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const incidentIdFromUrl = urlParams.get('incidentId');
       
-      try {
-        const result = await directionsService.route({
-          origin: origin,
-          destination: destination,
-          travelMode: google.maps.TravelMode.DRIVING,
-          drivingOptions: {
-            departureTime: new Date(),
-            trafficModel: google.maps.TrafficModel.BEST_GUESS
-          },
-          provideRouteAlternatives: true
-        });
-        
-        setDirections(result);
-        
-        if (result.routes[0]?.legs[0]) {
-          const leg = result.routes[0].legs[0];
-          setRouteInfo({
-            duration: leg.duration_in_traffic?.text || leg.duration?.text || '',
-            distance: leg.distance?.text || ''
-          });
-          
-          const path = result.routes[0].overview_path;
-          if (path && path.length > 0) {
-            const midIndex = Math.floor(path.length / 2);
-            setInfoWindowPosition(path[midIndex]);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching directions:', error);
-        // Don't set the error state for direction errors
-        // Just clear the direction-related state
-        setDirections(null);
-        setRouteInfo(null);
-        setInfoWindowPosition(null);
-      }
-    }, [isGoogleLoaded]);
-
-    const getIncidentIconUrl = useCallback((type: string): string => {
-      switch (type?.toUpperCase()) {
-        case 'MEDICAL':
-          return medicalIcon;
-        case 'FIRE':
-          return fireIcon;
-        case 'POLICE':
-          return crimeIcon;
-        case 'GENERAL':
-        default:
-          return generalIcon;
-      }
-    }, []);
-
-    useEffect(() => {
-      const fetchIncidentData = async () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const incidentId = urlParams.get('incidentId');
-        
-        if (!incidentId) {
-          console.error('No incident ID found in URL');
-          setError('No incident ID found');
-          setLoading(false);
-          return;
-        }
-
-        try {
-          setLoading(true);
-          const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
-          if (response.ok) {
-            const data = await response.json();
-            setIncidentType(data.incidentType);
-            setIncident(data.incidentDetails.incident || "Not specified");
-            setIncidentId(data._id);
-            setCurrentChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${data._id.substring(4,9)}`);
-            setSecondChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${data._id.substring(5,10)}`);
-            setAcceptedAt(data.acceptedAt);
-            
-            // Check if there's a selected hospital
-            if (data.selectedHospital) {
-              setSelectedHospital(data.selectedHospital);
-              
-              // Fetch hospital details
-              try {
-                const hospitalResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/hospitals/${data.selectedHospital}`);
-                if (hospitalResponse.ok) {
-                  const hospitalData = await hospitalResponse.json();
-                  
-                  if (hospitalData.coordinates) {
-                    const hospitalCoords = {
-                      lat: Number(hospitalData.coordinates.lat),
-                      lng: Number(hospitalData.coordinates.lng)
-                    };
-                    setHospitalCoords(hospitalCoords);
-                    setHospitalName(hospitalData.name || '');
-                    setHospitalAddress(hospitalData.address || '');
-                    setDestinationType('hospital');
-                  }
-                }
-              } catch (error) {
-                console.error('Error fetching hospital data:', error);
-              }
-            }
-            
-            if (data.incidentDetails?.coordinates) {
-              setIncidentCoords({
-                lat: Number(data.incidentDetails.coordinates.lat),
-                lng: Number(data.incidentDetails.coordinates.lon)
-              });
-              setCoordinates({
-                lat: data.incidentDetails.coordinates.lat,
-                long: data.incidentDetails.coordinates.lon
-              });
-              
-              const formattedAddress = await getAddressFromCoordinates(
-                data.incidentDetails.coordinates.lat.toString(),
-                data.incidentDetails.coordinates.lon.toString()
-              );
-              setAddress(formattedAddress);
-            }
-
-            if (data.responderCoordinates) {
-              setResponderCoords({
-                lat: Number(data.responderCoordinates.lat),
-                lng: Number(data.responderCoordinates.lon)
-              });
-            }
-
-            let userId;
-            if (typeof data.user === 'string') {
-              userId = data.user;
-            } else if (data.user && data.user._id) {
-              userId = data.user._id;
-            } else if (data.user && typeof data.user.toString === 'function') {
-              userId = data.user.toString();
-            }
-
-            if (userId) {
-              const userResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/volunteers/${userId}`);
-              if (userResponse.ok) {
-                const userData = await userResponse.json();
-                setUserData({
-                  firstName: userData.firstName,
-                  lastName: userData.lastName,
-                  phone: userData.phone,
-                  profileImage: userData.profileImage || ''
-                });
-              }
-            }
-
-            if (data.responderId || (data.responder && typeof data.responder === 'string')) {
-              const responderId = data.responderId || data.responder;
-              
-              try {
-                const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderId}`);
-                if (responderResponse.ok) {
-                  const responderData = await responderResponse.json();
-                  setResponderData({
-                    firstName: responderData.firstName,
-                    lastName: responderData.lastName,
-                    assignment: responderData.assignment,
-                  });
-                  console.log("Current responder assignment:", responderData.assignment);
-                } else {
-                  console.error('Failed to fetch responder data');
-                }
-              } catch (error) {
-                console.error('Error fetching responder data:', error);
-              }
-            }
-          } else {
-            console.error('Failed to fetch incident data');
-            setError('Failed to fetch incident data');
-          }
-        } catch (error) {
-          console.error('Error fetching incident data:', error);
-          setError('Error fetching incident data');
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      fetchIncidentData();
-    }, []);
-
-    const handleDispatchResponder = async (responderId: string) => {
-      // Check if the socket is connected before trying to emit
-      if (!socket || !isConnected) {
-        console.error('Socket not connected. Cannot dispatch responder.');
-        // Optionally, show an error message to the user
-        return;
-      }
-
-      try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const incidentId = urlParams.get('incidentId');
-
-        if (!incidentId) {
-          console.error('No incident ID found for dispatching responder');
-          return;
-        }
-
-        // --- THIS IS THE KEY CHANGE ---
-        // The payload is now simpler. The server knows who the sender (OpCen) is
-        // from their authenticated token.
-        socket.emit('requestResponderAssignment', {
-          incidentId,
-          responderId,
-        });
-
-        console.log(`Sent assignment request for responder ${responderId} to incident ${incidentId}`);
-        await sendInitialMessage(responderId);
-
-        // Your existing logic to immediately update the local UI is good
-        try {
-          const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderId}`);
-          if (responderResponse.ok) {
-            const responderDataFetched = await responderResponse.json();
-            setResponderData({
-              firstName: responderDataFetched.firstName,
-              lastName: responderDataFetched.lastName,
-              assignment: responderDataFetched.assignment,
-            });
-          }
-        } catch (error) {
-          console.error('Error fetching responder data after dispatch:', error);
-        }
-
-      } catch (error) {
-        console.error('Error dispatching responder:', error);
-      }
-    };
-    
-    const sendInitialMessage = async (responderId: string) => {
-      if (!chatClient || !userId || !token || !secondChannelId) {
-        console.error('Missing required data for sending initial message');
+      if (!incidentIdFromUrl) {
+        console.error('No incident ID found for dispatching responder');
         return;
       }
       
-      try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const incidentId = urlParams.get('incidentId');
-        
-        if (!incidentId) {
-          console.error('No incident ID found for sending initial message');
-          return;
-        }
-        
-        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
-        if (!response.ok) {
-          console.error('Failed to fetch incident data for initial message');
-          return;
-        }
-        
-        const incidentData = await response.json();
-        
-        const incidentDetails = {
-          incident: incidentData.incidentDetails?.incident || "Not specified",
-          incidentDescription: incidentData.incidentDetails?.incidentDescription || "No description provided"
-        };
-        
-        const channel = chatClient.channel("messaging", secondChannelId);
-        await channel.create();
-        await channel.sendMessage({
-          text: `Incident: ${incidentDetails.incident}\nDescription: ${incidentDetails.incidentDescription}`,
-          user_id: userId
-        });
-        
-        console.log('Initial message sent to second channel after dispatch');
-      } catch (error) {
-        console.error('Error sending initial message to second channel:', error);
+      // --- 4. OPEN THE MODAL WHEN DISPATCHING ---
+      setDispatchedResponder(responderToDispatch);
+      setIsConnecting(true);
+
+      socket.emit('requestResponderAssignment', {
+        incidentId: incidentIdFromUrl,
+        responderId: responderToDispatch._id,
+      });
+
+      console.log(`Sent assignment request for responder ${responderToDispatch._id} to incident ${incidentIdFromUrl}`);
+      // Initial message logic can remain if needed
+      // await sendInitialMessage(responderToDispatch._id);
+
+    } catch (error) {
+      console.error('Error dispatching responder:', error);
+      setIsConnecting(false); // Close modal on error
+      setDispatchedResponder(null);
+    }
+  };
+    
+  const sendInitialMessage = async (responderId: string) => {
+    if (!chatClient || !userId || !token || !secondChannelId) {
+      console.error('Missing required data for sending initial message');
+      return;
+    }
+    
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const incidentIdFromUrl = urlParams.get('incidentId');
+      
+      if (!incidentIdFromUrl) {
+        console.error('No incident ID found for sending initial message');
+        return;
       }
-    };
+      
+      const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentIdFromUrl}`);
+      if (!response.ok) {
+        console.error('Failed to fetch incident data for initial message');
+        return;
+      }
+      
+      const incidentData = await response.json();
+      
+      const incidentDetails = {
+        incident: incidentData.incidentDetails?.incident || "Not specified",
+        incidentDescription: incidentData.incidentDetails?.incidentDescription || "No description provided"
+      };
+      
+      const channel = chatClient.channel("messaging", secondChannelId);
+      await channel.create();
+      await channel.sendMessage({
+        text: `Incident: ${incidentDetails.incident}\nDescription: ${incidentDetails.incidentDescription}`,
+        user_id: userId
+      });
+      
+      console.log('Initial message sent to second channel after dispatch');
+    } catch (error) {
+      console.error('Error sending initial message to second channel:', error);
+    }
+  };
 
     useEffect(() => {
       const interval = setInterval(() => {
@@ -603,18 +492,18 @@
       }
     }, [responderCoords, incidentCoords, hospitalCoords, destinationType, fetchDirections, isGoogleLoaded]);
 
-    const onLoad = (map: google.maps.Map) => {
-      setMap(map);
-      setIsGoogleLoaded(true);
-    };
+  const onLoad = (mapInstance: google.maps.Map) => {
+    setMap(mapInstance);
+    setIsGoogleLoaded(true);
+  };
 
-    const onUnmount = () => {
-      setMap(null);
-    };
+  const onUnmount = () => {
+    setMap(null);
+  };
 
-    const toggleDrawer = () => {
-      setIsDrawerOpen(!isDrawerOpen);
-    };
+  const toggleDrawer = () => {
+    setIsDrawerOpen(!isDrawerOpen);
+  };
 
     useEffect(() => {
       const initChatClient = async () => {
@@ -738,46 +627,20 @@
       return () => clearInterval(responderPollInterval);
     }, [incidentId, responderCoords]);
 
-    if (loading && !error) {
-      return (
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh',
-          backgroundColor: '#1B4965',
-          color: 'white'
-        }}>
-          <Typography variant="h5">Loading map...</Typography>
-        </Box>
-      );
-    }
+  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Typography>Loading...</Typography></Box>;
+  if (error) return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Alert severity="error">{error}</Alert></Box>;
 
-    if (error) {
-      return (
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh',
-          backgroundColor: '#1B4965'
-        }}>
-          <Alert severity="error" sx={{ maxWidth: '80%' }}>{error}</Alert>
-        </Box>
-      );
-    }
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
-    if (!apiKey) {
-      return (
-        <Box sx={{ p: 2 }}>
-          <Alert severity="error">Google Maps API key is missing</Alert>
-        </Box>
-      );
-    }
-
+  if (!apiKey) {
     return (
+      <Box sx={{ p: 2 }}>
+        <Alert severity="error">Google Maps API key is missing</Alert>
+      </Box>
+    );
+  }
+
+  return (
       <Box sx={{ position: 'relative', height: '100vh' }}>
         <Drawer
           anchor="left"
@@ -1147,7 +1010,7 @@
           <GoogleMap
             mapContainerStyle={containerStyle}
             center={incidentCoords || { lat: 10.3157, lng: 123.8854 }}
-            zoom={responderCoords ? 15 : 12}
+            zoom={15}
             onLoad={onLoad}
             onUnmount={onUnmount}
             options={{
@@ -1171,72 +1034,41 @@
               />
             ))}
             
-            {responderCoords && responderData.firstName && (
-              <Marker
-                position={responderCoords}
-                icon={getIncidentIcon2(responderData.assignment)}
-                title={`${responderData.firstName} ${responderData.lastName} (${responderData.assignment})`}/>
+            {responderCoords && (
+                <Marker
+                    position={responderCoords}
+                    icon={getIncidentIcon2(responderData.assignment)}
+                    title="Responder Location"
+                />
             )}
             
             {incidentCoords && (
-              <Marker
-                position={incidentCoords}
-                icon={getIncidentIcon(incidentType)}
-                title="Incident Location"
-              />
+                <Marker
+                    position={incidentCoords}
+                    icon={getIncidentIcon(incidentType)}
+                    title="Incident Location"
+                />
             )}
             
             {hospitalCoords && (
-              <Marker
-                position={hospitalCoords}
-                icon={getHospitalIcon()}
-                title={hospitalName || "Hospital Location"}
-              />
+                <Marker
+                    position={hospitalCoords}
+                    icon={getHospitalIcon()}
+                    title={hospitalName}
+                />
             )}
             
             {directions && (
-              <DirectionsRenderer
-                directions={directions}
-                options={{
-                  suppressMarkers: true,
-                  polylineOptions: {
-                    strokeColor: '#1976D2',
-                    strokeWeight: 5,
-                    strokeOpacity: 0.8
-                  }
-                }}
-              />
+                <DirectionsRenderer directions={directions} options={{ suppressMarkers: true }} />
             )}
             
             {infoWindowPosition && routeInfo && (
-              <OverlayView
-                position={infoWindowPosition}
-                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-                getPixelPositionOffset={(width, height) => ({
-                  x: -(width / 2),
-                  y: -height 
-                })}
-              >
-                <div style={{
-                  backgroundColor: 'white',
-                  padding: '8px 12px',
-                  borderRadius: '4px',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-                  textAlign: 'center',
-                  minWidth: '100px',
-                  transform: 'translateY(-50%)'
-                }}>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1976D2', fontSize: '1rem', margin: 0 }}>
-                    {routeInfo.duration}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary" sx={{ fontSize: '0.875rem', margin: 0 }}>
-                    {routeInfo.distance}
-                  </Typography>
-                  {/* <Typography variant="body2" color="textSecondary" sx={{ fontSize: '0.875rem', margin: 0 }}>
-                    {destinationType === 'hospital' ? 'To Hospital' : 'To Incident'}
-                  </Typography> */}
-                </div>
-              </OverlayView>
+                <OverlayView position={infoWindowPosition} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
+                    <div style={{ backgroundColor: 'white', padding: '8px', borderRadius: '4px', boxShadow: '0 2px 6px rgba(0,0,0,0.3)'}}>
+                        <Typography variant="body2">{routeInfo.duration}</Typography>
+                        <Typography variant="body2">{routeInfo.distance}</Typography>
+                    </div>
+                </OverlayView>
             )}
           </GoogleMap>
         <Grid container spacing={1}>
@@ -1334,7 +1166,7 @@
               {address || "Loading address..."}
             </Typography>
             <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-              Coordinates: {coordinates ? coordinates.lat + " " + coordinates.long : ""}
+              Coordinates: {incidentCoords ? incidentCoords.lat + " " + incidentCoords.lng : ""}
             </Typography>
             </Box>
           </Box>
@@ -1442,7 +1274,7 @@
           </Grid>
           </Grid>
         
-        {chatClient && currentChannelId && lguStatus === 'connected' && (
+        {chatClient && currentChannelId && (
           <Box
             sx={{
               position: 'fixed',
@@ -1495,7 +1327,7 @@
           </Box>
         )}
         
-        {chatClient && secondChannelId && lguStatus === 'connected' && (
+        {chatClient && secondChannelId && (
           <Box
             sx={{
               position: 'fixed',

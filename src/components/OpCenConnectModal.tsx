@@ -4,7 +4,6 @@ import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
 import config from '../config';
 
-// Define the structure of an OpCen user object
 interface OpCenUser {
   _id: string;
   firstName: string;
@@ -25,7 +24,7 @@ interface OpCenConnectModalProps {
   modalIncidentDescription: string;
   setModalIncidentDescription: (val: string) => void;
   handleConnect: (user: any) => void;
-  onlineUsers: Set<string>; // Prop to receive the set of online user IDs
+  onlineUsers: Set<string>;
 }
 
 const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
@@ -41,7 +40,7 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
   modalIncidentDescription,
   setModalIncidentDescription,
   handleConnect,
-  onlineUsers, // Destructure the new prop
+  onlineUsers,
 }) => {
   const [opCenUsers, setOpCenUsers] = useState<OpCenUser[]>([]);
   const token = localStorage.getItem('token');
@@ -50,9 +49,7 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
     const fetchOpCenUsers = async () => {
       try {
         const response = await fetch(`${config.GUARDIAN_SERVER_URL}/dispatchers`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
           const data = await response.json();
@@ -249,7 +246,6 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
             <div style={{maxHeight: '200px', overflowY: 'auto'}}>
               {opCenUsers.length > 0 ? (
                 opCenUsers.map((user) => {
-                  // Check if the current user is online
                   const isOnline = onlineUsers.has(user._id);
                   return (
                     <div key={user._id} style={{display: 'flex', alignItems: 'center', padding: '6px', borderBottom: '1px solid #eee', marginBottom: '3px'}}>
@@ -270,10 +266,10 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
                       </div>
                       <button 
                         onClick={() => handleConnect(user)}
-                        disabled={!isOnline} // Disable button if offline
+                        disabled={!isOnline}
                         style={{
                           padding: '4px 8px', 
-                          background: isOnline ? '#1e5a71' : '#9E9E9E', // Grey out button when offline
+                          background: isOnline ? '#1e5a71' : '#9E9E9E',
                           color: 'white', 
                           border: 'none', 
                           borderRadius: '4px', 

@@ -44,7 +44,7 @@ const MapView = () => {
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [coordinates, setCoordinates] = useState({ lat: '', long: '' });
+  
   const [address, setAddress] = useState<string>('');
   const [incidentId, setIncidentId] = useState<string>('');
   const [incidentType, setIncidentType] = useState<string>('');
@@ -150,12 +150,8 @@ const MapView = () => {
   }, []);
 
   const fetchDirections = useCallback(async (origin: { lat: number; lng: number } | null, destination: { lat: number; lng: number }) => {
-    if (!isGoogleLoaded || !origin) {
-      return;
-    }
-
+    if (!isGoogleLoaded || !origin) return;
     const directionsService = new google.maps.DirectionsService();
-    
     try {
       const result = await directionsService.route({
         origin: origin,
@@ -167,16 +163,13 @@ const MapView = () => {
         },
         provideRouteAlternatives: true
       });
-      
       setDirections(result);
-      
       if (result.routes[0]?.legs[0]) {
         const leg = result.routes[0].legs[0];
         setRouteInfo({
           duration: leg.duration_in_traffic?.text || leg.duration?.text || '',
           distance: leg.distance?.text || ''
         });
-        
         const path = result.routes[0].overview_path;
         if (path && path.length > 0) {
           const midIndex = Math.floor(path.length / 2);
@@ -185,11 +178,81 @@ const MapView = () => {
       }
     } catch (error) {
       console.error('Error fetching directions:', error);
-      setDirections(null);
-      setRouteInfo(null);
-      setInfoWindowPosition(null);
     }
   }, [isGoogleLoaded]);
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const incidentIdFromUrl = urlParams.get('incidentId');
+      
+      if (!incidentIdFromUrl) {
+        setError('No incident ID found');
+        setLoading(false);
+        return;
+      }
+      
+      setIncidentId(incidentIdFromUrl);
+      setLoading(true);
+
+      try {
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentIdFromUrl}`);
+        if (!response.ok) throw new Error('Failed to fetch incident data');
+
+        const data = await response.json();
+        setIncidentType(data.incidentType);
+        setCurrentChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${data._id.substring(5, 9)}`);
+
+        // --- THIS IS THE FIX ---
+        // Correctly parse the new GeoJSON coordinate format
+        const geoCoords = data.incidentDetails?.coordinates;
+        if (geoCoords && geoCoords.type === 'Point' && Array.isArray(geoCoords.coordinates)) {
+          const [lon, lat] = geoCoords.coordinates;
+          const coordsForMap = { lat, lng: lon };
+          setIncidentCoords(coordsForMap);
+
+          const formattedAddress = await getAddressFromCoordinates(lat, lon);
+          setAddress(formattedAddress);
+        }
+        
+        // The rest of your data fetching remains the same
+        if (data.responderCoordinates) {
+          const responderCoordsForMap = {
+            lat: Number(data.responderCoordinates.lat),
+            lng: Number(data.responderCoordinates.lon)
+          };
+          setResponderCoords(responderCoordsForMap);
+        }
+
+        const volunteerId = data.user?._id || data.user;
+        if (volunteerId) {
+          const userResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/volunteers/${volunteerId}`);
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            setUserData(userData);
+          }
+        }
+
+        const responderIdValue = data.responder?._id || data.responder;
+        if (responderIdValue) {
+           setResponderId(responderIdValue);
+           const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderIdValue}`);
+           if (responderResponse.ok) {
+             const responderData = await responderResponse.json();
+             setResponderData(responderData);
+           }
+        }
+      } catch (err) {
+        console.error('Error fetching initial data:', err);
+        setError('Error fetching data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInitialData();
+  }, []);
+
 
   // Poll for updates to check if selectedHospital changes
   useEffect(() => {
@@ -234,243 +297,32 @@ const MapView = () => {
     return () => clearInterval(pollInterval);
   }, [incidentId, selectedHospital]);
 
-  // Add a new polling mechanism to check for responder coordinates updates
+  // Polling for responder location updates (simplified)
   useEffect(() => {
+    if (!incidentId) return;
     const responderPollInterval = setInterval(async () => {
-      if (incidentId) {
-        try {
-          const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
-          if (response.ok) {
-            const data = await response.json();
-
-            if (data.responderCoordinates) {
-              const newResponderCoords = {
-                lat: Number(data.responderCoordinates.lat),
-                lng: Number(data.responderCoordinates.lon)
-              };
-              
-              if (!responderCoords || 
-                  responderCoords.lat !== newResponderCoords.lat || 
-                  responderCoords.lng !== newResponderCoords.lng) {
-                
-                setResponderCoords(newResponderCoords);
-                
-                try {
-                  const responderFormattedAddress = await getAddressFromCoordinates(
-                    newResponderCoords.lat.toString(),
-                    newResponderCoords.lng.toString()
-                  );
-                  setResponderAddress(responderFormattedAddress);
-                } catch (error) {
-                  console.error('Error fetching responder address:', error);
-                }
-              }
-            }
-
-            const newResponderId = data.responderId || data.responder;
-            if (newResponderId && newResponderId !== responderId) {
-              setResponderId(newResponderId); // Update the tracked ID
-
-              try {
-                const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${newResponderId}`);
-                if (responderResponse.ok) {
-                  const newResponderData = await responderResponse.json();
-                  setResponderData({
-                    firstName: newResponderData.firstName,
-                    lastName: newResponderData.lastName,
-                    assignment: newResponderData.assignment || 'ambulance',
-                  });
-                }
-              } catch (e) {
-                console.error("Error fetching newly assigned responder's data:", e);
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error polling for responder updates:', error);
-        }
-      }
-    }, 5000); 
-            
-    //         if (data.responderCoordinates) {
-    //           const newResponderCoords = {
-    //             lat: Number(data.responderCoordinates.lat),
-    //             lng: Number(data.responderCoordinates.lon)
-    //           };
-              
-    //           // Only update if coordinates have changed
-    //           if (!responderCoords || 
-    //               responderCoords.lat !== newResponderCoords.lat || 
-    //               responderCoords.lng !== newResponderCoords.lng) {
-                
-    //             setResponderCoords(newResponderCoords);
-                
-    //             // Update responder address
-    //             try {
-    //               const responderFormattedAddress = await getAddressFromCoordinates(
-    //                 newResponderCoords.lat.toString(),
-    //                 newResponderCoords.lng.toString()
-    //               );
-    //               setResponderAddress(responderFormattedAddress);
-    //             } catch (error) {
-    //               console.error('Error fetching responder address:', error);
-    //             }
-    //           }
-    //         }
-    //       }
-    //     } catch (error) {
-    //       console.error('Error polling for responder updates:', error);
-    //     }
-    //   }
-    // }, 5000); // Poll every 5 seconds
-    
-    return () => clearInterval(responderPollInterval);
-  }, [incidentId, responderCoords, responderId]);
-
-  useEffect(() => {
-    const fetchIncidentData = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const incidentId = urlParams.get('incidentId');
-      
-      if (!incidentId) {
-        console.error('No incident ID found in URL');
-        setError('No incident ID found');
-        setLoading(false);
-        return;
-      }
-
       try {
-        setLoading(true);
         const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
         if (response.ok) {
           const data = await response.json();
-          setIncidentType(data.incidentType);
-          setIncidentId(data._id);
-          setIsResolved(data.isResolved);
-          setAcceptedAt(data.acceptedAt);
-          setIsVerified(data.isVerified);
-          setopCenStatus(data.opCenStatus);
-          setCurrentChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${data._id.substring(4,9)}`);
-          
-          if (data.responderStatus) {
-            setResponderStatus(data.responderStatus);
-          }
-
-          // Check if there's a selected hospital
-          if (data.selectedHospital) {
-            setSelectedHospital(data.selectedHospital);
-            
-            // Fetch hospital details
-            try {
-              const hospitalResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/hospitals/${data.selectedHospital}`);
-              if (hospitalResponse.ok) {
-                const hospitalData = await hospitalResponse.json();
-                
-                if (hospitalData.coordinates) {
-                  const hospitalCoords = {
-                    lat: Number(hospitalData.coordinates.lat),
-                    lng: Number(hospitalData.coordinates.lng)
-                  };
-                  setHospitalCoords(hospitalCoords);
-                  setHospitalName(hospitalData.name || '');
-                  setHospitalAddress(hospitalData.address || '');
-                  setDestinationType('hospital');
-                }
-              }
-            } catch (error) {
-              console.error('Error fetching hospital data:', error);
-            }
-          }
-
-          if (data.incidentDetails?.coordinates) {
-            const incidentCoords = {
-              lat: Number(data.incidentDetails.coordinates.lat),
-              lng: Number(data.incidentDetails.coordinates.lon)
-            };
-            setIncidentCoords(incidentCoords);
-            setCoordinates({
-              lat: data.incidentDetails.coordinates.lat,
-              long: data.incidentDetails.coordinates.lon
-            });
-            
-            const formattedAddress = await getAddressFromCoordinates(
-              incidentCoords.lat.toString(),
-              incidentCoords.lng.toString()
-            );
-            setAddress(formattedAddress);
-          }
-
           if (data.responderCoordinates) {
-            const responderCoords = {
+            const newResponderCoords = {
               lat: Number(data.responderCoordinates.lat),
               lng: Number(data.responderCoordinates.lon)
             };
-            setResponderCoords(responderCoords);
-            
-            const responderFormattedAddress = await getAddressFromCoordinates(
-              responderCoords.lat.toString(),
-              responderCoords.lng.toString()
-            );
-            setResponderAddress(responderFormattedAddress);
-          }
-
-          let userId;
-          if (typeof data.user === 'string') {
-            userId = data.user;
-          } else if (data.user && data.user._id) {
-            userId = data.user._id;
-          } else if (data.user && typeof data.user.toString === 'function') {
-            userId = data.user.toString();
-          }
-
-          if (userId) {
-            const userResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/volunteers/${userId}`);
-            if (userResponse.ok) {
-              const userData = await userResponse.json();
-              setUserData({
-                firstName: userData.firstName,
-                lastName: userData.lastName,
-                phone: userData.phone,
-                profileImage: userData.profileImage || ''
-              });
+            if (!responderCoords || responderCoords.lat !== newResponderCoords.lat || responderCoords.lng !== newResponderCoords.lng) {
+              setResponderCoords(newResponderCoords);
             }
           }
-          if (data.responderId || (data.responder && typeof data.responder === 'string')) {
-            const responderIdValue = data.responderId || data.responder;
-            setResponderId(responderIdValue); 
-            
-            try {
-              const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderIdValue}`);
-              if (responderResponse.ok) {
-                const responderData = await responderResponse.json();
-                console.log("Responder data:", responderData);
-                setResponderData({
-                  firstName: responderData.firstName,
-                  lastName: responderData.lastName,
-                  assignment: responderData.assignment || 'ambulance',
-                });
-              } else {
-                console.error('Failed to fetch responder data');
-              }
-            } catch (error) {
-              console.error('Error fetching responder data:', error);
-            }
-          }
-        } else {
-          console.error('Failed to fetch incident data');
-          setError('Failed to fetch incident data');
         }
-        
       } catch (error) {
-        console.error('Error fetching incident data:', error);
-        setError('Error fetching incident data');
-      } finally {
-        setLoading(false);
+        console.error('Error polling for responder updates:', error);
       }
-    };
+    }, 5000);
+    return () => clearInterval(responderPollInterval);
+  }, [incidentId, responderCoords]);
 
-    fetchIncidentData();
-  }, []);
+  
 
   useEffect(() => {
     if (isGoogleLoaded && responderCoords) {
@@ -717,7 +569,7 @@ const MapView = () => {
                   {address || "Loading address..."}
                 </Typography>
                 <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-                  Coordinates: {coordinates ? coordinates.lat + " " + coordinates.long : ""}
+                  Coordinates: {incidentCoords ? `${incidentCoords.lat.toFixed(4)}, ${incidentCoords.lng.toFixed(4)}` : ""}
                 </Typography>
               </Box>
             </Box>

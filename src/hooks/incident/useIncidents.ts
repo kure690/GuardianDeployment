@@ -26,14 +26,13 @@ export function useIncidents(userId: string, token: string | null, isInvisible: 
       const processedIncidents = await Promise.all(
         connectedIncidents.map(async (incident: any) => {
           let address = '';
-          if (incident.incidentDetails?.coordinates?.lat && incident.incidentDetails?.coordinates?.lon) {
+          const geoCoordinates = incident.incidentDetails?.coordinates;
+          if (geoCoordinates && geoCoordinates.type === 'Point' && Array.isArray(geoCoordinates.coordinates)) {
             try {
-              address = await getAddressFromCoordinates(
-                incident.incidentDetails.coordinates.lat.toString(),
-                incident.incidentDetails.coordinates.lon.toString()
-              );
+              const [lon, lat] = geoCoordinates.coordinates;
+              address = await getAddressFromCoordinates(lat, lon);
             } catch {
-              address = 'Unknown location';
+              address = 'Could not fetch address';
             }
           }
           const receivedTime = new Date(incident.acceptedAt || incident.createdAt);
