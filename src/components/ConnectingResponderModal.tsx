@@ -4,7 +4,7 @@ import { Modal, Paper, Typography, CircularProgress, Box, Button } from '@mui/ma
 // Define the types for the component's props
 interface ConnectingResponderModalProps {
   open: boolean;
-  onClose: () => void; // Function to handle closing the modal
+  onClose: () => void; // Function to handle closing the modal (e.g., for cancellation)
   responderName: string;
 }
 
@@ -34,7 +34,7 @@ const ConnectingResponderModal: React.FC<ConnectingResponderModalProps> = ({ ope
           Dispatching Responder...
         </Typography>
         <Typography sx={{ mt: 2, mb: 3 }}>
-          Waiting for a response from **{responderName}**.
+          Waiting for a response from {responderName}.
         </Typography>
         <CircularProgress sx={{ mb: 3 }} />
         <Button 
@@ -51,3 +51,4 @@ const ConnectingResponderModal: React.FC<ConnectingResponderModalProps> = ({ ope
 };
 
 export default ConnectingResponderModal;
+

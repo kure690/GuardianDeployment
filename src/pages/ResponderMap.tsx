@@ -235,9 +235,14 @@ const ResponderMap = () => {
 
   // --- NEW: FUNCTION TO HANDLE CANCELLING THE DISPATCH ---
   const handleCancelDispatch = () => {
-    // We could optionally emit a 'cancelDispatch' event to the server here
-    // For now, we'll just close the modal on the client side.
-    console.log('Dispatch cancelled by user.');
+    if (socket && dispatchedResponder && incidentId) {
+      console.log(`[DISPATCHER] Emitting 'cancelDispatch' for incident: ${incidentId} and responder: ${dispatchedResponder._id}`);
+      socket.emit('cancelDispatch', {
+        incidentId: incidentId,
+        responderId: dispatchedResponder._id
+      });
+      console.log(`Dispatch for responder ${dispatchedResponder._id} cancelled by user.`);
+    }
     setIsConnecting(false);
     setDispatchedResponder(null);
   };
@@ -832,7 +837,7 @@ const ResponderMap = () => {
                       '&:hover': { backgroundColor: '#1565C0' },
                       '&.Mui-disabled': { backgroundColor: '#bdc3c7' } 
                     }}
-                    onClick={() => handleDispatchResponder(user._id)}
+                    onClick={() => handleDispatchResponder(user)}
                     disabled={!onlineData} 
                   >
                     <Typography sx={{fontSize: '0.7rem'}}>Dispatch</Typography>
@@ -912,7 +917,7 @@ const ResponderMap = () => {
                       '&:hover': { backgroundColor: '#1565C0' },
                       '&.Mui-disabled': { backgroundColor: '#bdc3c7' } 
                     }}
-                    onClick={() => handleDispatchResponder(user._id)}
+                    onClick={() => handleDispatchResponder(user)}
                     disabled={!onlineData} 
                   >
                     <Typography sx={{fontSize: '0.7rem'}}>Dispatch</Typography>
@@ -994,7 +999,7 @@ const ResponderMap = () => {
                       '&:hover': { backgroundColor: '#1565C0' },
                       '&.Mui-disabled': { backgroundColor: '#bdc3c7' } 
                     }}
-                    onClick={() => handleDispatchResponder(user._id)}
+                    onClick={() => handleDispatchResponder(user)}
                     disabled={!onlineData} 
                   >
                     <Typography sx={{fontSize: '0.7rem'}}>Dispatch</Typography>
@@ -1064,9 +1069,31 @@ const ResponderMap = () => {
             
             {infoWindowPosition && routeInfo && (
                 <OverlayView position={infoWindowPosition} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
-                    <div style={{ backgroundColor: 'white', padding: '8px', borderRadius: '4px', boxShadow: '0 2px 6px rgba(0,0,0,0.3)'}}>
-                        <Typography variant="body2">{routeInfo.duration}</Typography>
-                        <Typography variant="body2">{routeInfo.distance}</Typography>
+                    <div style={{ 
+                        backgroundColor: 'white', 
+                        padding: '12px 16px', 
+                        borderRadius: '8px', 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                        border: '2px solid #1976D2',
+                        minWidth: '100px',
+                        textAlign: 'center',
+                        fontFamily: 'Arial, sans-serif'
+                    }}>
+                        <div style={{ 
+                            fontSize: '16px', 
+                            fontWeight: 'bold', 
+                            color: '#1976D2',
+                            marginBottom: '4px'
+                        }}>
+                            {routeInfo.duration}
+                        </div>
+                        <div style={{ 
+                            fontSize: '14px', 
+                            color: '#666',
+                            fontWeight: '500'
+                        }}>
+                            {routeInfo.distance}
+                        </div>
                     </div>
                 </OverlayView>
             )}
@@ -1378,6 +1405,12 @@ const ResponderMap = () => {
             </Box>
           </Box>
         )}
+        
+        <ConnectingResponderModal 
+          open={isConnecting}
+          onClose={handleCancelDispatch}
+          responderName={dispatchedResponder ? `${dispatchedResponder.firstName} ${dispatchedResponder.lastName}` : ''}
+        />
       </Box>
     );
   };

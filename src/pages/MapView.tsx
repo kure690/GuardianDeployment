@@ -222,6 +222,10 @@ const MapView = () => {
             lng: Number(data.responderCoordinates.lon)
           };
           setResponderCoords(responderCoordsForMap);
+          // --- THIS IS THE FIX ---
+          // Fetch and set the responder's address on initial load
+          const responderFormattedAddress = await getAddressFromCoordinates(responderCoordsForMap.lat, responderCoordsForMap.lng);
+          setResponderAddress(responderFormattedAddress);
         }
 
         const volunteerId = data.user?._id || data.user;
@@ -312,6 +316,10 @@ const MapView = () => {
             };
             if (!responderCoords || responderCoords.lat !== newResponderCoords.lat || responderCoords.lng !== newResponderCoords.lng) {
               setResponderCoords(newResponderCoords);
+              // --- THIS IS THE FIX ---
+              // Fetch and set the responder's address when their location updates
+              const responderFormattedAddress = await getAddressFromCoordinates(newResponderCoords.lat, newResponderCoords.lng);
+              setResponderAddress(responderFormattedAddress);
             }
           }
         }
