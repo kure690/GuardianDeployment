@@ -8,9 +8,12 @@ import fireSound from '../assets/sounds/fire.mp3';
 import ambulanceSound from '../assets/sounds/ambulance.mp3';
 import generalSound from '../assets/sounds/general.mp3';
 import config from "../config";
-import { getAddressFromCoordinates } from '../utils/geocoding';
+// Updated import to include the new helper function
+import { getAddressFromGeoPoint } from '../utils/geocoding';
 import IncidentModal from '../components/IncidentModal';
 
+// --- THIS IS THE FIRST FIX ---
+// The Incident interface now matches the new GeoJSON format from the database
 interface Incident {
   _id: string;
   incidentType: string;
@@ -28,9 +31,11 @@ interface Incident {
   lgu?: string;
   lguStatus?: string;
   incidentDetails?: {
+    incident?: string | null;
+    incidentDescription?: string | null;
     coordinates?: {
-      lat: number;
-      lon: number;
+      type: 'Point';
+      coordinates: [number, number]; // [longitude, latitude]
     };
   };
 }
@@ -106,7 +111,7 @@ export default function Status() {
           return;
         }
 
-        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents`, {
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/for-dispatcher`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -127,13 +132,11 @@ export default function Status() {
         )[0];
         
         if (relevantIncident && (!currentIncident || currentIncident._id !== relevantIncident._id)) {
-          if (relevantIncident.incidentDetails?.coordinates) {
-            const formattedAddress = await getAddressFromCoordinates(
-              relevantIncident.incidentDetails.coordinates.lat,
-              relevantIncident.incidentDetails.coordinates.lon
-            );
-            setAddress(formattedAddress);
-          }
+          
+          // --- THIS IS THE SECOND FIX ---
+          // Use the new helper to get the address from the GeoJSON point
+          const formattedAddress = await getAddressFromGeoPoint(relevantIncident.incidentDetails?.coordinates);
+          setAddress(formattedAddress);
 
           setCurrentIncident(relevantIncident);
           setOpenModal(true);
@@ -159,7 +162,6 @@ export default function Status() {
         }
       } catch (error) {
         console.error('Error fetching incidents:', error);
-        // Don't throw the error further since this is in an interval
       }
     };
 
@@ -171,7 +173,7 @@ export default function Status() {
         clearInterval(interval);
       }
     };
-  }, [currentIncident, isInvisible, userId, userData]);
+  }, [currentIncident, isInvisible, userId]);
 
   const handleCloseModal = () => {
     setOpenModal(false);
@@ -214,8 +216,6 @@ export default function Status() {
         acceptedAt: new Date().toISOString()
       };
       
-      console.log('Dispatcher Update Data:', updateData);
-      
       const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/update/${currentIncident._id}`, {
         method: 'PUT',
         headers: {
@@ -225,22 +225,13 @@ export default function Status() {
         body: JSON.stringify(updateData)
       });
 
-      if (response.status === 500) {
-        console.log('Update completed but population failed - proceeding with flow');
-        try {
-          const errorData = await response.json();
-          console.log('Population error details:', errorData);
-        } catch (e) {
-          console.log('No additional error details available');
-        }
-      } else if (!response.ok) {
+      if (!response.ok && response.status !== 500) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Update Error Response:', errorData);
         throw new Error(errorData.message || `Failed to update incident: ${response.status}`);
       }
 
       try {
-        console.log('Creating chat channel for incident:', currentIncident._id);
         const channelId = await getNextChannelId(currentIncident.incidentType, currentIncident._id);
         
         const channel = client.channel('messaging', channelId, {
@@ -249,7 +240,6 @@ export default function Status() {
         });
         
         await channel.create();
-        console.log('Chat channel created successfully');
 
         const initialMessage = `Your report ${currentIncident.incidentType} Call was received with a location at ${address || "Loading address..."}, can you verify the location, by giving us a landmark around you?`;
 
@@ -257,7 +247,6 @@ export default function Status() {
           text: initialMessage,
           user_id: userId
         });
-        console.log('Initial message sent');
 
         localStorage.setItem('currentIncidentId', currentIncident._id);
         localStorage.setItem('currentChannelId', channelId);
@@ -305,14 +294,14 @@ export default function Status() {
           src={getImageUrl(userData?.profileImage) || ''}
           alt={user.name}
           sx={{ 
-              position: 'absolute', 
-              top: 16,  
-              right: 16,  
-              width: 70, 
-              height: 70,
-              border: `2px solid ${!isInvisible ? 'green' : 'red'}`,
-              boxSizing: 'border-box',
-              borderRadius: '50%'
+            position: 'absolute', 
+            top: 16,  
+            right: 16,  
+            width: 70, 
+            height: 70,
+            border: `2px solid ${!isInvisible ? 'green' : 'red'}`,
+            boxSizing: 'border-box',
+            borderRadius: '50%'
           }}
           onClick={handleAvatarClick}
         />
@@ -337,26 +326,24 @@ export default function Status() {
           borderRadius: 0
           }}
         >
-
           <Paper elevation={0}
           sx={{
-              padding: '16px 0 16px 0',
-              backgroundColor: '#1B4965',
-              width: '60%',
-              border: 'none',
-              borderRadius: 0,
-              display: 'flex',
-              justifyContent: 'center',
+            padding: '16px 0 16px 0',
+            backgroundColor: '#1B4965',
+            width: '60%',
+            border: 'none',
+            borderRadius: 0,
+            display: 'flex',
+            justifyContent: 'center',
           }}>
-
           <div className="flex flex-col items-center gap-4 w-full">
           <Typography 
           variant="h3"
           sx={{ 
-              textTransform: 'uppercase',
-              fontWeight: 'bold',
-              letterSpacing: '2px', 
-              color: isInvisible ? 'red' : 'green',
+            textTransform: 'uppercase',
+            fontWeight: 'bold',
+            letterSpacing: '2px', 
+            color: isInvisible ? 'red' : 'green',
           }}
           >
           {isInvisible ? "Offline" : "Online"}
@@ -382,9 +369,9 @@ export default function Status() {
               onClick={toggleStatus}
               sx={{
                   padding: '10px 20px',  
-                  fontSize: '15px',       
+                  fontSize: '15px',     
                   textTransform: 'none', 
-                  width: '150px',     
+                  width: '150px',    
               }}
               >
               {!isInvisible ? "CHECK-OUT" : "CHECK-IN"}

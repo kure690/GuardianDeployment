@@ -32,6 +32,8 @@ import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import AddIcon from '@mui/icons-material/Add'
 
+
+
 type Incident = {
   _id: string
   incidentType: string
@@ -66,7 +68,10 @@ type Incident = {
   incidentDetails?: {
     incident?: string | null
     incidentDescription?: string | null
-    coordinates?: { lat: number | null; lon: number | null }
+    coordinates?: {
+      type: 'Point',
+      coordinates: [number, number]
+    }
   }
   createdAt?: string
   updatedAt?: string
@@ -230,19 +235,27 @@ const ManageReporting: React.FC = () => {
 
   useEffect(() => {
     const loadAddress = async () => {
-      if (!openView || !selectedIncident) return
-      const lat = selectedIncident.incidentDetails?.coordinates?.lat
-      const lon = selectedIncident.incidentDetails?.coordinates?.lon
-      if (lat !== null && lat !== undefined && lon !== null && lon !== undefined) {
-        setViewAddress('Loading address...')
-        const addr = await getAddressFromCoordinates(String(lat), String(lon))
-        setViewAddress(addr)
+      if (!openView || !selectedIncident) return;
+
+      // --- THIS IS THE FIX ---
+      // We now look for the coordinates array instead of lat/lon properties.
+      const coords = selectedIncident.incidentDetails?.coordinates?.coordinates;
+
+      // Check if the coords array exists and has two numbers
+      if (coords && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+        const lon = coords[0]; // Longitude is the first element
+        const lat = coords[1]; // Latitude is the second element
+        
+        setViewAddress('Loading address...');
+        // Your existing geocoding function will now get the correct values
+        const addr = await getAddressFromCoordinates(String(lat), String(lon));
+        setViewAddress(addr);
       } else {
-        setViewAddress('—')
+        setViewAddress('No location provided');
       }
-    }
-    loadAddress()
-  }, [openView, selectedIncident])
+    };
+    loadAddress();
+  }, [openView, selectedIncident]);
 
   const submitEdit = async () => {
     try {

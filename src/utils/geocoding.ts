@@ -1,6 +1,6 @@
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
-export const getAddressFromCoordinates = async (lat: string, lng: string): Promise<string> => {
+export const getAddressFromCoordinates = async (lat: string | number, lng: string | number): Promise<string> => {
   try {
     const response = await fetch(
       `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`
@@ -22,7 +22,7 @@ export const getAddressFromCoordinates = async (lat: string, lng: string): Promi
 export const getLatLngFromAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?address=${address}&key=${GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${GOOGLE_MAPS_API_KEY}`
     );
     const data = await response.json();
     if (data.status === 'OK' && data.results.length > 0) {
@@ -34,4 +34,13 @@ export const getLatLngFromAddress = async (address: string): Promise<{ lat: numb
     console.error('Error getting lat/lng from address:', error);
     return null;
   }
-}; 
+};
+
+export const getAddressFromGeoPoint = async (geoPoint: { type: 'Point', coordinates: [number, number] } | undefined): Promise<string> => {
+  if (!geoPoint || !Array.isArray(geoPoint.coordinates) || geoPoint.coordinates.length !== 2) {
+    return 'No location provided';
+  }
+
+  const [lng, lat] = geoPoint.coordinates; // Destructure the array: [longitude, latitude]
+  return getAddressFromCoordinates(lat, lng); // Call the base function
+};

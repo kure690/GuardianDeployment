@@ -79,8 +79,8 @@ interface Incident {
   };
   incidentDetails?: {
     coordinates?: {
-      lat: number;
-      lon: number;
+      type: 'Point';
+      coordinates: [number, number]; // [longitude, latitude]
     };
   };
 }
@@ -138,6 +138,8 @@ const MainScreen = () => {
     setResponderCoordinates,
   } = useIncidentData(incidentId, token);
 
+  const incidentLon = coordinates?.coordinates?.[0];
+  const incidentLat = coordinates?.coordinates?.[1];
   const chatClient = useStreamChatClient(userId, user, userStr2?.name, token);
   const videoClient = useStreamVideoClient(userId, userStr2?.firstName + ' ' + userStr2?.lastName, token, avatarImg);
   const [onlineUsers, setOnlineUsers] = useState(new Set<string>());
@@ -313,7 +315,10 @@ const MainScreen = () => {
       dispatcherId: userId, // This comes from the authenticated user's state
       connectingTime,
       incidentDetails: {
-        coordinates: { lat: Number(coordinates.lat), lon: Number(coordinates.long) },
+        coordinates: {
+          type: 'Point',
+          coordinates: [incidentLon, incidentLat] // [longitude, latitude]
+        },
         incident: incidentTypeToSend,
         incidentDescription: modalIncidentDescription || "No description provided"
       }
@@ -322,7 +327,7 @@ const MainScreen = () => {
   };
 
   const handleLocationClick = () => {
-    if (coordinates.lat && coordinates.long && responderCoordinates) {
+    if (incidentLat && incidentLon) {
       const width = window.screen.width;
       const height = window.screen.height;
       const newWindow = window.open(`/map?incidentId=${incidentId}`, '_blank', `width=${width},height=${height},left=0,top=0`);

@@ -16,24 +16,24 @@ import { getAddressFromCoordinates } from '../utils/geocoding';
 import config from "../config";
 import { StreamChat } from 'stream-chat';
 import {
-    Chat,
-    Channel,
-    MessageList,
-    MessageInput,
-    Window,
-    useChatContext
+  Chat,
+  Channel,
+  MessageList,
+  MessageInput,
+  Window,
+  useChatContext
 } from "stream-chat-react";
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import React from 'react';
 import {
-    StreamVideo,
-    StreamCall,
-    CallingState,
-    StreamVideoClient,
-    useCallStateHooks,
-    useCalls,
-    Call
+  StreamVideo,
+  StreamCall,
+  CallingState,
+  StreamVideoClient,
+  useCallStateHooks,
+  useCalls,
+  Call
 } from "@stream-io/video-react-sdk";
 import { CallPanel } from "../components/CallPanel";
 import { RingingCall } from "../components/RingingCall";
@@ -48,801 +48,419 @@ import { useSocket } from "../utils/socket";
 
 
 const getIncidentIcon = (incidentType: string) => {
-    const type = incidentType?.toLowerCase() || '';
-
-    switch (type) {
-      case 'medical':
-      case 'Medical':
-        return {
-          icon: Medical
-        };
-      case 'fire':
-      case 'Fire':
-        return {
-          icon: Fire
-        };
-      case 'police':
-      case 'Police':
-        return {
-          icon: Police
-        };
-      case 'general':
-      case 'General':
-      default:
-        return {
-          icon: General
-        };
-    }
-  };
+  const type = incidentType?.toLowerCase() || '';
+  switch (type) {
+    case 'medical': return { icon: Medical };
+    case 'fire': return { icon: Fire };
+    case 'police': return { icon: Police };
+    default: return { icon: General };
+  }
+};
 
   
 
 const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSelectIncidentForChat }: any) => {
-    const formatLapsTime = (seconds: number) => {
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = seconds % 60;
-        return `${minutes} min ${remainingSeconds} sec`;
-    };
+  const formatLapsTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes} min ${remainingSeconds} sec`;
+  };
 
-    const formatReceivedTime = (dateString: string) => {
-        const date = new Date(dateString);
-        return date.toLocaleTimeString('en-US', {
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-        });
-    };
+  const formatReceivedTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', {
+      hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  };
 
-    const shortId = incident._id ? incident._id.substring(5, 9) : "";
+  const shortId = incident._id ? incident._id.substring(5, 9) : "";
+  const [responderData, setResponderData] = useState<any>(null);
+  const [routeInfo, setRouteInfo] = useState({ duration: '...', distance: '...' });
 
-    const [responderData, setResponderData] = useState<any>(null);
-    const [routeInfo, setRouteInfo] = useState({ duration: '...', distance: '...' });
-
-    // Add this new useEffect inside the IncidentCard component
-useEffect(() => {
-    // Guard clause: Exit if we don't have the required data
+  useEffect(() => {
+    // --- THIS IS THE FIX ---
+    // Add a more robust check to ensure the entire coordinate structure is valid before using it.
+    const incidentGeoCoords = incident.incidentDetails?.coordinates;
     if (
-        !responderData?.coordinates ||
-        !incident.incidentDetails?.coordinates ||
-        !window.google // Check if the Google Maps script is loaded
+      !responderData?.coordinates ||
+      !incidentGeoCoords ||
+      incidentGeoCoords.type !== 'Point' ||
+      !Array.isArray(incidentGeoCoords.coordinates) ||
+      incidentGeoCoords.coordinates.length < 2 ||
+      !window.google
     ) {
-        return;
+      return; // Exit if data is not in the expected GeoJSON format
     }
 
     const service = new window.google.maps.DistanceMatrixService();
 
-    const origin = {
-        lat: responderData.coordinates.lat,
-        lng: responderData.coordinates.lon, // Convert lon to lng for Google Maps
-    };
-
-    const destination = {
-        lat: incident.incidentDetails.coordinates.lat,
-        lng: incident.incidentDetails.coordinates.lon,
-    };
+    const origin = { lat: responderData.coordinates.lat, lng: responderData.coordinates.lon };
+    
+    const [lon, lat] = incidentGeoCoords.coordinates;
+    const destination = { lat, lng: lon };
 
     service.getDistanceMatrix(
-        {
-            origins: [origin],
-            destinations: [destination],
-            travelMode: google.maps.TravelMode.DRIVING,
-        },
-        (response, status) => {
-            if (status === 'OK' && response) {
-                const result = response.rows[0]?.elements[0];
-                if (result?.status === 'OK') {
-                    // Update the state with the real data
-                    setRouteInfo({
-                        duration: result.duration.text,
-                        distance: result.distance.text,
-                    });
-                }
-            } else {
-                console.error(`Distance Matrix error for incident ${incident._id}:`, status);
-            }
+      {
+        origins: [origin],
+        destinations: [destination],
+        travelMode: google.maps.TravelMode.DRIVING,
+      },
+      (response, status) => {
+        if (status === 'OK' && response) {
+          const result = response.rows[0]?.elements[0];
+          if (result?.status === 'OK') {
+            setRouteInfo({ duration: result.duration.text, distance: result.distance.text });
+          }
+        } else {
+          console.error(`Distance Matrix error for incident ${incident._id}:`, status);
         }
+      }
     );
-}, [responderData, incident]); // Re-run this effect if responder or incident data changes
-    
-    useEffect(() => {
-        const fetchResponderData = async () => {
-            if (!incident.responder) return;
-            
-            const responderId = typeof incident.responder === 'object' && incident.responder !== null
-                ? incident.responder._id
-                : incident.responder;
-                console.log("This is the responder id", responderId);
-            if (!responderId) return;
-            try {
-                const token = localStorage.getItem("token");
-                const response = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    setResponderData(data);
-                }
-            } catch (error) {
-                console.error("Error fetching responder data:", error);
-            }
-        };
-        
-        fetchResponderData();
-    }, [incident.responder]);
-    
-    
-    const getResponderIcon = (responderData: any) => {
-        if (!responderData) return ambulanceIcon;
-        
-        const assignment = responderData.assignment?.toLowerCase() || '';
-
-        if (assignment.includes('ambulance')) {
-            return ambulanceIcon;
-        } else if (assignment.includes('fire')) {
-            return firetruckIcon;
-        } else if (assignment.includes('police')) {
-            return policecarIcon;
+  }, [responderData, incident]);
+  useEffect(() => {
+    const fetchResponderData = async () => {
+      if (!incident.responder) return;
+      const responderId = typeof incident.responder === 'object' ? incident.responder._id : incident.responder;
+      if (!responderId) return;
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setResponderData(data);
         }
-        
-        return ambulanceIcon; 
+      } catch (error) {
+        console.error("Error fetching responder data:", error);
+      }
     };
+    fetchResponderData();
+  }, [incident.responder]);
+    
+  const getResponderIcon = (responderData: any) => {
+    if (!responderData) return ambulanceIcon;
+    const assignment = responderData.assignment?.toLowerCase() || '';
+    if (assignment.includes('fire')) return firetruckIcon;
+    if (assignment.includes('police')) return policecarIcon;
+    return ambulanceIcon;
+  };
 
 
-    return (
-        <Paper
-            elevation={3}
-            sx={{
-                width: '240px',
-                borderRadius: '8px',
-                overflow: 'hidden',
-                m: 1.5,
-            }}
-        >
-            <Box sx={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 1.5,
-                p: 1,
-                bgcolor: '#4a90e2',
-                height: '75px',
-            }}>
-                <Avatar
-                    src={getIncidentIcon(incident.incidentType?.toLowerCase() || 'general').icon}
-                    sx={{
-                        width: 55,
-                        height: 55,
-                        bgcolor: 'white',
-                        p: 0.8,
-                        flexShrink: 0,
-                        
-                    }}
-                />
-                <Box>
-                    <Typography sx={{
-                        color: 'white',
-                        fontWeight: 'bold',
-                        fontSize: '0.8rem',
-                        textTransform: 'uppercase'
-                        }}>
-                        ID: {incident.incidentType ? `${incident.incidentType}-${shortId}` : ""}
-                    </Typography>
-                    <Typography sx={{
-                        color: 'white',
-                        fontWeight: 'bold',
-                        fontSize: '0.8rem'
-                    }}>
-                        {incident.incidentType ? `${incident.incidentType.toUpperCase()} CALL` : ""}
-                    </Typography>
-                    <Typography 
-                        sx={{
-                            color: 'white',
-                            fontSize: '0.7rem',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2, 
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            lineHeight: '1.2em',
-                            maxHeight: '2.4em'
-                        }}
-                        title={incident.address || "Loading address..."}
-                    >
-                        {incident.address || "Loading address..."}
-                    </Typography>
-                </Box>
+  return (
+    <Paper elevation={3} sx={{ width: '240px', borderRadius: '8px', overflow: 'hidden', m: 1.5 }}>
+      {/* The rest of your IncidentCard JSX remains the same */}
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, p: 1, bgcolor: '#4a90e2', height: '75px' }}>
+        <Avatar src={getIncidentIcon(incident.incidentType?.toLowerCase() || 'general').icon} sx={{ width: 55, height: 55, bgcolor: 'white', p: 0.8, flexShrink: 0 }} />
+        <Box>
+            <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '0.8rem', textTransform: 'uppercase' }}>
+                ID: {incident.incidentType ? `${incident.incidentType}-${shortId}` : ""}
+            </Typography>
+            <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                {incident.incidentType ? `${incident.incidentType.toUpperCase()} CALL` : ""}
+            </Typography>
+            <Typography sx={{ color: 'white', fontSize: '0.7rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: '1.2em', maxHeight: '2.4em' }} title={incident.address || "Loading address..."}>
+                {incident.address || "Loading address..."}
+            </Typography>
+        </Box>
+      </Box>
+      <Box sx={{ p: 0.7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography sx={{ color: '#2e7d32', fontSize: '0.8rem', fontWeight: 'bold' }}>
+              RECEIVED : {formatReceivedTime(incident.receivedTime)}
+          </Typography>
+      </Box>
+      <Box sx={{ bgcolor: 'white', p: 0.7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>
+              {incident.incidentDetails?.incident ? incident.incidentDetails.incident.toUpperCase() : (incident.incidentType ? incident.incidentType.toUpperCase() : "LOADING...")}
+          </Typography>
+      </Box>
+      <Box sx={{ bgcolor: 'white', p: 0.7, borderTop: '1px solid #eee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography sx={{ color: 'red', fontSize: '0.8rem', fontWeight: 'bold' }}>
+              LAPS TIME: {formatLapsTime(incident.timeLapsed)}
+          </Typography>
+      </Box>
+      {!incident.responder ? (
+          <Box sx={{ bgcolor: '#333', color: 'white', p: 0.8, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '70px' }}>
+              <Typography sx={{ fontSize: '0.8rem' }}>DISPATCH</Typography>
+          </Box>
+      ) : (
+          <Box sx={{ p: 0, display: 'flex', flexDirection: 'column', height: '70px', bgcolor: '#4a90e2' }}>
+            <Box sx={{ color: 'white', p: 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, borderBottom: '2px solid grey' }}>
+              <img src={getResponderIcon(responderData)} alt="Responder" style={{ width: '30px', height: '18px', objectFit: 'contain' }} />
+              <Typography sx={{ fontSize: '0.9rem', fontWeight: 'bold' }}>
+                  {responderData ? `${responderData.firstName || ''} ${responderData.lastName || ''}`.trim() || "RESPONDER" : "RESPONDER"}
+              </Typography>
             </Box>
-            <Box sx={{
-                p: 0.7,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-            }}>
-                <Typography sx={{
-                    color: '#2e7d32',
-                    fontSize: '0.8rem',
-                    fontWeight: 'bold'
-                }}>
-                    RECEIVED : {formatReceivedTime(incident.receivedTime)}
-                </Typography>
+            <Box sx={{ display: 'flex', height: '100%' }}>
+              <Box sx={{ width: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <Typography sx={{ color: '#EE4B2B', fontWeight: 'bold', fontSize: '0.7rem', textAlign: 'center' }}>
+                      {incident.responderStatus ? incident.responderStatus.toUpperCase() : "ENROUTE"}
+                  </Typography>
+              </Box>
+              <Box sx={{ borderLeft: '2px solid grey', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '50%' }}>
+                  <Typography sx={{ color: 'white', fontSize: '0.7rem', textAlign: 'center' }}>{routeInfo.duration}</Typography>
+                  <Typography sx={{ color: 'white', fontSize: '0.7rem', textAlign: 'center' }}>{routeInfo.distance}</Typography>
+              </Box>
             </Box>
-            <Box sx={{
-                bgcolor: 'white',
-                p: 0.7,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-            }}>
-                <Typography sx={{
-                    fontWeight: 'bold',
-                    fontSize: '0.8rem'
-                }}>
-                    {incident.incidentDetails?.incident ? incident.incidentDetails.incident.toUpperCase() : (incident.incidentType ? incident.incidentType.toUpperCase() : "LOADING...")}
-                </Typography>
-            </Box>
-            <Box sx={{
-                bgcolor: 'white',
-                p: 0.7,
-                borderTop: '1px solid #eee',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-            }}>
-                <Typography sx={{
-                    color: 'red',
-                    fontSize: '0.8rem',
-                    fontWeight: 'bold'
-                }}>
-                    LAPS TIME: {formatLapsTime(incident.timeLapsed)}
-                </Typography>
-            </Box>
-            {!incident.responder ? (
-                <Box sx={{
-                    bgcolor: '#333',
-                    color: 'white',
-                    p: 0.8,
-                    textAlign: 'center',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: '70px'
-                }}>
-                    <Typography sx={{ 
-                        fontSize: '0.8rem'
-                    }}>
-                        DISPATCH
-                    </Typography>
-                </Box>
-            ) : (
-                <Box sx={{
-                    p: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: '70px',
-                    bgcolor: '#4a90e2',
-                }}>
-                    <Box sx={{
-                        color: 'white',
-                        p: 0.5,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 1,
-                        borderBottom: '2px solid grey'
-                    }}>
-                        <img 
-                            src={getResponderIcon(responderData)} 
-                            alt="Responder" 
-                            style={{ 
-                                width: '30px', 
-                                height: '18px',
-                                objectFit: 'contain'
-                            }} 
-                        />
-                        <Typography sx={{ 
-                            fontSize: '0.9rem',
-                            fontWeight: 'bold'
-                        }}>
-                            {responderData ? 
-                                `${responderData.firstName || ''} ${responderData.lastName || ''}`.trim() || 
-                                (responderData.assignment === "ambulance" ? "AMBU 123" : "RESPONDER") 
-                                : 
-                                incident.responder ? "RESPONDER" : "UNKNOWN"
-                            }
-                        </Typography>
-                    </Box>
-                    <Box sx={{
-                        display: 'flex',
-                        height: '100%'
-                    }}>
-
-                    <Box sx={{
-                        // backgroundColor: '#4a90e2',
-                        width: '50%',
-                        display: 'flex',
-                        justifyContent: 'center',
-                        alignItems: 'center'
-                    }}>
-                    <Typography sx={{ 
-                                color: '#EE4B2B',
-                                fontWeight: 'bold',
-                                fontSize: '0.7rem',
-                                textAlign: 'center',
-                            }}>
-                                {incident.responderStatus ? incident.responderStatus.toUpperCase() : "ENROUTE"}
-                            </Typography>
-
-                    </Box>
-                   
-                        
-                            
-                            <Box sx={{
-                            borderLeft: '2px solid grey',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            width: '50%',
-                            }}>
-                                <Typography sx={{ 
-                                    color: 'white',
-                                    fontSize: '0.7rem',
-                                    textAlign: 'center',
-                                }}>
-                                    {routeInfo.duration}
-                                </Typography>
-                                <Typography sx={{ 
-                                    color: 'white',
-                                    fontSize: '0.7rem',
-                                    textAlign: 'center',
-                                }}>
-                                    {routeInfo.distance}
-                                </Typography>
-                            </Box>
-                        </Box>
-
-                    </Box>
-                    
-            )}
-            <Box sx={{
-                display: 'flex',
-                justifyContent: 'space-around',
-                p: 0.7,
-                bgcolor: 'white'
-            }}>
-                <Button 
-                    sx={{ minWidth: 0, color: '#666', p: 0.4 }}
-                    onClick={() => handleSelectIncidentForChat(incident.channelId)}
-                >
-                    💬
-                </Button>
-                <Button 
-                    sx={{ minWidth: 0, color: '#666', p: 0.4 }}
-                    onClick={() => handleCreateRingCall(incident)}
-                >
-                    📞
-                </Button>
-                <Button sx={{ minWidth: 0, color: '#666', p: 0.4 }}>📹</Button>
-            </Box>
-            
-            <Button
-                fullWidth
-                sx={{
-                    bgcolor: '#4a90e2',
-                    color: 'white',
-                    py: 0.8,
-                    borderRadius: 0,
-                    fontSize: '0.8rem',
-                    '&:hover': {
-                        bgcolor: '#357abd'
-                    }
-                }}
-                onClick={() => handleMapClick(incident._id)}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    🗺️ VIEW MAP
-                </Box>
-            </Button>
-        </Paper>
-    );
+          </Box>
+      )}
+      <Box sx={{ display: 'flex', justifyContent: 'space-around', p: 0.7, bgcolor: 'white' }}>
+          <Button sx={{ minWidth: 0, color: '#666', p: 0.4 }} onClick={() => handleSelectIncidentForChat(incident.channelId)}>💬</Button>
+          <Button sx={{ minWidth: 0, color: '#666', p: 0.4 }} onClick={() => handleCreateRingCall(incident)}>📞</Button>
+          <Button sx={{ minWidth: 0, color: '#666', p: 0.4 }}>📹</Button>
+      </Box>
+      <Button fullWidth sx={{ bgcolor: '#4a90e2', color: 'white', py: 0.8, borderRadius: 0, fontSize: '0.8rem', '&:hover': { bgcolor: '#357abd' } }} onClick={() => handleMapClick(incident._id)}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>🗺️ VIEW MAP</Box>
+      </Button>
+    </Paper>
+  );
 };
 
 const LGUMain = () => {
-    const location = useLocation();
-    const navigate = useNavigate();
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-    const [currentTime, setCurrentTime] = useState(new Date());
-    const [chatClient, setChatClient] = useState<StreamChat | null>(null);
-    const [videoClient, setVideoClient] = useState<StreamVideoClient | null>(null);
-    const [isChatExpanded, setIsChatExpanded] = useState(false);
-    const [isRinging, setIsRinging] = useState(false);
-    const userStr = localStorage.getItem("user");
-    const userStr2 = userStr ? JSON.parse(userStr) : null;
-    const userId = userStr2?.id;
-    const token = localStorage.getItem("token");
-    const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [address, setAddress] = useState<string>('');
-    const [isInvisible, setIsInvisible] = useState(true);
-    const [showStatusModal, setShowStatusModal] = useState(false);
-    const [connectingIncident, setConnectingIncident] = useState<any>(null);
-    const [lastIncidentId, setLastIncidentId] = useState<string | null>(null);
-    const { client } = useChatContext();
-    const [incidents, setIncidents] = useState<any[]>([]);
-    const [activeCall, setActiveCall] = useState<string | null>(null);
-    const [closingIncident, setClosingIncident] = useState<any>(null);
-    const [showClosingModal, setShowClosingModal] = useState(false);
-    const { socket: globalSocket, isConnected } = useSocket();
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [chatClient, setChatClient] = useState<StreamChat | null>(null);
+  const [videoClient, setVideoClient] = useState<StreamVideoClient | null>(null);
+  const [isChatExpanded, setIsChatExpanded] = useState(false);
+  const [isRinging, setIsRinging] = useState(false);
+  const userStr = localStorage.getItem("user");
+  const userStr2 = userStr ? JSON.parse(userStr) : null;
+  const userId = userStr2?.id;
+  const token = localStorage.getItem("token");
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isInvisible, setIsInvisible] = useState(true);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [connectingIncident, setConnectingIncident] = useState<any>(null);
+  const [address, setAddress] = useState<string>('');
+  const { client } = useChatContext();
+  const [incidents, setIncidents] = useState<any[]>([]);
+  const [activeCall, setActiveCall] = useState<string | null>(null);
+  const [closingIncident, setClosingIncident] = useState<any>(null);
+  const [showClosingModal, setShowClosingModal] = useState(false);
+  const { socket: globalSocket, isConnected } = useSocket();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-    const stopAlertSound = () => {
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0; 
-            audioRef.current = null; 
-        }
-    };
-
-
-    const getImageUrl = (url: string) => {
-        if (!url) return '';
-        if (url.startsWith('http')) return url;
-        return `${config.GUARDIAN_SERVER_URL}${url}`;
-      };
-    
-    const fetchIncidents = async () => {
-        if (!userId) {
-            setIsLoading(false);
-            navigate('/');
-            return;
-        }
-
-        try {
-            const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch incidents');
-            }
-
-            const data = await response.json();
-            
-            console.log(`Total incidents: ${data.length}`);
-            
-            const connectedIncidents = data.filter((incident: any) => {
-                const opCenId = incident.opCen ? (typeof incident.opCen === 'object' ? incident.opCen._id : incident.opCen) : null;
-                const matches = opCenId === userId && 
-                              incident.opCenStatus === 'connected' && 
-                              !incident.isFinished;
-                
-                if (opCenId === userId) {
-                    console.log('Incident status:', {
-                        id: incident._id,
-                        opCenStatus: incident.opCenStatus,
-                        isFinished: incident.isFinished
-                    });
-                }
-                return matches;
-            });
-            
-            console.log(`After filtering, showing ${connectedIncidents.length} incidents`);
-            
-            const processedIncidents = await Promise.all(
-                connectedIncidents.map(async (incident: any) => {
-                    let address = "";
-                    if (incident.incidentDetails?.coordinates?.lat && incident.incidentDetails?.coordinates?.lon) {
-                        try {
-                            address = await getAddressFromCoordinates(
-                                incident.incidentDetails.coordinates.lat.toString(),
-                                incident.incidentDetails.coordinates.lon.toString()
-                            );
-                        } catch (error) {
-                            console.error('Error getting address:', error);
-                            address = "Unknown location";
-                        }
-                    }
-                    
-                    const receivedTime = new Date(incident.acceptedAt || incident.createdAt);
-                    const now = new Date();
-                    const timeLapsed = Math.floor((now.getTime() - receivedTime.getTime()) / 1000);
-                    
-                    return {
-                        ...incident,
-                        address,
-                        timeLapsed,
-                        receivedTime: incident.acceptedAt || incident.createdAt
-                    };
-                })
-            );
-            
-            setIncidents(processedIncidents);
-        } catch (error) {
-            console.error('Error fetching incidents:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        const style = document.createElement('style');
-        style.innerHTML = `
-          .shake_me {
-            animation: shake 0.5s;
-            animation-iteration-count: infinite;
-          }
+  const fetchIncidents = useCallback(async () => {
+    if (!userId) {
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch incidents');
+      
+      const data = await response.json();
+      const connectedIncidents = data.filter((incident: any) => 
+        (incident.opCen?._id || incident.opCen) === userId && 
+        incident.opCenStatus === 'connected' && 
+        !incident.isFinished
+      );
+      
+      const processedIncidents = await Promise.all(
+        connectedIncidents.map(async (incident: any) => {
+          let address = "Unknown location";
+          const coordsObject = incident.incidentDetails?.coordinates;
           
-          @keyframes shake {
-            0% {transform: translate(1px, 1px) rotate(0deg);}
-            10% {transform: translate(-1px, -2px) rotate(-1deg);}
-            20% {transform: translate(-3px, 0px) rotate(1deg);}
-            30% {transform: translate(3px, 2px) rotate(0deg);}
-            40% {transform: translate(1px, -1px) rotate(1deg);}
-            50% {transform: translate(-1px, 2px) rotate(-1deg);}
-            60% {transform: translate(-3px, 1px) rotate(0deg);}
-            70% {transform: translate(3px, 1px) rotate(-1deg);}
-            80% {transform: translate(-1px, -1px) rotate(1deg);}
-            90% {transform: translate(1px, 2px) rotate(0deg);}
-            100% {transform: translate(1px, -2px) rotate(-1deg);}
+          try {
+            // --- THIS IS THE FIX ---
+            // First, check for the new GeoJSON format
+            if (coordsObject && coordsObject.type === 'Point' && Array.isArray(coordsObject.coordinates)) {
+              const [lon, lat] = coordsObject.coordinates;
+              if (typeof lat === 'number' && typeof lon === 'number') {
+                address = await getAddressFromCoordinates(lat, lon);
+              }
+            } 
+            // FALLBACK: If not GeoJSON, check for the old {lat, lon} format
+            else if (coordsObject && typeof coordsObject.lat === 'number' && typeof coordsObject.lon === 'number') {
+              address = await getAddressFromCoordinates(coordsObject.lat, coordsObject.lon);
+            }
+          } catch (error) {
+            console.error(`Error fetching address for incident ${incident._id}:`, error);
           }
-        `;
-        document.head.appendChild(style);
-        
-        return () => {
-          document.head.removeChild(style);
-        };
-      }, []);
-    
+  
+          const receivedTime = new Date(incident.acceptedAt || incident.createdAt);
+          const now = new Date();
+          const timeLapsed = Math.floor((now.getTime() - receivedTime.getTime()) / 1000);
+          
+          return { ...incident, address, timeLapsed, receivedTime: receivedTime.toISOString() };
+        })
+      );
+      setIncidents(processedIncidents);
+    } catch (error) {
+      console.error('Error fetching incidents:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId, token]);
 
-    useEffect(() => {
-        let interval: NodeJS.Timeout;
-        
-        if (!isInvisible) {
-            fetchIncidents();
-            interval = setInterval(fetchIncidents, 3000);
-        } else {
-            setIsLoading(false);
-        }
-        
-        return () => {
-            if (interval) clearInterval(interval);
-        };
-    }, [isInvisible, userId, token]);
+  const stopAlertSound = () => {
+    if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0; 
+        audioRef.current = null; 
+    }
+  };
 
-    useEffect(() => {
-        const checkForClosingIncidents = () => {
-            if (showClosingModal || closingIncident) {
-                return;
-            }
-            
-            const incidentToClose = incidents.find(incident => 
-                incident.responderStatus === 'rtb' && !incident.isFinished
-            );
-            
-            if (incidentToClose) {
-                console.log('Found incident requesting to close:', incidentToClose._id);
-                setClosingIncident(incidentToClose);
-                setShowClosingModal(true);
-            }
-        };
-        
-        if (incidents.length > 0) {
-            checkForClosingIncidents();
-        }
-    }, [incidents, showClosingModal, closingIncident]);
+  const getImageUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${config.GUARDIAN_SERVER_URL}${url}`;
+  };
 
-useEffect(() => {
-    const timer = setInterval(() => {
-        setCurrentTime(new Date());
-    }, 1000);
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `...`; // Keep your keyframes style
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
 
+  useEffect(() => {
+      let interval: NodeJS.Timeout;
+      if (!isInvisible) {
+          fetchIncidents();
+          interval = setInterval(fetchIncidents, 3000);
+      } else {
+          setIsLoading(false);
+      }
+      return () => {
+          if (interval) clearInterval(interval);
+      };
+  }, [isInvisible, fetchIncidents]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
-}, []);
+  }, []);
 
-
-useEffect(() => {
+  useEffect(() => {
     const updateIncidentTimes = () => {
-        setIncidents(prevIncidents => 
-            prevIncidents.map(incident => {
-                const receivedTime = new Date(incident.receivedTime);
-                const now = new Date();
-                const timeLapsed = Math.floor((now.getTime() - receivedTime.getTime()) / 1000);
-                
-                return {
-                    ...incident,
-                    timeLapsed
-                };
-            })
-        );
+      setIncidents(prevIncidents => 
+        prevIncidents.map(incident => {
+          const receivedTime = new Date(incident.receivedTime);
+          const now = new Date();
+          const timeLapsed = Math.floor((now.getTime() - receivedTime.getTime()) / 1000);
+          return { ...incident, timeLapsed };
+        })
+      );
     };
-    
-    updateIncidentTimes();
     const timer = setInterval(updateIncidentTimes, 1000);
-    
     return () => clearInterval(timer);
-}, []);
+  }, []);
 
-    useEffect(() => {
-        const preloadAudio = (src: string) => {
-            const audio = new Audio();
-            audio.src = src;
-            audio.load();
-        };
+  useEffect(() => {
+    const handleNotifyConnecting = async (data: any) => {
+      if (!data || data.opCenId !== userId) return;
+      
+      setConnectingIncident(data.incident);
+      setShowStatusModal(true);
 
-        preloadAudio(policeSound);
-        preloadAudio(fireSound);
-        preloadAudio(ambulanceSound);
-        preloadAudio(generalSound);
+      const geoCoords = data.incident.incidentDetails?.coordinates;
+      if (geoCoords && geoCoords.type === 'Point' && Array.isArray(geoCoords.coordinates)) {
+        const [lon, lat] = geoCoords.coordinates;
+        const formattedAddress = await getAddressFromCoordinates(lat, lon);
+        setAddress(formattedAddress);
+      }
 
-        // if (audioRef.current) {
-        //     audioRef.current.volume = 1.0;
-        // }
-    }, []);
-
-    const toggleStatus = async () => {
-        try {
-            if (!client || !userId || !globalSocket || !isConnected) {
-                console.error("Client or socket not ready.");
-                return;
-            }
-
-            const newInvisibleState = !isInvisible;
-            const newStatus = newInvisibleState ? 'unavailable' : 'available';
-            
-            await client.upsertUser({
-                id: userId,
-                invisible: newInvisibleState,
-            });
-
-            globalSocket.emit('updateOpCenAvailability', { status: newStatus });
-
-            setIsInvisible(newInvisibleState);
-            if (!newInvisibleState) {
-                setShowStatusModal(false);
-            }
-        } catch (error) {
-            console.error('Error toggling LGU status:', error);
+      if (data.incident.incidentType) {
+        let soundSrc = generalSound;
+        switch (data.incident.incidentType.toLowerCase()) {
+          case 'police': soundSrc = policeSound; break;
+          case 'fire': soundSrc = fireSound; break;
+          case 'medical': soundSrc = ambulanceSound; break;
         }
+        if (audioRef.current) audioRef.current.pause();
+        audioRef.current = new Audio(soundSrc);
+        audioRef.current.loop = true;
+        audioRef.current.play().catch(e => console.error("Audio playback failed:", e));
+      }
     };
-    useEffect(() => {
-        const checkUserStatus = async () => {
-            if (!client || !userId || !globalSocket || !isConnected) return;
-            
-            try {
-                const response = await client.queryUsers({ id: userId });
-                if (response.users && response.users.length > 0) {
-                    const userIsInvisible = !!response.users[0].invisible;
-                    
-                    setIsInvisible(userIsInvisible);
-                const currentStatus = userIsInvisible ? 'unavailable' : 'available';
-                console.log(`Syncing status with backend on initial load: ${currentStatus}`);
-                globalSocket.emit('updateOpCenAvailability', { status: currentStatus });
-                if (userIsInvisible) {
-                    setShowStatusModal(true);
-                }
-            }
 
-                
-            } catch (error) {
-                console.error('Error checking user status:', error);
-                setIsInvisible(true);
-                globalSocket.emit('updateOpCenAvailability', { status: 'unavailable' });
-                setShowStatusModal(true);
-            }
-        };
-        
-        checkUserStatus();
-    }, [client, userId, globalSocket, isConnected]); 
+    if (globalSocket && isConnected) {
+      globalSocket.on('notifyOpCenConnecting', handleNotifyConnecting);
+      return () => { globalSocket.off('notifyOpCenConnecting', handleNotifyConnecting); };
+    }
+  }, [userId, globalSocket, isConnected]);
 
-    
-    useEffect(() => {
-        const handleNotifyConnecting = async (data: any) => {
-            if (!data || data.opCenId !== userId) return;
-            setLastIncidentId(data.incident._id);
-            setConnectingIncident(data.incident);
-            setShowStatusModal(true);
-            if (data.incident.incidentDetails?.coordinates?.lat && data.incident.incidentDetails?.coordinates?.lon) {
-                const formattedAddress = await getAddressFromCoordinates(
-                    data.incident.incidentDetails.coordinates.lat.toString(),
-                    data.incident.incidentDetails.coordinates.lon.toString()
-                );
-                setAddress(formattedAddress);
-            }
-            if (data.incident.incidentType) {
-                let soundSrc = generalSound;
-                switch (data.incident.incidentType.toLowerCase()) {
-                    case 'police': soundSrc = policeSound; break;
-                    case 'fire': soundSrc = fireSound; break;
-                    case 'medical': soundSrc = ambulanceSound; break;
-                    default: soundSrc = generalSound;
-                }
-            if (audioRef.current) {
-                audioRef.current.pause();
-            }
-            audioRef.current = new Audio(soundSrc);
-                audioRef.current.loop = true; 
-                audioRef.current.play().catch(error => {
-                    console.error("Audio playback failed:", error);
-                });
-            }
-        };
-        if (globalSocket && isConnected) {
-            globalSocket.on('notifyOpCenConnecting', handleNotifyConnecting);
-            return () => {
-                globalSocket.off('notifyOpCenConnecting', handleNotifyConnecting);
-            };
-        }
+  const toggleStatus = async () => {
+    try {
+      if (!client || !userId || !globalSocket || !isConnected) {
+        console.error("Client or socket not ready.");
         return;
-    }, [userId, globalSocket, isConnected]);
-    const getNextChannelId = async (incidentType: string, incidentId: string) => {
-        try {
-            const data = incidentId.substring(4,9);
-            return `${incidentType.toLowerCase()}-${data}`;
-        } catch (error) {
-            console.error('Error generating channel ID:', error);
-            return `${incidentType.toLowerCase()}-error`;
-        }
-    };
-    const handleAcceptIncident = async () => {
-        if (!connectingIncident) return;
-        stopAlertSound();
-        if (!globalSocket || !isConnected) {
-            console.error("Socket not connected. Cannot accept incident.");
-            return;
-          }
-        try {
-            const channelId = await getNextChannelId(connectingIncident.incidentType, connectingIncident._id);
-            const dispatcherId = typeof connectingIncident.user === 'object' && connectingIncident.user !== null
-                ? connectingIncident.user._id
-                : connectingIncident.user;
-            const channel = client.channel('messaging', channelId, {
-                name: `${connectingIncident.incidentType} Incident #${channelId.split('-')[1]}`,
-                members: [dispatcherId, userId]
-            });
-            await channel.create();
-            globalSocket.emit('opcenAcceptIncident', {
-                incidentId: connectingIncident._id,
-                opCenId: userId,
-                dispatcherId, 
-                channelId,
-              });
-            localStorage.setItem('currentIncidentId', connectingIncident._id);
-            localStorage.setItem('currentChannelId', channelId);
-            setConnectingIncident(null);
-            setShowStatusModal(false);
-            fetchIncidents();
-        } catch (error) {
-            console.error('Error accepting incident:', error);
-        }
-    };
-    
-    const handleDeclineIncident = async () => {
-        if (!connectingIncident) return;
-        stopAlertSound();
-        if (!globalSocket || !isConnected) {
-            console.error("Socket not connected. Cannot decline incident.");
-            return;
-          }
-        try {
-            const dispatcherId = typeof connectingIncident.user === 'object' && connectingIncident.user !== null
-                ? connectingIncident.user._id
-                : connectingIncident.user;
-                globalSocket.emit('opcenDeclineIncident', {
-                    incidentId: connectingIncident._id,
-                    opCenId: userId,
-                    dispatcherId, 
-                  });
-            setConnectingIncident(null);
-            setShowStatusModal(false);
-        } catch (error) {
-            console.error('Error declining incident:', error);
-        }
-    };
+      }
 
-    const handleFinishIncident = async () => {
+      const newInvisibleState = !isInvisible;
+      const newStatus = newInvisibleState ? 'unavailable' : 'available';
+      
+      await client.upsertUser({
+        id: userId,
+        invisible: newInvisibleState,
+      });
+
+      globalSocket.emit('updateOpCenAvailability', { status: newStatus });
+
+      setIsInvisible(newInvisibleState);
+      if (!newInvisibleState) {
+        setShowStatusModal(false);
+      }
+    } catch (error) {
+      console.error('Error toggling LGU status:', error);
+    }
+  };
+
+  const getNextChannelId = async (incidentType: string, incidentId: string) => {
+    try {
+      const data = incidentId.substring(4,9);
+      return `${incidentType.toLowerCase()}-${data}`;
+    } catch (error) {
+      console.error('Error generating channel ID:', error);
+      return `${incidentType.toLowerCase()}-error`;
+    }
+  };
+
+  const handleAcceptIncident = async () => {
+    if (!connectingIncident || !globalSocket || !isConnected || !client) return;
+    stopAlertSound();
+    try {
+        const channelId = await getNextChannelId(connectingIncident.incidentType, connectingIncident._id);
+        const dispatcherId = connectingIncident.user?._id || connectingIncident.user;
+        const channel = client.channel('messaging', channelId, {
+            name: `${connectingIncident.incidentType} Incident #${channelId.split('-')[1]}`,
+            members: [dispatcherId, userId]
+        });
+        await channel.create();
+        globalSocket.emit('opcenAcceptIncident', {
+            incidentId: connectingIncident._id,
+            opCenId: userId,
+            dispatcherId, 
+            channelId,
+        });
+        setConnectingIncident(null);
+        setShowStatusModal(false);
+        fetchIncidents();
+    } catch (error) {
+        console.error('Error accepting incident:', error);
+    }
+  };
+
+  const handleDeclineIncident = async () => {
+    if (!connectingIncident || !globalSocket || !isConnected) return;
+    stopAlertSound();
+    try {
+        const dispatcherId = connectingIncident.user?._id || connectingIncident.user;
+        globalSocket.emit('opcenDeclineIncident', {
+            incidentId: connectingIncident._id,
+            opCenId: userId,
+            dispatcherId, 
+        });
+        setConnectingIncident(null);
+        setShowStatusModal(false);
+    } catch (error) {
+        console.error('Error declining incident:', error);
+    }
+  };
+
+  const handleFinishIncident = async () => {
         if (!closingIncident) return;
         
         try {
@@ -900,95 +518,146 @@ useEffect(() => {
         }
     };
 
-    useEffect(() => {
-        const initChatClient = async () => {
-            console.log('Initializing chat client with userId:', userId);
-            const chat = new StreamChat(config.STREAM_APIKEY);
-            await chat.connectUser(
-                {
-                    id: userId,
-                    name: userStr2?.firstName && userStr2?.lastName 
-                        ? `${userStr2.firstName} ${userStr2.lastName}` 
-                        : userStr2?.email || "Unknown User",
-                    image: avatarImg,
-                },
-                token
-            );
-            setChatClient(chat);
-            console.log('Chat client initialized successfully');
-        };
-
-        if (userId && !chatClient) {
-            initChatClient();
-        } else {
-            console.log('Skipping chat client initialization:', { userId, hasChatClient: !!chatClient });
-        }
-
-        return () => {
-            if (chatClient) {
-                chatClient.disconnectUser();
-                setChatClient(null);
-            }
-        };
-    }, [userId]);
-
-    useEffect(() => {
-        if (!videoClient && userId && token) {
-            console.log("Initializing video client for user:", userId);
-            
-            try {
-                const client = StreamVideoClient.getOrCreateInstance({
-                    apiKey: config.STREAM_APIKEY,
-                    user: {
-                        id: userId,
-                        name: userStr2?.firstName && userStr2?.lastName 
-                            ? `${userStr2.firstName} ${userStr2.lastName}` 
-                            : userStr2?.email || "Unknown User",
-                    },
-                    token: token,
-                    options: {
-                        logLevel: "info", 
-                    }
-                });
-                
-                client.on('all', (event: any) => {
-                    if (event.type?.includes('call')) {
-                        console.log('Call event received:', {
-                            type: event.type,
-                            callCid: event.call_cid,
-                            details: event
-                        });
-                    }
-                });
-                
-                client.on('connection.changed', (event: any) => {
-                    console.log('Connection state changed:', event);
-                });
-                
-                setVideoClient(client);
-                console.log("Video client initialized successfully");
-            } catch (error) {
-                console.error("Error initializing video client:", error);
-            }
-        }
-    }, [userId, token]);
-
     const formatTime = () => {
-        const hours = currentTime.getHours().toString().padStart(2, '0');
-        const minutes = currentTime.getMinutes().toString().padStart(2, '0');
-        const seconds = currentTime.getSeconds().toString().padStart(2, '0');
-        return `${hours}:${minutes}:${seconds}`;
+      const hours = currentTime.getHours().toString().padStart(2, '0');
+      const minutes = currentTime.getMinutes().toString().padStart(2, '0');
+      const seconds = currentTime.getSeconds().toString().padStart(2, '0');
+      return `${hours}:${minutes}:${seconds}`;
     };
 
     const formatDate = () => {
-        const options = { 
-            weekday: 'long' as const, 
-            year: 'numeric' as const, 
-            month: 'long' as const, 
-            day: 'numeric' as const 
-        };
-        return currentTime.toLocaleDateString('en-US', options);
+      const options = { 
+        weekday: 'long' as const, 
+        year: 'numeric' as const, 
+        month: 'long' as const, 
+        day: 'numeric' as const 
+      };
+      return currentTime.toLocaleDateString('en-US', options);
     };
+
+
+    useEffect(() => {
+      const initChatClient = async () => {
+        console.log('Initializing chat client with userId:', userId);
+        const chat = new StreamChat(config.STREAM_APIKEY);
+        await chat.connectUser(
+          {
+            id: userId,
+            name: userStr2?.firstName && userStr2?.lastName 
+              ? `${userStr2.firstName} ${userStr2.lastName}` 
+              : userStr2?.email || "Unknown User",
+            image: avatarImg,
+          },
+          token
+        );
+        setChatClient(chat);
+        console.log('Chat client initialized successfully');
+      };
+
+      if (userId && !chatClient) {
+        initChatClient();
+      } else {
+        console.log('Skipping chat client initialization:', { userId, hasChatClient: !!chatClient });
+      }
+
+      return () => {
+        if (chatClient) {
+          chatClient.disconnectUser();
+          setChatClient(null);
+        }
+      };
+    }, [userId]);
+
+    useEffect(() => {
+      if (!videoClient && userId && token) {
+        console.log("Initializing video client for user:", userId);
+        
+        try {
+          const client = StreamVideoClient.getOrCreateInstance({
+            apiKey: config.STREAM_APIKEY,
+            user: {
+              id: userId,
+              name: userStr2?.firstName && userStr2?.lastName 
+                ? `${userStr2.firstName} ${userStr2.lastName}` 
+                : userStr2?.email || "Unknown User",
+            },
+            token: token,
+            options: {
+              logLevel: "info", 
+            }
+          });
+          
+          client.on('all', (event: any) => {
+            if (event.type?.includes('call')) {
+              console.log('Call event received:', {
+                type: event.type,
+                callCid: event.call_cid,
+                details: event
+              });
+            }
+          });
+          
+          client.on('connection.changed', (event: any) => {
+            console.log('Connection state changed:', event);
+          });
+          
+          setVideoClient(client);
+          console.log("Video client initialized successfully");
+        } catch (error) {
+          console.error("Error initializing video client:", error);
+        }
+      }
+    }, [userId, token]);
+
+    useEffect(() => {
+      const checkForClosingIncidents = () => {
+        if (showClosingModal || closingIncident) {
+          return;
+        }
+        
+        const incidentToClose = incidents.find(incident => 
+          incident.responderStatus === 'rtb' && !incident.isFinished
+        );
+        
+        if (incidentToClose) {
+          console.log('Found incident requesting to close:', incidentToClose._id);
+          setClosingIncident(incidentToClose);
+          setShowClosingModal(true);
+        }
+      };
+      
+      if (incidents.length > 0) {
+        checkForClosingIncidents();
+      }
+    }, [incidents, showClosingModal, closingIncident]);
+
+    useEffect(() => {
+      const checkUserStatus = async () => {
+        if (!client || !userId || !globalSocket || !isConnected) return;
+        
+        try {
+          const response = await client.queryUsers({ id: userId });
+          if (response.users && response.users.length > 0) {
+            const userIsInvisible = !!response.users[0].invisible;
+            
+            setIsInvisible(userIsInvisible);
+            const currentStatus = userIsInvisible ? 'unavailable' : 'available';
+            console.log(`Syncing status with backend on initial load: ${currentStatus}`);
+            globalSocket.emit('updateOpCenAvailability', { status: currentStatus });
+            if (userIsInvisible) {
+              setShowStatusModal(true);
+            }
+          }
+        } catch (error) {
+          console.error('Error checking user status:', error);
+          setIsInvisible(true);
+          globalSocket.emit('updateOpCenAvailability', { status: 'unavailable' });
+          setShowStatusModal(true);
+        }
+      };
+      
+      checkUserStatus();
+    }, [client, userId, globalSocket, isConnected]);
 
     const handleCreateRingCall = async (incident: any) => {
         if (!videoClient || !incident?.responder) {

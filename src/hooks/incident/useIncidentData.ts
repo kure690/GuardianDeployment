@@ -9,13 +9,18 @@ export interface VolunteerData {
   profileImage: string;
 }
 
+type GeoJsonPoint = {
+  type: 'Point';
+  coordinates: [number, number]; // [longitude, latitude]
+};
+
 export function useIncidentData(incidentId: string | undefined, token: string | null) {
   const [isResolved, setIsResolved] = useState(false);
   const [acceptedAt, setAcceptedAt] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
   const [incidentType, setIncidentType] = useState<string | null>(null);
   const [currentChannelId, setCurrentChannelId] = useState<string>('');
-  const [coordinates, setCoordinates] = useState<{ lat: string; long: string }>({ lat: '', long: '' });
+  const [coordinates, setCoordinates] = useState<GeoJsonPoint | null>(null);
   const [volunteerID, setVolunteerID] = useState<string>('');
   const [userData, setUserData] = useState<VolunteerData | null>(null);
   const [address, setAddress] = useState<string>('');
@@ -33,25 +38,24 @@ export function useIncidentData(incidentId: string | undefined, token: string | 
           setIsVerified(data.isVerified);
           setIncidentType(data.incidentType);
           setCurrentChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${incidentId.substring(5,9)}`);
-          if (data.incidentDetails?.coordinates) {
-            setCoordinates({
-              lat: data.incidentDetails.coordinates.lat.toString(),
-              long: data.incidentDetails.coordinates.lon.toString(),
-            });
-            const formattedAddress = await getAddressFromCoordinates(
-              data.incidentDetails.coordinates.lat.toString(),
-              data.incidentDetails.coordinates.lon.toString()
-            );
+          const geoCoordinates = data.incidentDetails?.coordinates;
+          if (geoCoordinates && geoCoordinates.type === 'Point' && Array.isArray(geoCoordinates.coordinates)) {
+            // Set the entire GeoJSON object in state
+            setCoordinates(geoCoordinates);
+            
+            // Extract lon and lat for the address lookup
+            const [lon, lat] = geoCoordinates.coordinates;
+            const formattedAddress = await getAddressFromCoordinates(lat, lon);
             setAddress(formattedAddress);
           }
+          
           setResponderCoordinates(data.responderCoordinates || null);
+
           if (data.user) {
             let userId = typeof data.user === 'string' ? data.user : data.user._id;
             setVolunteerID(userId);
             const userResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/volunteers/${userId}`, {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
+              headers: { 'Authorization': `Bearer ${token}` }
             });
             if (userResponse.ok) {
               const userData = await userResponse.json();
@@ -62,22 +66,13 @@ export function useIncidentData(incidentId: string | undefined, token: string | 
                 profileImage: userData.profileImage || ''
               });
             } else {
-              setUserData({
-                firstName: 'Unknown',
-                lastName: 'User',
-                phone: 'No phone number',
-                profileImage: ''
-              });
+               setUserData({ firstName: 'Unknown', lastName: 'User', phone: 'No phone number', profileImage: '' });
             }
           }
         }
       } catch (error) {
-        setUserData({
-          firstName: 'Unknown',
-          lastName: 'User',
-          phone: 'No phone number',
-          profileImage: ''
-        });
+        console.error("Error in useIncidentData:", error);
+        setUserData({ firstName: 'Unknown', lastName: 'User', phone: 'No phone number', profileImage: '' });
       }
     };
     fetchIncidentData();
