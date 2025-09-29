@@ -26,7 +26,7 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 
 const AddTeams = () => {
-  const [responders, setResponders] = useState<any[]>([]);
+  const [dispatchers, setDispatchers] = useState<any[]>([]);
   const [teamName, setTeamName] = useState('');
   const [description, setDescription] = useState('');
   const [assignment, setAssignment] = useState('');
@@ -38,19 +38,19 @@ const AddTeams = () => {
   const [previewUrl, setPreviewUrl] = useState<string>('');
 
   useEffect(() => {
-    const fetchResponders = async () => {
+    const fetchDispatchers = async () => {
       try {
-        const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/responders/`);
-        setResponders(res.data);
+        const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/dispatchers/`);
+        setDispatchers(res.data);
       } catch (err) {
-        setResponders([]);
+        setDispatchers([]);
       }
     };
-    fetchResponders();
+    fetchDispatchers();
   }, []);
 
-  const handleAddMember = (responder: any) => {
-    setMembers(prev => [...prev, responder]);
+  const handleAddMember = (dispatcher: any) => {
+    setMembers(prev => [...prev, dispatcher]);
   };
 
   const handleRemoveMember = (id: string) => {
@@ -123,14 +123,14 @@ const AddTeams = () => {
     const ids = new Set<string>();
     const result: any[] = [];
     if (teamLeader) {
-      const leader = responders.find(r => r._id === teamLeader);
+      const leader = dispatchers.find(d => d._id === teamLeader);
       if (leader && !ids.has(leader._id)) {
         ids.add(leader._id);
         result.push(leader);
       }
     }
     if (deputyDriver) {
-      const deputy = responders.find(r => r._id === deputyDriver);
+      const deputy = dispatchers.find(d => d._id === deputyDriver);
       if (deputy && !ids.has(deputy._id)) {
         ids.add(deputy._id);
         result.push(deputy);
@@ -145,11 +145,11 @@ const AddTeams = () => {
     return result;
   };
 
-  const availableResponders = responders.filter(r =>
-    !r.team && // << THE KEY CHANGE: check if responder's team field is null
-    r._id !== teamLeader &&
-    r._id !== deputyDriver &&
-    !members.some(m => m._id === r._id)
+  const availableDispatchers = dispatchers.filter(d =>
+    !d.team && // check if dispatcher's team field is null
+    d._id !== teamLeader &&
+    d._id !== deputyDriver &&
+    !members.some(m => m._id === d._id)
   );
 
   return (
@@ -229,10 +229,10 @@ const AddTeams = () => {
                 >
                   <MenuItem value="">Select Team Leader</MenuItem>
                   {/* Show current leader if already selected, plus all available */}
-                  {responders
-                    .filter(r => !r.team || r._id === teamLeader)
-                    .map(r => (
-                    <MenuItem key={r._id} value={r._id}>{r.firstName} {r.lastName}</MenuItem>
+                  {dispatchers
+                    .filter(d => !d.team || d._id === teamLeader)
+                    .map(d => (
+                    <MenuItem key={d._id} value={d._id}>{d.firstName} {d.lastName}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -244,10 +244,10 @@ const AddTeams = () => {
                   onChange={e => setDeputyDriver(e.target.value)}
                 >
                   <MenuItem value="">Select Deputy/Driver</MenuItem>
-                  {responders
-                    .filter(r => !r.team || r._id === deputyDriver) // Filter for unassigned or currently selected
-                    .map(r => (
-                    <MenuItem key={r._id} value={r._id}>{r.firstName} {r.lastName}</MenuItem>
+                  {dispatchers
+                    .filter(d => !d.team || d._id === deputyDriver) // Filter for unassigned or currently selected
+                    .map(d => (
+                    <MenuItem key={d._id} value={d._id}>{d.firstName} {d.lastName}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -265,16 +265,16 @@ const AddTeams = () => {
             </FormControl>
             <Paper sx={{ maxHeight: 160, minHeight: 80, overflowY: 'auto', mb: 2, background: '#fafbfc', boxShadow: 0, border: '1px solid #e0e0e0', borderRadius: 2 }}>
               <List>
-                {availableResponders.map(r => (
-                  <ListItem key={r._id} onClick={() => setMembers(prev => [...prev, r])} sx={{ cursor: 'pointer' }}>
+                {availableDispatchers.map(d => (
+                  <ListItem key={d._id} onClick={() => setMembers(prev => [...prev, d])} sx={{ cursor: 'pointer' }}>
                     <ListItemAvatar>
                       <Avatar variant="rounded" sx={{ bgcolor: '#f2f2f2', width: 32, height: 32 }} />
                     </ListItemAvatar>
-                    <ListItemText primary={r.firstName + ' ' + r.lastName} />
+                    <ListItemText primary={d.firstName + ' ' + d.lastName} />
                   </ListItem>
                 ))}
-                {availableResponders.length === 0 && (
-                  <ListItem><ListItemText primary="No available responders" /></ListItem>
+                {availableDispatchers.length === 0 && (
+                  <ListItem><ListItemText primary="No available dispatchers" /></ListItem>
                 )}
               </List>
             </Paper>

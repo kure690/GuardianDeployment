@@ -60,7 +60,7 @@ const Teams = () => {
     message: '', 
     severity: 'success' as 'success' | 'error' 
   });
-  const [responders, setResponders] = useState<any[]>([]);
+  const [dispatchers, setDispatchers] = useState<any[]>([]);
   const [editMembers, setEditMembers] = useState<any[]>([]);
   const navigate = useNavigate();
 
@@ -78,15 +78,15 @@ const Teams = () => {
   }, []);
 
   useEffect(() => {
-    const fetchResponders = async () => {
+    const fetchDispatchers = async () => {
       try {
-        const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/responders/`);
-        setResponders(res.data);
+        const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/dispatchers/`);
+        setDispatchers(res.data);
       } catch (err) {
-        setResponders([]);
+        setDispatchers([]);
       }
     };
-    fetchResponders();
+    fetchDispatchers();
   }, []);
 
   const handleEditOpen = (team: any) => {
@@ -159,6 +159,9 @@ const Teams = () => {
         members: memberIds
       };
 
+      console.log("FRONTEND: Sending this payload:", JSON.stringify(payload, null, 2));
+
+
       await axios.put(`${config.GUARDIAN_SERVER_URL}/opcen-teams/${selectedTeam._id}`, payload);
       setSnackbar({
         open: true,
@@ -199,14 +202,14 @@ const Teams = () => {
     }
   };
 
-  // Get available responders (not already in the team)
-  const getAvailableResponders = () => {
+  // Get available dispatchers (not already in the team)
+  const getAvailableDispatchers = () => {
     const currentMemberIds = new Set([
       ...editMembers.map(m => m._id),
       editFormData.teamLeader,
       editFormData.deputyDriver
     ]);
-    return responders.filter(r => !currentMemberIds.has(r._id));
+    return dispatchers.filter(d => !currentMemberIds.has(d._id));
   };
 
   return (
@@ -388,8 +391,8 @@ const Teams = () => {
                     label="Team Leader"
                     required
                   >
-                    {responders.map(r => (
-                      <MenuItem key={r._id} value={r._id}>{r.firstName} {r.lastName}</MenuItem>
+                    {dispatchers.map(d => (
+                      <MenuItem key={d._id} value={d._id}>{d.firstName} {d.lastName}</MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -402,8 +405,8 @@ const Teams = () => {
                     label="Deputy/Driver"
                     required
                   >
-                    {responders.map(r => (
-                      <MenuItem key={r._id} value={r._id}>{r.firstName} {r.lastName}</MenuItem>
+                    {dispatchers.map(d => (
+                      <MenuItem key={d._id} value={d._id}>{d.firstName} {d.lastName}</MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -412,16 +415,16 @@ const Teams = () => {
             <Grid size={{ md: 6 }}>
               <Paper sx={{ maxHeight: 200, overflowY: 'auto', mb: 2, background: '#fafbfc', boxShadow: 0, border: '1px solid #e0e0e0', borderRadius: 2 }}>
                 <List>
-                  {getAvailableResponders().map(r => (
-                    <ListItem key={r._id} onClick={() => handleAddMember(r)} sx={{ cursor: 'pointer' }}>
+                  {getAvailableDispatchers().map(d => (
+                    <ListItem key={d._id} onClick={() => handleAddMember(d)} sx={{ cursor: 'pointer' }}>
                       <ListItemAvatar>
                         <Avatar variant="rounded" sx={{ bgcolor: '#f2f2f2', width: 32, height: 32 }} />
                       </ListItemAvatar>
-                      <ListItemText primary={r.firstName + ' ' + r.lastName} />
+                      <ListItemText primary={d.firstName + ' ' + d.lastName} />
                     </ListItem>
                   ))}
-                  {getAvailableResponders().length === 0 && (
-                    <ListItem><ListItemText primary="No available responders" /></ListItem>
+                  {getAvailableDispatchers().length === 0 && (
+                    <ListItem><ListItemText primary="No available dispatchers" /></ListItem>
                   )}
                 </List>
               </Paper>

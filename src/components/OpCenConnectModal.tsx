@@ -1,14 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Paper, Box, Typography, Avatar, TextField } from '@mui/material';
 import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
 import config from '../config';
+import { loadGoogleMaps } from '../utils/maps';
 
 interface OpCenUser {
   _id: string;
   firstName: string;
   lastName: string;
   dispatcherType: string;
+  location?: {
+    type?: 'Point';
+    coordinates?: [number, number]; // [lon, lat]
+  };
+  team?: string;
 }
 
 interface OpCenConnectModalProps {
@@ -17,6 +23,7 @@ interface OpCenConnectModalProps {
   icon: string;
   incidentType: string | null;
   address: string;
+  incidentCoordinates?: { lat: number; lon: number } | null;
   modalIncident: string;
   setModalIncident: (val: string) => void;
   customIncidentType: string;
@@ -25,6 +32,7 @@ interface OpCenConnectModalProps {
   setModalIncidentDescription: (val: string) => void;
   handleConnect: (user: any) => void;
   onlineUsers: Set<string>;
+  dispatcherTeamId?: string | null;
 }
 
 const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
@@ -33,6 +41,7 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
   icon,
   incidentType,
   address,
+  incidentCoordinates,
   modalIncident,
   setModalIncident,
   customIncidentType,
@@ -41,9 +50,137 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
   setModalIncidentDescription,
   handleConnect,
   onlineUsers,
+  dispatcherTeamId,
 }) => {
   const [opCenUsers, setOpCenUsers] = useState<OpCenUser[]>([]);
   const token = localStorage.getItem('token');
+  const [routeInfoByUserId, setRouteInfoByUserId] = useState<Record<string, { distanceKm: number; durationMin: number }>>({});
+  const [isRouteLoading, setIsRouteLoading] = useState(false);
+  const lastRouteKeyRef = useRef<string | null>(null);
+
+  const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+  const haversineDistanceKm = (
+    lon1: number,
+    lat1: number,
+    lon2: number,
+    lat2: number
+  ) => {
+    const R = 6371; // km
+    const dLat = toRadians(lat2 - lat1);
+    const dLon = toRadians(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRadians(lat1)) *
+        Math.cos(toRadians(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const estimateTravelMinutes = (distanceKm: number, speedKmh = 30) => {
+    if (!isFinite(distanceKm) || distanceKm <= 0 || !isFinite(speedKmh) || speedKmh <= 0) return 0;
+    return Math.round((distanceKm / speedKmh) * 60);
+  };
+
+  const computeStraightLineForAll = () => {
+    if (!incidentCoordinates) return;
+    const accumulated: Record<string, { distanceKm: number; durationMin: number }> = {};
+    opCenUsers.forEach((u) => {
+      const [uLon, uLat] = u.location?.coordinates || ([] as any);
+      if (typeof uLon === 'number' && typeof uLat === 'number') {
+        const dKm = haversineDistanceKm(incidentCoordinates.lon, incidentCoordinates.lat, uLon, uLat);
+        accumulated[u._id] = {
+          distanceKm: dKm,
+          durationMin: estimateTravelMinutes(dKm),
+        };
+      }
+    });
+    setRouteInfoByUserId(accumulated);
+  };
+
+  useEffect(() => {
+    const fetchDrivingEstimates = async (routeKey: string) => {
+      try {
+        if (!incidentCoordinates) return;
+        const usersWithCoords = opCenUsers.filter(u => Array.isArray(u.location?.coordinates) && typeof u.location!.coordinates![0] === 'number' && typeof u.location!.coordinates![1] === 'number');
+        if (usersWithCoords.length === 0) return;
+
+        if (!config.GOOGLE_MAPS_API_KEY) {
+          computeStraightLineForAll();
+          return;
+        }
+        // Only show loading spinner if we don't already have data for current inputs
+        if (Object.keys(routeInfoByUserId).length === 0) setIsRouteLoading(true);
+        const google = await loadGoogleMaps(config.GOOGLE_MAPS_API_KEY as unknown as string);
+        const service = new google.maps.DistanceMatrixService();
+        const accumulated: Record<string, { distanceKm: number; durationMin: number }> = {};
+
+        const maxChunk = 25;
+        for (let i = 0; i < usersWithCoords.length; i += maxChunk) {
+          const chunk = usersWithCoords.slice(i, i + maxChunk);
+          await new Promise<void>((resolve) => {
+            service.getDistanceMatrix(
+              {
+                origins: chunk.map(u => ({ lat: u.location!.coordinates![1], lng: u.location!.coordinates![0] })),
+                destinations: [{ lat: incidentCoordinates.lat, lng: incidentCoordinates.lon }],
+                travelMode: google.maps.TravelMode.DRIVING,
+              },
+              (response: any, status: any) => {
+                if (status !== 'OK' || !response?.rows) {
+                  resolve();
+                  return;
+                }
+                response.rows.forEach((row: any, idx: number) => {
+                  const element = row?.elements?.[0];
+                  const user = chunk[idx];
+                  if (!user || !element || element.status !== 'OK') return;
+                  const distanceMeters = element.distance?.value;
+                  const durationSeconds = element.duration?.value;
+                  if (typeof distanceMeters === 'number' && typeof durationSeconds === 'number') {
+                    accumulated[user._id] = {
+                      distanceKm: distanceMeters / 1000,
+                      durationMin: Math.round(durationSeconds / 60)
+                    };
+                  }
+                });
+                resolve();
+              }
+            );
+          });
+        }
+
+        setRouteInfoByUserId(accumulated);
+        lastRouteKeyRef.current = routeKey;
+        console.info(`[OpCenConnectModal] Loaded driving estimates for ${Object.keys(accumulated).length}/${usersWithCoords.length} origins.`);
+      } catch (e) {
+        console.warn('[OpCenConnectModal] Distance Matrix (JS SDK) failed; falling back to straight-line.', e);
+        computeStraightLineForAll();
+      } finally {
+        setIsRouteLoading(false);
+      }
+    };
+    if (open) {
+      // Build a stable key from incident coords + user coords
+      const incKey = incidentCoordinates ? `${incidentCoordinates.lat.toFixed(5)},${incidentCoordinates.lon.toFixed(5)}` : 'none';
+      const usersKey = opCenUsers
+        .map(u => {
+          const c = u.location?.coordinates;
+          return c && typeof c[0] === 'number' && typeof c[1] === 'number'
+            ? `${u._id}:${c[1].toFixed(5)},${c[0].toFixed(5)}`
+            : `${u._id}:none`;
+        })
+        .join('|');
+      const routeKey = `${incKey}__${usersKey}`;
+
+      if (routeKey && routeKey !== lastRouteKeyRef.current) {
+        // Clear previous only when inputs changed
+        setRouteInfoByUserId({});
+        setIsRouteLoading(false);
+        fetchDrivingEstimates(routeKey);
+      }
+    }
+  }, [open, opCenUsers, incidentCoordinates]);
 
   useEffect(() => {
     const fetchOpCenUsers = async () => {
@@ -53,7 +190,12 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
         });
         if (response.ok) {
           const data = await response.json();
-          const filtered = (data || []).filter((user: any) => user.dispatcherType === 'LGU');
+          let filtered = [];
+          if (dispatcherTeamId) {
+            filtered = (data || []).filter((user: OpCenUser) => 
+              user.dispatcherType === 'LGU' && user.team === dispatcherTeamId
+            );
+          }
           setOpCenUsers(filtered);
         } else {
           setOpCenUsers([]);
@@ -63,7 +205,7 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
       }
     };
     if (open) fetchOpCenUsers();
-  }, [open, token]);
+  }, [open, token, dispatcherTeamId]);
 
   return (
     <Modal
@@ -244,9 +386,23 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
               <button style={{marginLeft: '8px', padding: '6px 10px', background: '#1e5a71', color: 'white', border: 'none', borderRadius: '4px'}}>Search</button>
             </div>
             <div style={{maxHeight: '200px', overflowY: 'auto'}}>
-              {opCenUsers.length > 0 ? (
+              {isRouteLoading && Object.keys(routeInfoByUserId).length === 0 ? (
+                <div style={{textAlign: 'center', padding: '20px', color: '#666', fontSize: '14px',backgroundColor: '#f8f9fa',borderRadius: '4px',margin: '10px'}}>Calculating routes...</div>
+              ) : opCenUsers.length > 0 ? (
                 opCenUsers.map((user) => {
                   const isOnline = onlineUsers.has(user._id);
+                  const [userLon, userLat] = user?.location?.coordinates || [] as any;
+                  const hasCoords =
+                    typeof userLon === 'number' &&
+                    typeof userLat === 'number' &&
+                    !!incidentCoordinates &&
+                    typeof incidentCoordinates?.lon === 'number' &&
+                    typeof incidentCoordinates?.lat === 'number';
+                  const driving = routeInfoByUserId[user._id];
+                  const distanceKm = driving?.distanceKm;
+                  const etaMin = driving?.durationMin;
+                  const distanceLabel = typeof distanceKm === 'number' ? `${distanceKm.toFixed(1)} KM` : '—';
+                  const timeLabel = typeof etaMin === 'number' ? `${etaMin} Min` : '—';
                   return (
                     <div key={user._id} style={{display: 'flex', alignItems: 'center', padding: '6px', borderBottom: '1px solid #eee', marginBottom: '3px'}}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
@@ -261,8 +417,8 @@ const OpCenConnectModal: React.FC<OpCenConnectModalProps> = ({
                         <div style={{fontSize: '14px'}}>{user.firstName} {user.lastName}</div>
                       </Box>
                       <div style={{marginRight: '10px', textAlign: 'right'}}>
-                        <div style={{fontSize: '12px'}}>13 Min</div>
-                        <div style={{fontSize: '12px'}}>2.3 KM</div>
+                        <div style={{fontSize: '12px'}}>{timeLabel}</div>
+                        <div style={{fontSize: '12px'}}>{distanceLabel}</div>
                       </div>
                       <button 
                         onClick={() => handleConnect(user)}

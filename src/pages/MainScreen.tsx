@@ -91,7 +91,9 @@ const MainScreen = () => {
   const navigate = useNavigate();
   const userStr = localStorage.getItem("user");
   const userStr2 = userStr ? JSON.parse(userStr) : null;
+  console.log("Logged-in user object from localStorage:", userStr2);
   const userId = userStr2?.id;
+  const dispatcherTeamId = userStr2?.team;
   const token = localStorage.getItem("token");
 
   const user = {
@@ -969,6 +971,7 @@ const MainScreen = () => {
         icon={getIncidentIcon(incidentType || 'general').icon}
         incidentType={incidentType}
         address={address}
+        incidentCoordinates={incidentLat && incidentLon ? { lat: incidentLat, lon: incidentLon } : null}
         modalIncident={modalIncident}
         setModalIncident={setModalIncident}
         customIncidentType={customIncidentType}
@@ -976,6 +979,7 @@ const MainScreen = () => {
         modalIncidentDescription={modalIncidentDescription}
         setModalIncidentDescription={setModalIncidentDescription}
         onlineUsers={onlineUsers}
+        dispatcherTeamId={dispatcherTeamId}
         handleConnect={handleConnect}
       />
       
