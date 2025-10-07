@@ -13,7 +13,7 @@ export const useIncidents = () => {
         setLoading(true);
 
         // Call the API directly using fetch and the config URL
-        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/api/incidents`);
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents`);
         if (!response.ok) {
           throw new Error('Network response was not ok');
         }
