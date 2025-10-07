@@ -5,19 +5,23 @@ import { Incident } from './types';
 import { useIncidents } from './hooks/useIncidents';
 import IncidentMap from './IncidentMap';
 import IncidentList from './IncidentList';
-import IncidentDetails from './IncidentDetails';
 
 const IncidentsDashboard: React.FC = () => {
   const { incidents, loading, error } = useIncidents();
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
 
   const handleIncidentSelect = (incident: Incident) => {
-    setSelectedIncident(incident);
+    // If the same incident is selected again, deselect it. Otherwise, select the new one.
+    setSelectedIncident(prev => prev?._id === incident._id ? null : incident);
+  };
+
+  const handleInfoWindowClose = () => {
+    setSelectedIncident(null);
   };
 
   const dashboardStyle: React.CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: '350px 1fr 350px', // List | Map | Details
+    gridTemplateColumns: '350px 1fr', // List | Map | Details
     height: '100vh',
     fontFamily: 'Arial, sans-serif',
   };
@@ -26,6 +30,8 @@ const IncidentsDashboard: React.FC = () => {
     position: 'relative',
     background: '#e0e0e0', // Placeholder background
   };
+
+  
 
   if (error) {
     return <div style={{ color: 'red', padding: '20px' }}>{error}</div>;
@@ -45,10 +51,10 @@ const IncidentsDashboard: React.FC = () => {
             incidents={incidents}
             selectedIncident={selectedIncident}
             onMarkerClick={handleIncidentSelect}
+            onInfoWindowClose={handleInfoWindowClose}
         />
       </div>
       
-      <IncidentDetails incident={selectedIncident} />
     </div>
   );
 };

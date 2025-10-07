@@ -27,33 +27,53 @@ const IncidentDetails: React.FC<IncidentDetailsProps> = ({ incident }) => {
   const [lon, lat] = incident.incidentDetails.coordinates.coordinates;
 
   return (
-    <div style={{ padding: '20px', background: '#fff', height: '100%', overflowY: 'auto' }}>
-      <h3 style={{ marginTop: 0 }}>Incident Details</h3>
-      <DetailRow label="Case ID" value={incident._id} />
-      <DetailRow label="Type" value={incident.incidentType} />
-      <DetailRow label="Specific Incident" value={incident.incidentDetails.incident} />
-      <DetailRow label="Description" value={incident.incidentDetails.incidentDescription} />
-      <DetailRow label="Coordinates" value={`${lat.toFixed(6)}, ${lon.toFixed(6)}`} />
-      <DetailRow label="Reported At" value={new Date(incident.createdAt).toLocaleString()} />
-      <DetailRow label="Reporter" value={`${incident.user.firstName} ${incident.user.lastName}`} />
-      <DetailRow 
-        label="Assigned Responder" 
-        value={
-          incident.responder
-            ? `${incident.responder.firstName} ${incident.responder.lastName}` 
-            : 'Not Assigned'
-        } 
-      />
-      {/* <DetailRow
-        label="Responder Coordinates"
-        value={
-          incident.responder && incident.responderCoordinates 
-            ? `${incident.responderCoordinates.lat}, ${incident.responderCoordinates.lon}` 
-            : 'Not Assigned'
-        } 
-      /> */}
-      {/* <DetailRow label="Responder" value={`${incident.responder.firstName} ${incident.responder.lastName}`} /> */}
-    </div>
+    // <div style={{ padding: '20px', background: '#fff', height: '100%', overflowY: 'auto' }}>
+    //   <h3 style={{ marginTop: 0 }}>Incident Details</h3>
+    //   <DetailRow label="Case ID" value={incident._id} />
+    //   <DetailRow label="Type" value={incident.incidentType} />
+    //   <DetailRow label="Specific Incident" value={incident.incidentDetails.incident} />
+    //   <DetailRow label="Description" value={incident.incidentDetails.incidentDescription} />
+    //   <DetailRow label="Coordinates" value={`${lat.toFixed(6)}, ${lon.toFixed(6)}`} />
+    //   <DetailRow label="Reported At" value={new Date(incident.createdAt).toLocaleString()} />
+    //   <DetailRow label="Reporter" value={`${incident.user.firstName} ${incident.user.lastName}`} />
+    //   <DetailRow 
+    //     label="Assigned Responder" 
+    //     value={
+    //       incident.responder
+    //         ? `${incident.responder.firstName} ${incident.responder.lastName}` 
+    //         : 'Not Assigned'
+    //     } 
+    //   />
+    //   {/* <DetailRow
+    //     label="Responder Coordinates"
+    //     value={
+    //       incident.responder && incident.responderCoordinates 
+    //         ? `${incident.responderCoordinates.lat}, ${incident.responderCoordinates.lon}` 
+    //         : 'Not Assigned'
+    //     } 
+    //   /> */}
+    //   {/* <DetailRow label="Responder" value={`${incident.responder.firstName} ${incident.responder.lastName}`} /> */}
+    // </div>
+
+      <div style={{ padding: '10px', maxWidth: '300px' }}>
+        <h4 style={{ marginTop: 0, marginBottom: '10px', fontSize: '1.1rem' }}>Incident Details</h4>
+          <DetailRow label="Case ID" value={incident._id} />
+          <DetailRow label="Type" value={incident.incidentType} />
+          <DetailRow label="Specific Incident" value={incident.incidentDetails.incident} />
+          {/* Description might be too long for an infowindow, consider omitting or truncating */}
+          {/* <DetailRow label="Description" value={incident.incidentDetails.incidentDescription} /> */}
+          <DetailRow label="Coordinates" value={`${lat.toFixed(6)}, ${lon.toFixed(6)}`} />
+          <DetailRow label="Reported At" value={new Date(incident.createdAt).toLocaleString()} />
+          <DetailRow label="Reporter" value={`${incident.user.firstName} ${incident.user.lastName}`} />
+          <DetailRow 
+            label="Assigned Responder" 
+            value={
+              incident.responder
+                ? `${incident.responder.firstName} ${incident.responder.lastName}` 
+                : 'Not Assigned'
+            } 
+          />
+      </div>
   );
 };
 
