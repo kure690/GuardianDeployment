@@ -31,6 +31,7 @@ import Reports from "./pages/ManageReporting"
 import SocketProvider from "./utils/SocketProvider";
 import { LoadScript } from '@react-google-maps/api';
 import ClusterManagement from "./pages/ClusterManager";
+import IncidentsDashboard from "./components/incidents-dashboard/IncidentsDashboard";
 
 const theme = createTheme({
   typography: {
@@ -179,6 +180,7 @@ function App() {
                   <Route path="/messages" element={<Messages />} />
                   <Route path="/reports" element={<Reports />} />
                   <Route path="/cluster-management" element={<ClusterManagement />} />
+                  <Route path="/incidents-dashboard" element={<IncidentsDashboard />} />
                 </Routes>
               </Chat>
             ) : (
