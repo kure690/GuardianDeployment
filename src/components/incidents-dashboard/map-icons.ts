@@ -6,16 +6,15 @@ import medicalIcon from '../../assets/images/Medical.png';
 import generalIcon from '../../assets/images/General.png';
 import fireIcon from '../../assets/images/Fire.png';
 import crimeIcon from '../../assets/images/Police.png';
-import ambulanceIcon from '../../assets/images/Ambulance.png';
-import firetruckIcon from '../../assets/images/Firetruck.png';
-import policecarIcon from '../../assets/images/Policecar.png';
+import ambulanceIcon from '../../assets/images/ambulance.png';
+import firetruckIcon from '../../assets/images/firetruck.png';
+import policecarIcon from '../../assets/images/policecar.png';
 
 
 const MEDICAL_ICON_BASE = medicalIcon;
 const FIRE_ICON_BASE = fireIcon;
 const POLICE_ICON_BASE = crimeIcon;
 const OTHER_ICON_BASE = generalIcon;
-const RESPONDER_ICON_BASE = ambulanceIcon;
 const AMBULANCE_ICON_BASE = ambulanceIcon;
 const FIRETRUCK_ICON_BASE = firetruckIcon;
 const POLICECAR_ICON_BASE = policecarIcon;
