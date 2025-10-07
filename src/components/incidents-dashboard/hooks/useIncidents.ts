@@ -1,10 +1,6 @@
-// src/components/incidents-dashboard/hooks/useIncidents.ts
-
 import { useState, useEffect } from 'react';
 import { Incident } from '../types';
-import axios from 'axios';
-
-const API_URL = '/api/incidents'; // Your backend route
+import config from '../../../config'; // Adjust path to your config file if needed
 
 export const useIncidents = () => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -15,11 +11,26 @@ export const useIncidents = () => {
     const fetchIncidents = async () => {
       try {
         setLoading(true);
-        const response = await axios.get<Incident[]>(API_URL);
-        // Filter for active incidents on the client-side
-        const activeIncidents = response.data.filter(incident => !incident.isFinished);
+
+        // Call the API directly using fetch and the config URL
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/api/incidents`);
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const responseData = await response.json();
+
+        // Safely access the array, whether it's the data itself or nested
+        const incidentsArray = Array.isArray(responseData.incidents) 
+          ? responseData.incidents 
+          : Array.isArray(responseData) 
+          ? responseData 
+          : [];
+
+        // Filter for active incidents
+        const activeIncidents = incidentsArray.filter((incident: Incident) => !incident.isFinished);
         setIncidents(activeIncidents);
         setError(null);
+
       } catch (err) {
         setError('Failed to fetch incidents. Please try again later.');
         console.error(err);
