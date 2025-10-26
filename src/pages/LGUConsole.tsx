@@ -10,7 +10,7 @@ import {
   MenuItem,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import GuardianIcon from "../assets/images/icon.png";
+import GuardianIcon from "../assets/images/icon-removebg-preview.png";
 import SearchIcon from '@mui/icons-material/Search';
 import Grid from "@mui/material/Grid2";
 import HomeIcon from '@mui/icons-material/Home';
@@ -98,10 +98,13 @@ const LGUConsole = () => {
                       src={GuardianIcon}
                       alt="Guardian Icon"
                       sx={{
-                      width: 40,
-                      height: 40,
+                      width: 45,
+                      height: 45,
                       ml: 3,
-                      mr: 3
+                      mr: 3,
+                      borderColor: 'white',
+                      borderWidth: 0.1,
+                      borderStyle: 'solid'
                       }}
                       />
                       <Typography variant="h6" component="div">

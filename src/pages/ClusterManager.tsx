@@ -179,6 +179,7 @@ const handleSelectCluster = (cluster: Cluster) => {
   setNewBoundaryName("");
 };
 
+
 const handleSearchAddress = async () => {
   if (!searchQuery.trim()) {
     handleError("Please enter a location to search.");
@@ -186,32 +187,53 @@ const handleSearchAddress = async () => {
   }
   setIsSearching(true);
   setSearchedGeometry(null);
+
+  const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
   try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&polygon_geojson=1`;
-    const response = await axios.get(url);
-    if (response.data && response.data.length > 0) {
-      const firstResult = response.data[0];
-      if (firstResult.geojson) {
-        setSearchedGeometry(firstResult.geojson);
-        setNewBoundaryName(firstResult.display_name?.split(',')[0] || "");
+    // --- STEP 1: Get the Place ID using the Geocoding API ---
+    const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(searchQuery)}&key=${GOOGLE_API_KEY}`;
+    const geocodeResponse = await axios.get(geocodeUrl);
 
-        // --- NEW CODE TO CENTER THE MAP ---
-        const { boundingbox } = firstResult;
-        // The API returns [south, north, west, east]
-        // Leaflet's fitBounds needs [[south, west], [north, east]]
-        const southWest: LatLngTuple = [parseFloat(boundingbox[0]), parseFloat(boundingbox[2])];
-        const northEast: LatLngTuple = [parseFloat(boundingbox[1]), parseFloat(boundingbox[3])];
-        setBoundsToFit([southWest, northEast]);
-        // --- END OF NEW CODE ---
-
-      } else {
-        handleError("No boundary found for this location. Try a city/state/country.");
-      }
-    } else {
+    if (geocodeResponse.data.status !== 'OK' || geocodeResponse.data.results.length === 0) {
       handleError("Location not found.");
+      setIsSearching(false);
+      return;
     }
+
+    const firstResult = geocodeResponse.data.results[0];
+    const placeId = firstResult.place_id;
+    const placeName = firstResult.formatted_address.split(',')[0] || searchQuery;
+
+    // --- STEP 2: Get the boundary using the Boundaries API ---
+    // Note: The URL is different from other Google Maps APIs
+    const boundaryUrl = `https://boundaries.googleapis.com/v1beta/places/${placeId}?key=${GOOGLE_API_KEY}`;
+    
+    // We request the geometry in GeoJSON format
+    const boundaryResponse = await axios.get(boundaryUrl, {
+      headers: {
+        'Accept': 'application/geo+json' 
+      }
+    });
+    
+    if (boundaryResponse.data && boundaryResponse.data.geometry) {
+      setSearchedGeometry(boundaryResponse.data.geometry);
+      setNewBoundaryName(placeName);
+
+      // Fit the map to the returned boundary
+      // We still use the viewport from the geocoding result for an efficient fit
+      const { viewport } = firstResult.geometry;
+      const southWest: LatLngTuple = [viewport.southwest.lat, viewport.southwest.lng];
+      const northEast: LatLngTuple = [viewport.northeast.lat, viewport.northeast.lng];
+      setBoundsToFit([southWest, northEast]);
+
+    } else {
+      handleError("Could not retrieve a detailed boundary for this location.");
+    }
+
   } catch (err) {
-    handleError("Failed to fetch location data.");
+    handleError("An error occurred while fetching boundary data from Google.");
+    console.error(err);
   } finally {
     setIsSearching(false);
   }

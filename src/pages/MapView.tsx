@@ -201,7 +201,7 @@ const MapView = () => {
 
         const data = await response.json();
         setIncidentType(data.incidentType);
-        setCurrentChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${data._id.substring(5, 9)}`);
+        setCurrentChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${data._id.substring(4, 9)}`);
 
         // --- THIS IS THE FIX ---
         // Correctly parse the new GeoJSON coordinate format

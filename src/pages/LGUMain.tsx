@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Modal, Paper, Typography, Button, Box, Avatar, Container } from '@mui/material';
+import { Modal, Paper, Typography, Button, Box, Avatar, Container, ToggleButton, ToggleButtonGroup,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
+import ViewComfyIcon from '@mui/icons-material/ViewComfy';
 import avatarImg from "../assets/images/user.png";
 import GuardianIcon from "../assets/images/Guardian.png";
 import Grid from "@mui/material/Grid2";
@@ -9,7 +12,7 @@ import Police from "../assets/images/Police.png";
 import Medical from "../assets/images/Medical.png";
 import Fire from "../assets/images/Fire.png";
 import FireTruckIcon from '@mui/icons-material/FireTruck';
-import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
+import MedicalServicesIcon from '@mui/icons-material/MedicalServices';
 import TwoWheelerIcon from '@mui/icons-material/TwoWheeler';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getAddressFromCoordinates } from '../utils/geocoding';
@@ -45,6 +48,19 @@ import fireSound from '../assets/sounds/fire.mp3';
 import ambulanceSound from '../assets/sounds/ambulance.mp3';
 import generalSound from '../assets/sounds/general.mp3';
 import { useSocket } from "../utils/socket";
+
+interface IncidentCountsState {
+  medical: number | null;
+  fire: number | null;
+  police: number | null;
+  general: number | null;
+}
+
+interface ResponderCountsState {
+  fire: number | null;
+  medical: number | null;
+  police: number | null;
+}
 
 
 const getIncidentIcon = (incidentType: string) => {
@@ -216,7 +232,139 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
   );
 };
 
+const IncidentGridView = ({ incidents, handleMapClick, handleCreateRingCall, handleSelectIncidentForChat }: any) => {
+  
+  const formatLapsTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes} min ${remainingSeconds} sec`;
+  };
+
+  const formatReceivedTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', {
+      hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  };
+
+  const headerCellStyle = {
+    fontWeight: 'bold',
+    color: 'white',
+    px: 2,
+    py: 1,
+    bgcolor: '#4a90e2', // Blue background on the cell itself
+    borderTopLeftRadius: '4px', 
+    borderTopRightRadius: '4px', 
+    border: 'none',
+  };
+
+  const bodyCellStyle = {
+    px: 2,
+    py: 1.5,
+    bgcolor: 'white', 
+    // borderRadius: '4px', 
+    border: 'none',
+  };
+
+  return (
+    <Paper sx={{ 
+      width: '100%', 
+      overflow: 'hidden', 
+      bgcolor: 'transparent', 
+      boxShadow: 'none' 
+    }}>
+      <TableContainer sx={{ maxHeight: 'calc(100vh - 250px)' }}>
+        
+        {/* --- MODIFIED: This is the key part --- */}
+        <Table 
+          stickyHeader 
+          aria-label="incident grid view"
+          sx={{
+            borderCollapse: 'separate', 
+            borderSpacing: '8px 0px',
+          }}
+        >
+          
+          {/* --- MODIFIED: Remove bgcolor from header row --- */}
+          <TableHead>
+            <TableRow>
+              {/* --- MODIFIED: Using the new cell styles --- */}
+              <TableCell sx={headerCellStyle}>ID</TableCell>
+              <TableCell sx={headerCellStyle}>Type</TableCell>
+              <TableCell sx={headerCellStyle}>Responders</TableCell>
+              <TableCell sx={headerCellStyle}>Address</TableCell>
+              <TableCell sx={headerCellStyle}>Received</TableCell>
+              <TableCell sx={headerCellStyle}>Laps Time</TableCell>
+              <TableCell sx={headerCellStyle}>Status</TableCell>
+              <TableCell align="center" sx={headerCellStyle}>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          
+          <TableBody
+            sx={{
+              // Target the last 'tr' (TableRow) in this TableBody
+              '& tr:last-child': {
+                // Target every 'td' (TableCell) inside that last row
+                'td': {
+                  borderBottomLeftRadius: '4px',
+                  borderBottomRightRadius: '4px',
+                }
+              }
+            }}
+          >
+            {incidents.map((incident: any) => {
+              const shortId = incident._id ? incident._id.substring(5, 9) : "";
+              const idString = incident.incidentType ? `${incident.incidentType}-${shortId}` : "";
+              
+              return (
+                <TableRow 
+                  hover 
+                  tabIndex={-1} 
+                  key={incident._id}
+                  // --- MODIFIED: Remove all row-level borders ---
+                  sx={{ 
+                    'td, th': { border: 0 }
+                  }}
+                >
+                  {/* --- MODIFIED: Using the new cell styles --- */}
+                  <TableCell sx={bodyCellStyle}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {idString.toUpperCase()}
+                    </Typography>
+                  </TableCell>
+                  <TableCell sx={bodyCellStyle}>{incident.incidentType?.toUpperCase()}</TableCell>
+                  <TableCell sx={bodyCellStyle}>{!incident.responder ? 'N/A' : `${incident.responder.firstName || ''} ${incident.responder.lastName || ''}`.trim() || "RESPONDER"}</TableCell>
+                  <TableCell sx={{ ...bodyCellStyle, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={incident.address || ""}>
+                    {incident.address || 'Loading...'}
+                  </TableCell>
+                  <TableCell sx={bodyCellStyle}>{formatReceivedTime(incident.receivedTime)}</TableCell>
+                  <TableCell sx={bodyCellStyle}>
+                    <Typography variant="body2" sx={{ color: 'red', fontWeight: 'bold' }}>
+                      {formatLapsTime(incident.timeLapsed)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell sx={bodyCellStyle}>
+                    <Typography variant="body2" sx={{ color: '#EE4B2B', fontWeight: 'bold' }}>
+                      {incident.responderStatus ? incident.responderStatus.toUpperCase() : "ENROUTE"}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="center" sx={bodyCellStyle}>
+                    <Button sx={{ minWidth: 0, p: 0.5, color: '#666' }} onClick={() => handleMapClick(incident._id)}>🗺️</Button>
+                    <Button sx={{ minWidth: 0, p: 0.5, color: '#666' }} onClick={() => handleSelectIncidentForChat(incident.channelId)}>💬</Button>
+                    <Button sx={{ minWidth: 0, p: 0.5, color: '#666' }} onClick={() => handleCreateRingCall(incident)}>📞</Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Paper>
+  );
+};
+
 const LGUMain = () => {
+  const [viewMode, setViewMode] = useState<'card' | 'grid'>('card');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [chatClient, setChatClient] = useState<StreamChat | null>(null);
   const [videoClient, setVideoClient] = useState<StreamVideoClient | null>(null);
@@ -238,6 +386,18 @@ const LGUMain = () => {
   const [showClosingModal, setShowClosingModal] = useState(false);
   const { socket: globalSocket, isConnected } = useSocket();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [incidentCounts, setIncidentCounts] = useState<IncidentCountsState>({
+    medical: null,
+    fire: null,
+    police: null,
+    general: null,
+  });
+
+  const [responderCounts, setResponderCounts] = useState<ResponderCountsState>({
+    fire: null,
+    medical: null,
+    police: null,
+  });
 
   const fetchIncidents = useCallback(async () => {
     if (!userId) {
@@ -739,6 +899,56 @@ const LGUMain = () => {
         }
     };
 
+    useEffect(() => {
+      const handleResponderCountUpdate = (counts: ResponderCountsState) => {
+        console.log("Received responder counts:", counts);
+        if (counts) {
+          setResponderCounts(counts);
+        }
+      };
+  
+      if (globalSocket && isConnected) {
+        // Listen for the broadcast from the server
+        globalSocket.on('responderCountsUpdate', handleResponderCountUpdate);
+
+        console.log("Requesting initial responder counts..."); // Optional log
+        globalSocket.emit('getInitialResponderCounts');
+  
+        // Cleanup listener on unmount
+        return () => {
+          globalSocket.off('responderCountsUpdate', handleResponderCountUpdate);
+        };
+      }
+    }, [globalSocket, isConnected]);
+
+    useEffect(() => {
+      // Function to update state when new data arrives
+      const handleIncidentCountUpdate = (counts: {
+        medical: number;
+        fire: number;
+        police: number;
+        general: number;
+      }) => {
+        console.log('Received incident counts from server:', counts); 
+        if (counts) {
+          setIncidentCounts(counts);
+        }
+      };
+  
+      if (globalSocket && isConnected) {
+        // Request initial counts when component mounts and is connected
+        globalSocket.emit('getIncidentCounts');
+  
+        // Listen for live updates from the server
+        globalSocket.on('incidentCountsUpdate', handleIncidentCountUpdate);
+  
+        // Cleanup: remove the listener when the component unmounts
+        return () => {
+          globalSocket.off('incidentCountsUpdate', handleIncidentCountUpdate);
+        };
+      }
+    }, [globalSocket, isConnected]);
+
     function CallAudioHandler({ stopSound }: { stopSound: () => void }) {
         const calls = useCalls();
         useEffect(() => {
@@ -774,18 +984,19 @@ const LGUMain = () => {
         );
     }
 
+
+
+    //start of the component//
     return (
-        <div className="h-screen bg-[#1B4965] flex items-center justify-center">
+      <div className="h-screen flex flex-col">
+            {/* navbar section// */}
             <Container 
                 disableGutters={true}
                 maxWidth={false}
                 sx={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    backgroundColor: "#F0F0F0"
-                }}
+                  backgroundColor: "#F0F0F0",
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              }}
             >
             <Grid container spacing={1}>
                 <Grid size={{xs: 12}}
@@ -854,10 +1065,11 @@ const LGUMain = () => {
           p: 0.5,
           display: 'flex', 
           alignItems: 'center',
-          gap: 1 
+          gap: 1,
+          minWidth: '65px'
         }}>
           <FireTruckIcon sx={{ color: 'white' }} />
-          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>10</Typography>
+          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>{responderCounts.fire ?? '...'}</Typography>
         </Box>
         
         <Box sx={{ 
@@ -866,10 +1078,11 @@ const LGUMain = () => {
           p: 0.5,
           display: 'flex', 
           alignItems: 'center',
-          gap: 1 
+          gap: 1,
+          minWidth: '65px'
         }}>
-          <DirectionsCarIcon sx={{ color: 'white' }} />
-          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>20</Typography>
+          <MedicalServicesIcon sx={{ color: 'white' }} />
+          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>{responderCounts.medical ?? '...'}</Typography>
         </Box>
         
         <Box sx={{ 
@@ -878,10 +1091,11 @@ const LGUMain = () => {
           p: 0.5,
           display: 'flex', 
           alignItems: 'center',
-          gap: 1 
+          gap: 1,
+          minWidth: '65px'
         }}>
           <LocalPoliceIcon sx={{ color: 'white' }} />
-          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>20</Typography>
+          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>{responderCounts.police ?? '...'}</Typography>
         </Box>
         
         <Box sx={{ 
@@ -890,7 +1104,8 @@ const LGUMain = () => {
           p: 0.5,
           display: 'flex', 
           alignItems: 'center',
-          gap: 1 
+          gap: 1,
+          minWidth: '65px'
         }}>
           <TwoWheelerIcon sx={{ color: 'white' }} />
           <Typography sx={{ color: 'white', fontWeight: 'bold' }}>10</Typography>
@@ -910,14 +1125,15 @@ const LGUMain = () => {
           p: 0.5, 
           display: 'flex', 
           alignItems: 'center',
-          gap: 1 
+          gap: 1 ,
+          minWidth: '65px'
         }}>
           <Avatar 
                         src={Medical}
                         sx={{ width: 24, height: 24 }}
                         alt={Medical}
                       />
-          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>10</Typography>
+          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>{incidentCounts.medical ?? '...'}</Typography>
         </Box>
         
         <Box sx={{ 
@@ -926,14 +1142,15 @@ const LGUMain = () => {
           p: 0.5, 
           display: 'flex', 
           alignItems: 'center',
-          gap: 1 
+          gap: 1 ,
+          minWidth: '65px'
         }}>
           <Avatar 
                         src={Fire}
                         sx={{ width: 24, height: 24 }}
                         alt={Fire}
                       />
-          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>20</Typography>
+          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>{incidentCounts.fire ?? '...'}</Typography>
         </Box>
         
         <Box sx={{ 
@@ -942,14 +1159,15 @@ const LGUMain = () => {
           p: 0.5, 
           display: 'flex', 
           alignItems: 'center',
-          gap: 1 
+          gap: 1 ,
+          minWidth: '65px'
         }}>
           <Avatar 
                         src={Police}
                         sx={{ width: 24, height: 24 }}
                         alt={Police }
                       />
-          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>20</Typography>
+          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>{incidentCounts.police ?? '...'}</Typography>
         </Box>
         
         <Box sx={{ 
@@ -958,14 +1176,15 @@ const LGUMain = () => {
           p: 0.5,
           display: 'flex', 
           alignItems: 'center',
-          gap: 1 
+          gap: 1 ,
+          minWidth: '65px'
         }}>
           <Avatar 
                         src={General}
                         sx={{ width: 24, height: 24 }}
                         alt={General}
                       />
-          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>10</Typography>
+          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>{incidentCounts.general ?? '...'}</Typography>
         </Box>
       </Grid>
 </Grid>
@@ -1000,28 +1219,94 @@ const LGUMain = () => {
             </Grid>
             
             </Container>
-            <div className="min-h-screen bg-[#1B4965] flex items-center justify-center pt-32">
+
+
+  {/* //middle section of the page// */}
+    <div className="min-h-screen bg-[#1B4965] flex items-start justify-center w-full">
                 <Box
                     sx={{
                         display: 'flex',
-                        flexWrap: 'wrap',
-                        justifyContent: 'center',
-                        alignItems: 'flex-start',
+                        flexDirection: 'column',
+                        alignItems: 'center',
                         width: '100%',
-                        maxWidth: '1200px',
-                        px: 2
+                        px: 3,
+                        pt: 3
                     }}
+
+                    
                 >
+
+<Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end', mb: 1, marginBottom: '3rem'}}>
+                      <ToggleButtonGroup
+                        value={viewMode}
+                        exclusive
+                        onChange={(event, newView) => {
+                          if (newView !== null) {
+                            setViewMode(newView);
+                          }
+                        }}
+                        aria-label="view mode"
+                      >
+                        <ToggleButton value="card" aria-label="card view" sx={{ 
+                          color: 'white', 
+                          borderColor: 'rgba(255,255,255,0.5)', 
+                          '&.Mui-selected': { bgcolor: 'rgba(255,255,255,0.3)' } 
+                        }}>
+                          <ViewComfyIcon />
+                        </ToggleButton>
+                        <ToggleButton value="grid" aria-label="grid view" sx={{ 
+                          color: 'white', 
+                          borderColor: 'rgba(255,255,255,0.5)', 
+                          '&.Mui-selected': { bgcolor: 'rgba(255,255,255,0.3)' } 
+                        }}>
+                          <ViewModuleIcon />
+                        </ToggleButton>
+                      </ToggleButtonGroup>
+                    </Box>
+
+
                     {incidents.length > 0 ? (
-                        incidents.map((incident) => (
-                            <IncidentCard
-                                key={incident._id}
-                                incident={incident}
+                        viewMode === 'card' ? (
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    justifyContent: 'center',
+                                    alignItems: 'flex-start',
+                                    width: '90%',
+                                    // backgroundColor: 'blue',
+                                }}
+                            >
+                                {incidents.map((incident) => (
+                                    <IncidentCard
+                                        key={incident._id}
+                                        incident={incident}
+                                        handleMapClick={handleMapClick}
+                                        handleCreateRingCall={handleCreateRingCall}
+                                        handleSelectIncidentForChat={handleSelectIncidentForChat}
+                                    />
+                                ))}
+                            </Box>
+                        ) : (
+                            // Render the new Grid View
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    justifyContent: 'center',
+                                    alignItems: 'flex-start',
+                                    width: '90%',
+                                    // backgroundColor: 'blue',
+                                }}
+                            >
+                            <IncidentGridView
+                                incidents={incidents}
                                 handleMapClick={handleMapClick}
                                 handleCreateRingCall={handleCreateRingCall}
                                 handleSelectIncidentForChat={handleSelectIncidentForChat}
                             />
-                        ))
+                            </Box>
+                        )
                     ) : (
                         <Box
                             sx={{
@@ -1042,6 +1327,7 @@ const LGUMain = () => {
                             </Typography>
                         </Box>
                     )}
+                    {/* --- END MODIFIED --- */}
                 </Box>
             </div>
 

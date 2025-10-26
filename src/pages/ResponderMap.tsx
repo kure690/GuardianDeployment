@@ -27,6 +27,15 @@ const containerStyle = {
   height: '100vh'
 };
 
+interface OnlineResponderData {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  assignment: string;
+  coordinates: { lat: number | null; lon: number | null };
+  status: string; // Keep status if needed elsewhere
+}
+
 const ResponderMap = () => {
   const navigate = useNavigate();
   const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -53,7 +62,7 @@ const ResponderMap = () => {
   const [incident, setIncident] = useState<string>('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [responderUsers, setResponderUsers] = useState<any[]>([]);
-  const [onlineResponders, setOnlineResponders] = useState<any[]>([]);
+  // const [onlineResponders, setOnlineResponders] = useState<any[]>([]);
   const [onlineRespondersWithDistance, setOnlineRespondersWithDistance] = useState<any[]>([]);
   const [chatClient, setChatClient] = useState<StreamChat | null>(null);
   const [isChatExpanded, setIsChatExpanded] = useState(false);
@@ -72,6 +81,8 @@ const ResponderMap = () => {
 
   const [isConnecting, setIsConnecting] = useState(false);
   const [dispatchedResponder, setDispatchedResponder] = useState<any>(null);
+  const [realtimeOnlineResponders, setRealtimeOnlineResponders] = useState<OnlineResponderData[]>([]);
+  
 
   const getImageUrl = (url: string) => {
     if (!url) return '';
@@ -369,110 +380,110 @@ const ResponderMap = () => {
     //   fetchResponderUsers();
     // }, []);
 
-  useEffect(() => {
-    // Define the function that fetches and updates responders
-    const fetchAndSetResponders = async () => {
-      try {
-        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/responders`);
-        if (response.ok) {
-          const data = await response.json();
-          const activeResponders = data.filter((responder: any) => responder.status === 'active');
+  // useEffect(() => {
+  //   // Define the function that fetches and updates responders
+  //   const fetchAndSetResponders = async () => {
+  //     try {
+  //       const response = await fetch(`${config.GUARDIAN_SERVER_URL}/responders`);
+  //       if (response.ok) {
+  //         const data = await response.json();
+  //         const activeResponders = data.filter((responder: any) => responder.status === 'active');
           
-          // This state is for your dispatch list/drawer
-          setResponderUsers(activeResponders);
+  //         // This state is for your dispatch list/drawer
+  //         setResponderUsers(activeResponders);
 
-          // Filter for responders who are "online" (have valid coordinates) to show on the map
-          const respondersWithCoords = activeResponders.filter(
-            (responder: any) =>
-              responder.coordinates &&
-              responder.coordinates.lat !== null &&
-              responder.coordinates.lon !== null
-          );
-          setOnlineResponders(respondersWithCoords);
+  //         // Filter for responders who are "online" (have valid coordinates) to show on the map
+  //         const respondersWithCoords = activeResponders.filter(
+  //           (responder: any) =>
+  //             responder.coordinates &&
+  //             responder.coordinates.lat !== null &&
+  //             responder.coordinates.lon !== null
+  //         );
+  //         setOnlineResponders(respondersWithCoords);
 
-        } else {
-          console.error('Failed to fetch responder users');
-        }
-      } catch (error) {
-        console.error('Error fetching responder users:', error);
-      }
-    };
+  //       } else {
+  //         console.error('Failed to fetch responder users');
+  //       }
+  //     } catch (error) {
+  //       console.error('Error fetching responder users:', error);
+  //     }
+  //   };
 
-    // 1. Fetch immediately when the component first loads
-    fetchAndSetResponders();
+  //   // 1. Fetch immediately when the component first loads
+  //   fetchAndSetResponders();
 
-    // 2. Set up an interval to re-fetch the data every 5 seconds
-    const intervalId = setInterval(fetchAndSetResponders, 5000);
+  //   // 2. Set up an interval to re-fetch the data every 5 seconds
+  //   const intervalId = setInterval(fetchAndSetResponders, 5000);
 
-    // 3. Cleanup function: This is important! It stops the interval 
-    //    when the component is removed, preventing errors.
-    return () => clearInterval(intervalId);
+  //   // 3. Cleanup function: This is important! It stops the interval 
+  //   //    when the component is removed, preventing errors.
+  //   return () => clearInterval(intervalId);
     
-  }, []); // The empty array ensures this effect runs only on mount and unmount
+  // }, []); // The empty array ensures this effect runs only on mount and unmount
 
-  useEffect(() => {
-    console.log("Distance Calculation Effect Triggered");
+  // useEffect(() => {
+  //   console.log("Distance Calculation Effect Triggered");
 
-    // --- DEBUGGING CHECK ---
-    if (!isGoogleLoaded) {
-      console.log("Exiting: Google Maps not loaded yet.");
-      return;
-    }
-    if (!incidentCoords) {
-      console.log("Exiting: Incident coordinates not available yet.");
-      return;
-    }
-    if (onlineResponders.length === 0) {
-      console.log("Exiting: No online responders to calculate for.");
-      // Clear the list if there are no responders
-      setOnlineRespondersWithDistance([]);
-      return;
-    }
+  //   // --- DEBUGGING CHECK ---
+  //   if (!isGoogleLoaded) {
+  //     console.log("Exiting: Google Maps not loaded yet.");
+  //     return;
+  //   }
+  //   if (!incidentCoords) {
+  //     console.log("Exiting: Incident coordinates not available yet.");
+  //     return;
+  //   }
+  //   if (onlineResponders.length === 0) {
+  //     console.log("Exiting: No online responders to calculate for.");
+  //     // Clear the list if there are no responders
+  //     setOnlineRespondersWithDistance([]);
+  //     return;
+  //   }
     
-    console.log("Proceeding: All conditions met. Calling Distance Matrix API.");
+  //   console.log("Proceeding: All conditions met. Calling Distance Matrix API.");
 
-    const distanceMatrixService = new google.maps.DistanceMatrixService();
+  //   const distanceMatrixService = new google.maps.DistanceMatrixService();
 
-    const origins = onlineResponders.map(r => ({
-      lat: r.coordinates.lat,
-      lng: r.coordinates.lon,
-    }));
+  //   const origins = onlineResponders.map(r => ({
+  //     lat: r.coordinates.lat,
+  //     lng: r.coordinates.lon,
+  //   }));
 
-    const destination = { lat: incidentCoords.lat, lng: incidentCoords.lng };
+  //   const destination = { lat: incidentCoords.lat, lng: incidentCoords.lng };
 
-    distanceMatrixService.getDistanceMatrix(
-      {
-        origins: origins,
-        destinations: [destination],
-        travelMode: google.maps.TravelMode.DRIVING,
-      },
-      (response, status) => {
-        // --- DEBUGGING CHECK ---
-        console.log("Distance Matrix API Response Status:", status);
-        if (status === 'OK' && response) {
-          console.log("API Response Data:", response); // See the full response
+  //   distanceMatrixService.getDistanceMatrix(
+  //     {
+  //       origins: origins,
+  //       destinations: [destination],
+  //       travelMode: google.maps.TravelMode.DRIVING,
+  //     },
+  //     (response, status) => {
+  //       // --- DEBUGGING CHECK ---
+  //       console.log("Distance Matrix API Response Status:", status);
+  //       if (status === 'OK' && response) {
+  //         console.log("API Response Data:", response); // See the full response
 
-          const respondersWithData = onlineResponders.map((responder, index) => {
-            const result = response.rows[index]?.elements[0];
-            if (result?.status === 'OK') {
-              return {
-                ...responder,
-                distanceText: result.distance.text,
-                durationText: result.duration.text,
-              };
-            }
-            return responder;
-          });
-          setOnlineRespondersWithDistance(respondersWithData);
-        } else {
-          // This is a critical error message to look for
-          console.error('Error fetching distance matrix:', status);
-          // Fallback to the original list so the drawer doesn't break
-          setOnlineRespondersWithDistance(onlineResponders);
-        }
-      }
-    );
-  }, [onlineResponders, incidentCoords, isGoogleLoaded]);
+  //         const respondersWithData = onlineResponders.map((responder, index) => {
+  //           const result = response.rows[index]?.elements[0];
+  //           if (result?.status === 'OK') {
+  //             return {
+  //               ...responder,
+  //               distanceText: result.distance.text,
+  //               durationText: result.duration.text,
+  //             };
+  //           }
+  //           return responder;
+  //         });
+  //         setOnlineRespondersWithDistance(respondersWithData);
+  //       } else {
+  //         // This is a critical error message to look for
+  //         console.error('Error fetching distance matrix:', status);
+  //         // Fallback to the original list so the drawer doesn't break
+  //         setOnlineRespondersWithDistance(onlineResponders);
+  //       }
+  //     }
+  //   );
+  // }, [onlineResponders, incidentCoords, isGoogleLoaded]);
 
     useEffect(() => {
       if (responderCoords && isGoogleLoaded) {
@@ -632,6 +643,89 @@ const ResponderMap = () => {
       return () => clearInterval(responderPollInterval);
     }, [incidentId, responderCoords]);
 
+  useEffect(() => {
+    const fetchAllResponders = async () => {
+      try {
+        const response = await fetch(`${config.GUARDIAN_SERVER_URL}/responders`);
+        if (response.ok) {
+          const data = await response.json();
+          const activeResponders = data.filter((r: any) => r.status === 'active');
+          setResponderUsers(activeResponders); // Set the full list for the drawer
+        } else { console.error('Failed fetch'); }
+      } catch (error) { console.error('Error fetching', error); }
+    };
+    fetchAllResponders();
+  }, []); // Empty dependency array means run once
+
+  // --- 4. useEffect FOR REAL-TIME ONLINE RESPONDER LIST ---
+  useEffect(() => {
+    const handleListUpdate = (list: OnlineResponderData[]) => {
+      console.log("[ResponderMap] Received 'onlineResponderListUpdate' event:", list);
+      setRealtimeOnlineResponders(list);
+    };
+
+    if (socket && isConnected) {
+      socket.on('onlineResponderListUpdate', handleListUpdate);
+      console.log("[ResponderMap] Requesting initial online responder list...");
+      socket.emit('getOnlineResponderList');
+  
+      return () => {
+        socket.off('onlineResponderListUpdate', handleListUpdate);
+      };
+    } else {
+       // Optional: Log if the socket isn't ready when the effect runs
+       console.log("[ResponderMap] Socket not ready for listener setup.");
+    }
+  }, [socket, isConnected]);
+
+  // --- 5. MODIFY THE DISTANCE CALCULATION useEffect ---
+  useEffect(() => {
+    // Now depends on the REAL-TIME list
+    if (!isGoogleLoaded || !incidentCoords || realtimeOnlineResponders.length === 0) {
+       setOnlineRespondersWithDistance([]); // Clear if no online responders
+       return; 
+    }
+    
+    // Filter responders with valid coordinates from the real-time list
+    const respondersToCalc = realtimeOnlineResponders.filter(
+        r => r.coordinates && r.coordinates.lat != null && r.coordinates.lon != null
+    );
+
+    if (respondersToCalc.length === 0) {
+       setOnlineRespondersWithDistance([]); // Clear if no one has coordinates
+       return; 
+    }
+
+    const distanceMatrixService = new google.maps.DistanceMatrixService();
+    const origins = respondersToCalc.map(r => ({
+      lat: r.coordinates.lat!, // Use non-null assertion as we filtered
+      lng: r.coordinates.lon!, 
+    }));
+    const destination = { lat: incidentCoords.lat, lng: incidentCoords.lng };
+
+    distanceMatrixService.getDistanceMatrix(
+      { origins, destinations: [destination], travelMode: google.maps.TravelMode.DRIVING },
+      (response, status) => {
+        if (status === 'OK' && response) {
+          const respondersWithData = respondersToCalc.map((responder, index) => {
+            const result = response.rows[index]?.elements[0];
+            return result?.status === 'OK' ? {
+              ...responder,
+              distanceText: result.distance.text,
+              durationText: result.duration.text,
+            } : responder; // Keep original if API failed for this one
+          });
+          setOnlineRespondersWithDistance(respondersWithData);
+        } else {
+          console.error('Error fetching distance matrix:', status);
+          // Fallback: still show online responders, just without distance/duration
+          setOnlineRespondersWithDistance(respondersToCalc); 
+        }
+      }
+    );
+  // Dependencies now include the real-time list
+  }, [realtimeOnlineResponders, incidentCoords, isGoogleLoaded]);
+
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Typography>Loading...</Typography></Box>;
   if (error) return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Alert severity="error">{error}</Alert></Box>;
 
@@ -772,7 +866,11 @@ const ResponderMap = () => {
           {responderUsers
             .filter(user => user.assignment === 'ambulance')
             .map((user) => {
-              const onlineData = onlineRespondersWithDistance.find(onlineUser => onlineUser._id === user._id);
+              const isOnline = realtimeOnlineResponders.some(onlineUser => onlineUser._id === user._id);
+              // Get distance/duration data IF they are online
+              const onlineDataWithDistance = isOnline 
+                ? onlineRespondersWithDistance.find(onlineUser => onlineUser._id === user._id) 
+                : null;
               return (
                 <Box
                   key={user._id} // Use a unique ID for the key
@@ -783,7 +881,7 @@ const ResponderMap = () => {
                     p: 0.7,
                     backgroundColor: 'rgba(255,255,255)',
                     width: '100%',
-                    opacity: onlineData ? 1 : 0.6,
+                    opacity: isOnline ? 1 : 0.6,
                     mb: '0.3rem',
                     height: '52px'
                   }}
@@ -792,7 +890,7 @@ const ResponderMap = () => {
                           width: 8,
                           height: 8,
                           borderRadius: '50%',
-                          backgroundColor: onlineData ? '#2ecc71' : '#95a5a6', 
+                          backgroundColor: isOnline ? '#2ecc71' : '#95a5a6',
                         }} />
                   <Box sx={{color: 'black', display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
                     <Box
@@ -826,8 +924,8 @@ const ResponderMap = () => {
                     </Box>
                     <Box sx={{display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '25%', textAlign: 'center'}}>
           
-                      <Typography variant="caption">{onlineData ? onlineData.durationText : '--'}</Typography>
-                      <Typography variant="caption" sx={{ display: 'block' }}>{onlineData ? onlineData.distanceText : '--'}</Typography>
+                    <Typography variant="caption">{onlineDataWithDistance?.durationText ?? '--'}</Typography>
+                    <Typography variant="caption">{onlineDataWithDistance?.distanceText ?? '--'}</Typography>
                     </Box>
                   </Box>
                   <Button
@@ -838,7 +936,7 @@ const ResponderMap = () => {
                       '&.Mui-disabled': { backgroundColor: '#bdc3c7' } 
                     }}
                     onClick={() => handleDispatchResponder(user)}
-                    disabled={!onlineData} 
+                    disabled={!isOnline}
                   >
                     <Typography sx={{fontSize: '0.7rem'}}>Dispatch</Typography>
                   </Button>
@@ -852,7 +950,11 @@ const ResponderMap = () => {
             {responderUsers
               .filter(user => user.assignment === 'firetruck')
               .map((user) => {
-                const onlineData = onlineRespondersWithDistance.find(onlineUser => onlineUser._id === user._id);
+                const isOnline = realtimeOnlineResponders.some(onlineUser => onlineUser._id === user._id);
+                // Get distance/duration data IF they are online
+                const onlineDataWithDistance = isOnline 
+                  ? onlineRespondersWithDistance.find(onlineUser => onlineUser._id === user._id) 
+                  : null;
                 return (
                   <Box
                   key={user._id} // Use a unique ID for the key
@@ -863,7 +965,7 @@ const ResponderMap = () => {
                     p: 0.7,
                     backgroundColor: 'rgba(255,255,255)',
                     width: '100%',
-                    opacity: onlineData ? 1 : 0.6,
+                    opacity: isOnline ? 1 : 0.6,
                     mb: '0.3rem',
                     height: '52px'
                   }}
@@ -872,7 +974,7 @@ const ResponderMap = () => {
                           width: 8,
                           height: 8,
                           borderRadius: '50%',
-                          backgroundColor: onlineData ? '#2ecc71' : '#95a5a6', 
+                          backgroundColor: isOnline ? '#2ecc71' : '#95a5a6', 
                         }} />
                   <Box sx={{color: 'black', display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
                     <Box
@@ -906,8 +1008,8 @@ const ResponderMap = () => {
                     </Box>
                     <Box sx={{display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '25%', textAlign: 'center'}}>
           
-                      <Typography variant="caption">{onlineData ? onlineData.durationText : '--'}</Typography>
-                      <Typography variant="caption" sx={{ display: 'block' }}>{onlineData ? onlineData.distanceText : '--'}</Typography>
+                      <Typography variant="caption">{onlineDataWithDistance?.durationText ?? '--'}</Typography>
+                      <Typography variant="caption" sx={{ display: 'block' }}>{onlineDataWithDistance?.distanceText ?? '--'}</Typography>
                     </Box>
                   </Box>
                   <Button
@@ -918,7 +1020,7 @@ const ResponderMap = () => {
                       '&.Mui-disabled': { backgroundColor: '#bdc3c7' } 
                     }}
                     onClick={() => handleDispatchResponder(user)}
-                    disabled={!onlineData} 
+                    disabled={!isOnline} 
                   >
                     <Typography sx={{fontSize: '0.7rem'}}>Dispatch</Typography>
                   </Button>
@@ -934,7 +1036,11 @@ const ResponderMap = () => {
             {responderUsers
               .filter(user => user.assignment === 'police')
               .map((user) => {
-                const onlineData = onlineRespondersWithDistance.find(onlineUser => onlineUser._id === user._id);
+                const isOnline = realtimeOnlineResponders.some(onlineUser => onlineUser._id === user._id);
+                // Get distance/duration data IF they are online
+                const onlineDataWithDistance = isOnline 
+                  ? onlineRespondersWithDistance.find(onlineUser => onlineUser._id === user._id) 
+                  : null;
                 return (
                   <Box
                   key={user._id} // Use a unique ID for the key
@@ -945,7 +1051,7 @@ const ResponderMap = () => {
                     p: 0.7,
                     backgroundColor: 'rgba(255,255,255)',
                     width: '100%',
-                    opacity: onlineData ? 1 : 0.6,
+                    opacity: isOnline ? 1 : 0.6,
                     mb: '0.3rem',
                     height: '52px'
                   }}
@@ -954,7 +1060,7 @@ const ResponderMap = () => {
                           width: 8,
                           height: 8,
                           borderRadius: '50%',
-                          backgroundColor: onlineData ? '#2ecc71' : '#95a5a6', 
+                          backgroundColor: isOnline ? '#2ecc71' : '#95a5a6', 
                         }} />
                   <Box sx={{color: 'black', display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
                     <Box
@@ -988,8 +1094,8 @@ const ResponderMap = () => {
                     </Box>
                     <Box sx={{display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '25%', textAlign: 'center'}}>
           
-                      <Typography variant="caption">{onlineData ? onlineData.durationText : '--'}</Typography>
-                      <Typography variant="caption" sx={{ display: 'block' }}>{onlineData ? onlineData.distanceText : '--'}</Typography>
+                      <Typography variant="caption">{onlineDataWithDistance?.durationText ?? '--'}</Typography>
+                      <Typography variant="caption" sx={{ display: 'block' }}>{onlineDataWithDistance?.distanceText ?? '--'}</Typography>
                     </Box>
                   </Box>
                   <Button
@@ -1000,7 +1106,7 @@ const ResponderMap = () => {
                       '&.Mui-disabled': { backgroundColor: '#bdc3c7' } 
                     }}
                     onClick={() => handleDispatchResponder(user)}
-                    disabled={!onlineData} 
+                    disabled={!isOnline} 
                   >
                     <Typography sx={{fontSize: '0.7rem'}}>Dispatch</Typography>
                   </Button>
@@ -1027,16 +1133,18 @@ const ResponderMap = () => {
           >
             <TrafficLayer />
 
-            {onlineResponders.map((responder) => (
-              <Marker
-                key={responder._id} // Use a unique key for each marker
-                position={{
-                  lat: responder.coordinates.lat,
-                  lng: responder.coordinates.lon, // Make sure to use 'lon' for longitude
-                }}
-                icon={getIncidentIcon2(responder.assignment)}
-                title={`${responder.firstName} ${responder.lastName} (${responder.assignment})`}
-              />
+            {realtimeOnlineResponders // <-- Change variable name here
+              .filter(r => r.coordinates && r.coordinates.lat != null && r.coordinates.lon != null) // Ensure coords exist
+              .map((responder) => (
+                <Marker
+                  key={responder._id} 
+                  position={{
+                    lat: responder.coordinates.lat!, // Use non-null assertion because we filtered
+                    lng: responder.coordinates.lon!, 
+                  }}
+                  icon={getIncidentIcon2(responder.assignment)}
+                  title={`${responder.firstName} ${responder.lastName} (${responder.assignment})`}
+                />
             ))}
             
             {responderCoords && (
@@ -1192,9 +1300,9 @@ const ResponderMap = () => {
               title={address || "Loading address..."}>
               {address || "Loading address..."}
             </Typography>
-            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+            {/* <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
               Coordinates: {incidentCoords ? incidentCoords.lat + " " + incidentCoords.lng : ""}
-            </Typography>
+            </Typography> */}
             </Box>
           </Box>
 

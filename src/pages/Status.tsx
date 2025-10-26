@@ -152,7 +152,7 @@ export default function Status() {
               case 'medical':
                 audioRef.current.src = ambulanceSound;
                 break;
-              default:
+              case 'general':
                 audioRef.current.src = generalSound;
             }
             audioRef.current.play().catch(error => {

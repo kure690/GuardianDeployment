@@ -35,12 +35,14 @@ const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
       const handleConnect = () => {
         console.log('[SocketProvider] Connected with socket ID:', socketInstance.id);
+        console.log('[SocketProvider] SUCCESS: Socket connected with ID:', socketInstance.id);
         setIsConnected(true);
         setIsSocketReady(true);
       }
 
       const handleDisconnect = () => {
         console.log('[SocketProvider] Socket disconnected.');
+        console.log('[SocketProvider] EVENT: Socket disconnected.');
         setIsConnected(false);
         // If the socket disconnects, we should consider it not ready.
         // You might adjust this based on your desired UX for temporary disconnects.
