@@ -93,25 +93,75 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
   const [responderData, setResponderData] = useState<any>(null);
   const [routeInfo, setRouteInfo] = useState({ duration: '...', distance: '...' });
 
+  // useEffect(() => {
+  //   // --- THIS IS THE FIX ---
+  //   // Add a more robust check to ensure the entire coordinate structure is valid before using it.
+  //   const incidentGeoCoords = incident.incidentDetails?.coordinates;
+  //   if (
+  //     !responderData?.coordinates ||
+  //     !incidentGeoCoords ||
+  //     incidentGeoCoords.type !== 'Point' ||
+  //     !Array.isArray(incidentGeoCoords.coordinates) ||
+  //     incidentGeoCoords.coordinates.length < 2 ||
+  //     !window.google
+  //   ) {
+  //     return; // Exit if data is not in the expected GeoJSON format
+  //   }
+
+  //   const service = new window.google.maps.DistanceMatrixService();
+
+  //   const origin = { lat: responderData.coordinates.lat, lng: responderData.coordinates.lon };
+    
+  //   const [lon, lat] = incidentGeoCoords.coordinates;
+  //   const destination = { lat, lng: lon };
+
+  //   service.getDistanceMatrix(
+  //     {
+  //       origins: [origin],
+  //       destinations: [destination],
+  //       travelMode: google.maps.TravelMode.DRIVING,
+  //     },
+  //     (response, status) => {
+  //       if (status === 'OK' && response) {
+  //         const result = response.rows[0]?.elements[0];
+  //         if (result?.status === 'OK') {
+  //           setRouteInfo({ duration: result.duration.text, distance: result.distance.text });
+  //         }
+  //       } else {
+  //         console.error(`Distance Matrix error for incident ${incident._id}:`, status);
+  //       }
+  //     }
+  //   );
+  // }, [responderData, incident]);
+
+
   useEffect(() => {
-    // --- THIS IS THE FIX ---
-    // Add a more robust check to ensure the entire coordinate structure is valid before using it.
+    // Get the incident's coordinates (destination)
     const incidentGeoCoords = incident.incidentDetails?.coordinates;
+    // Get the responder's coordinates from the incident object (origin)
+    const responderIncidentCoords = incident.responderCoordinates;
+
+    // --- MODIFIED CHECK ---
+    // Check if we have all the coordinates needed (both origin and destination)
     if (
-      !responderData?.coordinates ||
+      !responderIncidentCoords?.lat ||
+      !responderIncidentCoords?.lon ||
       !incidentGeoCoords ||
       incidentGeoCoords.type !== 'Point' ||
       !Array.isArray(incidentGeoCoords.coordinates) ||
       incidentGeoCoords.coordinates.length < 2 ||
       !window.google
     ) {
-      return; // Exit if data is not in the expected GeoJSON format
+      return; // Exit if data is not in the expected format
     }
 
     const service = new window.google.maps.DistanceMatrixService();
 
-    const origin = { lat: responderData.coordinates.lat, lng: responderData.coordinates.lon };
+    // --- MODIFIED ORIGIN ---
+    // The origin is now the coordinates stored on the incident
+    const origin = { lat: responderIncidentCoords.lat, lng: responderIncidentCoords.lon };
     
+    // The destination remains the incident's location
     const [lon, lat] = incidentGeoCoords.coordinates;
     const destination = { lat, lng: lon };
 
@@ -132,7 +182,11 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
         }
       }
     );
-  }, [responderData, incident]);
+  // --- MODIFIED DEPENDENCY ---
+  // This hook now only depends on the 'incident' prop, 
+  // as 'responderData' is no longer used for this calculation.
+  }, [incident]);
+
   useEffect(() => {
     const fetchResponderData = async () => {
       if (!incident.responder) return;
@@ -1108,7 +1162,7 @@ const LGUMain = () => {
           minWidth: '65px'
         }}>
           <TwoWheelerIcon sx={{ color: 'white' }} />
-          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>10</Typography>
+          <Typography sx={{ color: 'white', fontWeight: 'bold' }}>0</Typography>
         </Box>
       </Grid>
       <Grid 

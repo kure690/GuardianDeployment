@@ -1133,19 +1133,27 @@ const ResponderMap = () => {
           >
             <TrafficLayer />
 
-            {realtimeOnlineResponders // <-- Change variable name here
-              .filter(r => r.coordinates && r.coordinates.lat != null && r.coordinates.lon != null) // Ensure coords exist
-              .map((responder) => (
-                <Marker
-                  key={responder._id} 
-                  position={{
-                    lat: responder.coordinates.lat!, // Use non-null assertion because we filtered
-                    lng: responder.coordinates.lon!, 
-                  }}
-                  icon={getIncidentIcon2(responder.assignment)}
-                  title={`${responder.firstName} ${responder.lastName} (${responder.assignment})`}
-                />
-            ))}
+            {responderCoords ? (
+              <Marker
+                  position={responderCoords}
+                  icon={getIncidentIcon2(responderData.assignment)}
+                  title="Responder Location"
+              />
+            ) : (
+              realtimeOnlineResponders
+                .filter(r => r.coordinates && r.coordinates.lat != null && r.coordinates.lon != null)
+                .map((responder) => (
+                  <Marker
+                    key={responder._id} 
+                    position={{
+                      lat: responder.coordinates.lat!,
+                      lng: responder.coordinates.lon!, 
+                    }}
+                    icon={getIncidentIcon2(responder.assignment)}
+                    title={`${responder.firstName} ${responder.lastName} (${responder.assignment})`}
+                  />
+                ))
+            )}
             
             {responderCoords && (
                 <Marker
