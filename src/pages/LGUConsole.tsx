@@ -104,7 +104,8 @@ const LGUConsole = () => {
                       mr: 3,
                       borderColor: 'white',
                       borderWidth: 0.1,
-                      borderStyle: 'solid'
+                      borderStyle: 'solid',
+                      borderRadius: '10%'
                       }}
                       />
                       <Typography variant="h6" component="div">
@@ -220,9 +221,9 @@ const LGUConsole = () => {
                 <HomeIcon sx={{ color: '#1B4965' }} />
                 <Typography variant="caption" sx={{ color: '#1B4965', fontSize: 12 }}>Home</Typography>
               </Box>
-              <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'start', gap: 1 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'start', gap: 1 }} onClick={() => navigate('/data-dashboard')} style={{ cursor: 'pointer' }}>
                 <SpeedIcon sx={{ color: '#1B4965' }} />
-                <Typography variant="caption" sx={{ color: '#1B4965', fontSize: 12 }}>Dashboard</Typography>
+                <Typography variant="caption" sx={{ color: '#1B4965', fontSize: 12, cursor: 'pointer' }}>Dashboard</Typography>
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'start', gap: 1 }}>
                 <FolderIcon sx={{ color: '#1B4965' }} />
