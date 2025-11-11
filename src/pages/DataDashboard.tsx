@@ -17,6 +17,8 @@ import { Box } from '@mui/material';
 import GuardianIcon from "../assets/images/icon-removebg-preview.png";
 
 import config from '../config';
+import IncidentsOverview from './IncidentsDashboard';
+import TopPerformers from '../components/TopPerformers';
 
 interface Incident {
   _id: string;
@@ -342,21 +344,27 @@ export default function DataDashboard() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 overflow-hidden flex flex-col p-6">
+        <div className="flex-1 overflow-hidden flex flex-col">
           {/* Header */}
-          <Box sx={{ mb: 2, flexShrink: 0 }}>
+          <Box sx={{ mb: 2, flexShrink: 0 }} className="px-6 pt-6">
             <h2 className="text-2xl font-bold mb-1 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-              Dashboard Overview
+              {activeView === 'incidents' ? 'Incidents Overview' : 'Dashboard Overview'}
             </h2>
-            <p className="text-sm text-gray-400">Real-time incident monitoring and analytics</p>
+            <p className="text-sm text-gray-400">
+              {activeView === 'incidents' ? 'Live map and incident heatmap' : 'Real-time incident monitoring and analytics'}
+            </p>
           </Box>
 
-          <Grid container spacing={4} sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-            {/* Left Column - 9 cols */}
-            <Grid size={{ xs: 12, lg: 9 }} sx={{ display: 'flex', flexDirection: 'column', gap: 3, minHeight: 0, overflow: 'hidden' }}>
-              {/* Row 1 - Total Incidents & Response Time */}
+          <div className="flex-1 min-h-0 overflow-hidden px-6 pb-6">
+            {activeView === 'incidents' ? (
+              <IncidentsOverview />
+            ) : (
+              
+              <Grid container spacing={4} sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <Grid size={{ xs: 12, lg: 9 }} sx={{ display: 'flex', flexDirection: 'column', gap: 4, minHeight: 0, overflow: 'hidden' }}>
+              
               <Grid container spacing={4} sx={{ flexShrink: 0 }}>
-                {/* Total Incidents Card */}
+                
                 <Grid size={{ xs: 12, md: 6 }}>
                   <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-3 hover:border-cyan-500/30 transition-all duration-300 h-full flex flex-col">
                   <h3 className="text-base font-semibold mb-3 flex items-center gap-2 flex-shrink-0">
@@ -419,7 +427,7 @@ export default function DataDashboard() {
                   </div>
                 </Grid>
 
-                {/* Response Time Card */}
+                
                 <Grid size={{ xs: 12, md: 6 }}>
                   <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-3 hover:border-cyan-500/30 transition-all duration-300 h-full flex flex-col">
                     <h3 className="text-base font-semibold mb-3 flex items-center gap-2 flex-shrink-0">
@@ -472,141 +480,62 @@ export default function DataDashboard() {
                   </div>
                 </Grid>
               </Grid>
-              
-              {/* Row 2 - Incident Heatmap */}
-              <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-4 hover:border-cyan-500/30 transition-all duration-300 flex-1 flex flex-col min-h-0">
-                <h3 className="text-base font-semibold mb-3 flex items-center gap-2 flex-shrink-0">
-                  <TrendingUp className="w-4 h-4 text-cyan-400" />
-                  Incident Heatmap
-                </h3>
-                <div className="flex-1 overflow-auto min-h-0 pr-1">
-                  <div className="space-y-1.5">
-                    {/* Time labels */}
-                    <div className="flex items-center gap-1 mb-1">
-                      <div className="w-10 text-xs text-gray-500 flex-shrink-0"></div>
-                      {Array.from({ length: 24 }, (_, i) => (
-                        <div key={i} className="flex-1 text-center text-xs text-gray-500 min-w-[18px]">
-                          {i % 3 === 0 ? `${i}h` : ''}
+              <TopPerformers />
+              </Grid>
+              <Grid size={{ xs: 12, lg: 3 }} sx={{ display: 'flex', flexDirection: 'column', gap: 4, minHeight: 0 }}>
+                
+                <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-6 hover:border-cyan-500/30 transition-all duration-300">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-cyan-400" />
+                    Recent Alerts
+                  </h3>
+                  <div className="space-y-4">
+                    {stats.recentIncidents.slice(0, 3).map((incident: Incident) => (
+                      <div key={incident._id} className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50">
+                        <div className="text-sm font-semibold text-cyan-400 mb-1">{incident.incidentType}</div>
+                        <div className="text-xs text-gray-400">{new Date(incident.createdAt).toLocaleTimeString()}</div>
+                        <div className="mt-2">
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            incident.isFinished ? 'bg-green-500/20 text-green-400' :
+                            incident.isResolved ? 'bg-blue-500/20 text-blue-400' :
+                            incident.isVerified ? 'bg-purple-500/20 text-purple-400' :
+                            'bg-yellow-500/20 text-yellow-400'
+                          }`}>
+                            {incident.isFinished ? 'Finished' : incident.isResolved ? 'Resolved' : incident.isVerified ? 'Verified' : 'Pending'}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                    
-                    {/* Days of week */}
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, dayIndex) => {
-                      const dayIncidents = incidents.filter(inc => {
-                        const date = new Date(inc.createdAt);
-                        return date.getDay() === dayIndex;
-                      });
-                      
-                      const hourCounts = Array.from({ length: 24 }, (_, hour) => {
-                        return dayIncidents.filter(inc => {
-                          const date = new Date(inc.createdAt);
-                          return date.getHours() === hour;
-                        }).length;
-                      });
-                      
-                      const maxCount = Math.max(...hourCounts, 1);
-                      
-                      return (
-                        <div key={day} className="flex items-center gap-1">
-                          <div className="w-10 text-xs text-gray-400 font-medium flex-shrink-0">{day}</div>
-                          {hourCounts.map((count, hour) => {
-                            const intensity = count / maxCount;
-                            const bgColor = count === 0 
-                              ? 'rgba(30, 41, 59, 0.3)' 
-                              : `rgba(6, 182, 212, ${0.2 + intensity * 0.8})`;
-                            
-                            return (
-                              <div
-                                key={hour}
-                                className="flex-1 aspect-square rounded-sm border border-slate-800/50 min-w-[18px] group relative"
-                                style={{ backgroundColor: bgColor }}
-                                title={`${day} ${hour}:00 - ${count} incidents`}
-                              >
-                                <div className="absolute hidden group-hover:block bg-slate-950 text-xs px-2 py-1 rounded shadow-lg border border-cyan-500/30 z-10 -top-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap pointer-events-none">
-                                  {count} incidents
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                    
-                    {/* Legend */}
-                    <div className="flex items-center justify-center gap-2 pt-3 text-xs text-gray-500">
-                      <span>Less</span>
-                      {[0, 0.25, 0.5, 0.75, 1].map((intensity, i) => (
-                        <div
-                          key={i}
-                          className="w-3 h-3 rounded-sm border border-slate-800/50"
-                          style={{ 
-                            backgroundColor: intensity === 0 
-                              ? 'rgba(30, 41, 59, 0.3)' 
-                              : `rgba(6, 182, 212, ${0.2 + intensity * 0.8})`
-                          }}
-                        />
-                      ))}
-                      <span>More</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Grid>
-
-            {/* Right Column - 3 cols */}
-            <Grid size={{ xs: 12, lg: 3 }} sx={{ display: 'flex', flexDirection: 'column', gap: 4, minHeight: 0, overflow: 'hidden' }}>
-              {/* Recent Alerts */}
-              <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-5 hover:border-cyan-500/30 transition-all duration-300 flex-1 flex flex-col min-h-0 overflow-auto">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-cyan-400" />
-                  Recent Alerts
-                </h3>
-                <div className="space-y-4">
-                  {stats.recentIncidents.slice(0, 3).map((incident: Incident) => (
-                    <div key={incident._id} className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50">
-                      <div className="text-sm font-semibold text-cyan-400 mb-1">{incident.incidentType}</div>
-                      <div className="text-xs text-gray-400">{new Date(incident.createdAt).toLocaleTimeString()}</div>
-                      <div className="mt-2">
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          incident.isFinished ? 'bg-green-500/20 text-green-400' :
-                          incident.isResolved ? 'bg-blue-500/20 text-blue-400' :
-                          incident.isVerified ? 'bg-purple-500/20 text-purple-400' :
-                          'bg-yellow-500/20 text-yellow-400'
-                        }`}>
-                          {incident.isFinished ? 'Finished' : incident.isResolved ? 'Resolved' : incident.isVerified ? 'Verified' : 'Pending'}
-                        </span>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Quick Stats */}
-              <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-5 flex-shrink-0">
-                <div className="flex items-center gap-3 mb-4">
-                  <CheckCircle className="w-6 h-6 text-cyan-400" />
-                  <h3 className="text-lg font-semibold">System Status</h3>
+                
+                <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <CheckCircle className="w-6 h-6 text-cyan-400" />
+                    <h3 className="text-lg font-semibold">System Status</h3>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-400">Active</span>
+                      <span className="text-lg font-bold text-green-400">{stats.accepted}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-400">Pending</span>
+                      <span className="text-lg font-bold text-yellow-400">{stats.total - stats.accepted}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-400">Response Avg</span>
+                      <span className="text-lg font-bold text-cyan-400">{stats.avgResponseMins}m</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">Active</span>
-                    <span className="text-lg font-bold text-green-400">{stats.accepted}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">Pending</span>
-                    <span className="text-lg font-bold text-yellow-400">{stats.total - stats.accepted}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">Response Avg</span>
-                    <span className="text-lg font-bold text-cyan-400">{stats.avgResponseMins}m</span>
-                  </div>
-                </div>
-              </div>
+              </Grid>
             </Grid>
-          </Grid>
+          )}
         </div>
       </div>
+    </div>
     </div>
   );
 }
