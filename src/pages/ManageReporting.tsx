@@ -31,6 +31,7 @@ import GuardianIcon from "../assets/images/icon.png"
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import AddIcon from '@mui/icons-material/Add'
+import QRCodeComponent from '../components/QRCode'; 
 
 
 
@@ -76,6 +77,8 @@ type Incident = {
   createdAt?: string
   updatedAt?: string
 }
+
+const FRONTEND_RECORDINGS_URL = '[https://guardianphclient-7bajq.ondigitalocean.app/recordings](https://guardianphclient-7bajq.ondigitalocean.app/recordings)';
 
 const ManageReporting: React.FC = () => {
   const [incidents, setIncidents] = useState<Incident[]>([])
@@ -579,6 +582,18 @@ const ManageReporting: React.FC = () => {
 
                 {/* Right column */}
                 <Box sx={{ width: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }} data-pdf-section>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ width: 170, height: 170, bgcolor: '#f5f5f5', border: '2px solid #e0e0e0', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
+                      {/* We generate the full URL to the recordings page
+                        This assumes selectedIncident._id is your callId
+                      */}
+                      <QRCodeComponent 
+                        text={`${FRONTEND_RECORDINGS_URL}/${selectedIncident._id}`}
+                        size={130} 
+                      />
+                    </Box>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#666' }}>VERIFICATION VIDEO</Typography>
+                  </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                     <Box sx={{ width: 170, height: 170, bgcolor: '#f5f5f5', border: '2px solid #e0e0e0', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Box sx={{ width: 130, height: 130, bgcolor: '#e0e0e0', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
