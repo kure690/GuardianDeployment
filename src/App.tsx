@@ -184,12 +184,13 @@ function App() {
                   <Route path="/cluster-management" element={<ClusterManagement />} />
                   <Route path="/incidents-dashboard" element={<IncidentsDashboard />} />
                   <Route path="/data-dashboard" element={<DataDashboard />} />
-                  <Route path="/recordings/:callId" element={<RecordingsPage />} />
+                  
                 </Routes>
               </Chat>
             ) : (
               <Routes>
                 <Route path="/" element={<Login />} />
+                <Route path="/recordings/:callId" element={<RecordingsPage />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/register-opcen" element={<RegisterOpcen />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

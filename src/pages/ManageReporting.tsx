@@ -31,8 +31,9 @@ import GuardianIcon from "../assets/images/icon.png"
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import AddIcon from '@mui/icons-material/Add'
-import QRCodeComponent from '../components/QRCode'; 
 
+// --- 1. IMPORT THE NEW QR CODE COMPONENT ---
+import QRCodeComponent from '../components/QRCode'; // Adjust path if needed
 
 
 type Incident = {
@@ -78,7 +79,11 @@ type Incident = {
   updatedAt?: string
 }
 
-const FRONTEND_RECORDINGS_URL = '[https://guardianphclient-7bajq.ondigitalocean.app/recordings](https://guardianphclient-7bajq.ondigitalocean.app/recordings)';
+// --- 2. DEFINE YOUR FRONTEND URL ---
+// This is the URL base for your QR codes
+// --- Cleaned up the URL string ---
+const FRONTEND_RECORDINGS_URL = 'https://guardianphclient-7bajq.ondigitalocean.app/recordings';
+
 
 const ManageReporting: React.FC = () => {
   const [incidents, setIncidents] = useState<Incident[]>([])
@@ -497,7 +502,7 @@ const ManageReporting: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* View Incident Modal */}
+      {/* View Incident Modal - THIS IS WHERE THE CHANGES ARE */}
       <Dialog open={openView} onClose={handleCloseView} maxWidth="md" fullWidth slotProps={{ paper: { sx: { borderRadius: 2 } } }}>
         <DialogContent sx={{ p: 3 }}>
           {selectedIncident && (
@@ -580,26 +585,43 @@ const ManageReporting: React.FC = () => {
                   </Box>
                 </Box>
 
-                {/* Right column */}
+                {/* --- 3. THIS IS THE MODIFIED RIGHT COLUMN --- */}
                 <Box sx={{ width: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }} data-pdf-section>
+                  
+                  {/* --- THIS IS THE NEW QR CODE SECTION (NOW CLICKABLE) --- */}
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ width: 170, height: 170, bgcolor: '#f5f5f5', border: '2px solid #e0e0e0', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
-                      {/* We generate the full URL to the recordings page
-                        This assumes selectedIncident._id is your callId
-                      */}
-                      <QRCodeComponent 
-                        text={`${FRONTEND_RECORDINGS_URL}/${selectedIncident._id}`}
-                        size={130} 
-                      />
-                    </Box>
-                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#666' }}>VERIFICATION VIDEO</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ width: 170, height: 170, bgcolor: '#f5f5f5', border: '2px solid #e0e0e0', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Box sx={{ width: 130, height: 130, bgcolor: '#e0e0e0', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Typography variant="h4" sx={{ color: '#9e9e9e' }}>QR</Typography>
+                    <a 
+                      href={`${FRONTEND_RECORDINGS_URL}/${selectedIncident._id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Click to open recordings page in new tab"
+                      style={{ textDecoration: 'none' }} // Remove underline from link
+                    >
+                      <Box 
+                        sx={{ 
+                          width: 170, 
+                          height: 170, 
+                          bgcolor: '#f5f5f5', 
+                          border: '2px solid #e0e0e0', 
+                          borderRadius: 1, 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          p: 2,
+                          cursor: 'pointer', // Add pointer cursor
+                          transition: 'all 0.2s ease',
+                          '&:hover': { // Add a hover effect
+                            borderColor: '#29516a',
+                            bgcolor: '#eef3f6'
+                          }
+                        }}
+                      >
+                        <QRCodeComponent 
+                          text={`${FRONTEND_RECORDINGS_URL}/${selectedIncident._id}`}
+                          size={130} 
+                        />
                       </Box>
-                    </Box>
+                    </a>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: '#666' }}>VERIFICATION VIDEO</Typography>
                   </Box>
                   
@@ -618,12 +640,7 @@ const ManageReporting: React.FC = () => {
                         <img 
                           src={selectedIncident.responder.operationCenter.profileImage} 
                           alt="OPCEN Logo"
-                          style={{ 
-                            width: '100%', 
-                            height: '100%', 
-                            objectFit: 'cover',
-                            borderRadius: '50%'
-                          }} 
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
                         />
                       ) : (
                         <Box sx={{ width: 120, height: 120, bgcolor: '#e0e0e0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -644,6 +661,7 @@ const ManageReporting: React.FC = () => {
             </div>
           )}
         </DialogContent>
+        {/* ... (Your DialogActions) ... */}
         <DialogActions sx={{ p: 2, justifyContent: 'space-between' }}>
           <Button variant="contained" onClick={exportToPDF} sx={{ bgcolor: '#4caf50', textTransform: 'none' }}>
             Export PDF
@@ -654,6 +672,7 @@ const ManageReporting: React.FC = () => {
         </DialogActions>
       </Dialog>
 
+      {/* ... (Your Snackbar) ... */}
       <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar((p) => ({ ...p, open: false }))}>
         <Alert onClose={() => setSnackbar((p) => ({ ...p, open: false }))} severity={snackbar.severity}>
           {snackbar.message}
@@ -664,5 +683,3 @@ const ManageReporting: React.FC = () => {
 }
 
 export default ManageReporting
-
-
