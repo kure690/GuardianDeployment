@@ -12,13 +12,14 @@ import {
   ToggleVideoPublishingButton,
   SpeakingWhileMutedNotification,
   User,
+  RingingCall,
 } from "@stream-io/video-react-sdk";
-
-import {useEffect, useState} from "react";
+import { CallingState } from '@stream-io/video-client';
+import {useEffect, useState, useRef} from "react";
 import {useNavigate} from "react-router-dom";
 import config from "../config";
 import "@stream-io/video-react-sdk/dist/css/styles.css";
-import "../components/Calls.css"
+import "../components/Calls.css" // Make sure this path is correct
 
 
 const userStr = localStorage.getItem("user");
@@ -33,6 +34,7 @@ const user: User = {
     : userStr2?.name || userStr2?.email || "Unknown User",
 };
 
+
 export default function Calls() {
   const [client, setClient] = useState<StreamVideoClient | null>(null);
   const [call, setCall] = useState<Call | null>(null);
@@ -40,53 +42,72 @@ export default function Calls() {
 
   useEffect(() => {
     let mounted = true;
+    let videoClient: StreamVideoClient | null = null;
+    let newCall: Call | null = null;
 
     const initCall = async () => {
       try {
-        console.log("Initializing call with user ID:", userId);
-        console.log("Token available:", !!token);
-
-        const videoClient = StreamVideoClient.getOrCreateInstance({
+        console.log("Initializing call in POPUP...");
+        videoClient = StreamVideoClient.getOrCreateInstance({
           apiKey: config.STREAM_APIKEY,
           user,
           token: token || undefined,
         });
+        console.log("User connected in POPUP");
 
-        console.log("User connected successfully");
-
-
-        const newCall = videoClient.call("default", "fad-call");
-        console.log("Call created:", newCall.id);
         
-        await newCall.getOrCreate();
-        console.log("Call initialized successfully");
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const callIdFromUrl = urlParams.get('id');
+        const volunteerIdFromUrl = urlParams.get('volunteer');
+
+        if (!callIdFromUrl || !volunteerIdFromUrl) {
+          console.error("POPUP: No call ID or volunteer ID found in URL");
+          return;
+        }
+
+        // Use the callId from the URL
+        newCall = videoClient.call("default", callIdFromUrl);
+
+        // We DO NOT join. We just create the call.
+        await newCall.getOrCreate({
+          ring: true,
+          data: {
+            members: [
+              { user_id: userId },
+              { user_id: volunteerIdFromUrl },
+            ],
+            settings_override: {
+              ring: {
+                incoming_call_timeout_ms: 30000,
+                auto_cancel_timeout_ms: 30000
+              }
+            }
+          }
+        });
+        console.log("POPUP: Call created and is ringing.");
 
         if (mounted) {
           setClient(videoClient);
           setCall(newCall);
           setIsCallInitialized(true);
-          await newCall.join({create: true});
-          console.log("Joined call successfully");
         }
       } catch (error) {
-        console.error("Error initializing call:", error);
+        console.error("POPUP: Error initializing call:", error);
       }
     };
 
-    if (!client && !call) {
-      initCall();
-    }
+    initCall();
 
     return () => {
       mounted = false;
-      if (call) {
-        call.leave();
+      console.log("POPUP: Cleanup running.");
+      if (newCall) {
+        newCall.leave();
       }
-      if (client) {
-        client.disconnectUser();
-        setClient(null);
-        setCall(null);
-      }
+      // if (videoClient) {
+      //   videoClient.disconnectUser();
+      // }
     };
   }, []);
 
@@ -96,112 +117,6 @@ export default function Calls() {
 
   return (
     <div className="flex h-screen bg-[#1B4965] p-5 sm:gap-10 md:gap-2 text-white">
-      {/* <div className="w-[350px] bg-gray-300 rounded-lg">
-        <div className="flex items-center gap-4 p-5">
-          <div className="bg-green-200 p-2 rounded-full border-1">
-            <WarningIcon sx={{color: "maroon", fontSize: "3em"}} />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold">ID: {call?.id}</h2>
-            <p className="text-green-700 font-bold text-lg">GENERAL CALL</p>
-            <p className="text-sm">A. S. Fortune St, Mandaue City</p>
-            <p className="text-sm">Coordinates: 10.343897, 123.932080</p>
-          </div>
-        </div>
-
-        <div className="my-1 bg-white p-5">
-          <div className="flex items-center gap-4">
-            <img
-              src={avatarImg}
-              alt="avatar"
-              className="w-20 h-20 rounded-full"
-            />
-            <div>
-              <h3 className="text-xl uppercase font-bold">{user?.name}</h3>
-              <p className="text-sm">1234567890</p>
-              <p className="text-sm">GuardianPH Opcen</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-5">
-          <label className="text-lg font-bold">Directory</label>
-          <input
-            type="text"
-            placeholder="Search"
-            className="w-full p-2 border rounded bg-white"
-          />
-        </div>
-
-        <div className="px-5 overflow-auto h-[460px]">
-          <div>
-            <label className="text-lg font-bold">Operation Centers</label>
-            {all.opCenters.map((opCenter, index) => (
-              <Paper
-                key={index}
-                elevation={2}
-                sx={{
-                  padding: "12px",
-                  cursor: "pointer",
-                  marginBottom: "1px",
-                  transition: "all 0.2s ease",
-                  backgroundColor: "white",
-                  "&:hover": {
-                    backgroundColor: "#f5f5f5",
-                    transform: "translateX(4px)",
-                  },
-                }}>
-                {opCenter}
-              </Paper>
-            ))}
-          </div>
-
-          <div className="mt-5">
-            <label className="text-lg font-bold">Police Stations</label>
-            {all.policeStations.map((stations, index) => (
-              <Paper
-                key={index}
-                elevation={2}
-                sx={{
-                  padding: "12px",
-                  cursor: "pointer",
-                  marginBottom: "1px",
-                  transition: "all 0.2s ease",
-                  backgroundColor: "white",
-                  "&:hover": {
-                    backgroundColor: "#f5f5f5",
-                    transform: "translateX(4px)",
-                  },
-                }}>
-                {stations}
-              </Paper>
-            ))}
-          </div>
-          <div className="mt-5">
-            <label className="text-lg font-bold">Hospitals</label>
-            {all.hospitals.map((hospital, index) => (
-              <Paper
-                key={index}
-                elevation={2}
-                sx={{
-                  padding: "12px",
-                  cursor: "pointer",
-                  marginBottom: "1px",
-                  transition: "all 0.2s ease",
-                  backgroundColor: "white",
-                  "&:hover": {
-                    backgroundColor: "#f5f5f5",
-                    transform: "translateX(4px)",
-                  },
-                }}>
-                {hospital}
-              </Paper>
-            ))}
-          </div>
-        </div>
-      </div> */}
-
-      {/* video call*/}
       <div className="flex-1">
         <StreamVideo client={client}>
           <StreamCall call={call}>
@@ -213,138 +128,131 @@ export default function Calls() {
   );
 }
 
+// --- VideoCall component ---
 export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
   const call = useCall();
   const navigate = useNavigate();
+  const [callingState, setCallingState] = useState(call?.state.callingState);
+  
+  // This state tracks if the callee has accepted
+  const [isAccepted, setIsAccepted] = useState(false);
+  
+  useEffect(() => {
+    if (!call) return;
 
-  const {
-    useParticipantCount,
- 
-  } = useCallStateHooks();
+    setCallingState(call.state.callingState);
 
-  const participantCount = useParticipantCount();
+    // Subscribe to state changes
+    const unsubscribeState = call.state.callingState$.subscribe((newState) => {
+      console.log("Call state changed:", newState);
+      setCallingState(newState);
+    });
+    
+    // Listen for the 'call.accepted' event
+    const handleCallAccepted = (event: any) => {
+      console.log('call.accepted event received!', event);
+      setIsAccepted(true); // Set our new state to true
+    };
 
+    call.on('call.accepted', handleCallAccepted);
+    
+    return () => {
+      unsubscribeState.unsubscribe();
+      call.off('call.accepted', handleCallAccepted);
+    };
+  }, [call]); 
+  
+  useEffect(() => {
+    console.log("Current calling state in render:", callingState);
+  }, [callingState]);
 
+  
   const handleLeaveCall = async () => {
     try {
       if (call) {
         const cleanup = async () => {
           try {
+            await call.endCall();
+            console.log("Call session terminated on server.");
             await call.leave();
             console.log("Successfully left the call");
             
-            try {
-              if (call.camera) {
-                await call.camera.disable();
-                console.log("Camera disabled through SDK");
-              }
-              
-              if (call.microphone) {
-                await call.microphone.disable();
-                console.log("Microphone disabled through SDK");
-              }
-              
-              const mediaElements = document.querySelectorAll('video, audio');
-              let tracksCount = 0;
-              
-              mediaElements.forEach(element => {
-                const htmlElement = element as HTMLMediaElement;
-                if (htmlElement.srcObject instanceof MediaStream) {
-                  const stream = htmlElement.srcObject as MediaStream;
-                  stream.getTracks().forEach(track => {
-                    track.stop();
-                    tracksCount++;
-                  });
-                  htmlElement.srcObject = null;
-                }
-              });
-              
-              console.log(`Stopped ${tracksCount} tracks from media elements`);
-              
-              const newStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
-                .catch(e => {
-                  console.log("Could not get new media stream:", e);
-                  return null;
-                });
-                
-              if (newStream) {
-                newStream.getTracks().forEach(track => {
-                  track.stop();
-                });
-                console.log("New test stream stopped to force permissions reset");
-              }
-              
-              const devices = await navigator.mediaDevices.enumerateDevices()
-                .catch(e => {
-                  console.log("Could not enumerate devices:", e);
-                  return [];
-                });
-                
-              console.log(`Found ${devices.length} media devices to check`);
-              
-              if (typeof window !== 'undefined') {
-                if (navigator.permissions && navigator.permissions.query) {
-                  const camPermission = await navigator.permissions.query({ name: 'camera' as PermissionName })
-                    .catch(() => null);
-                  const micPermission = await navigator.permissions.query({ name: 'microphone' as PermissionName })
-                    .catch(() => null);
-                    
-                  console.log("Camera permission state:", camPermission?.state);
-                  console.log("Microphone permission state:", micPermission?.state);
-                }
-              }
-            } catch (mediaError) {
-              console.error("Could not stop all media tracks:", mediaError);
-            }
-            
-            // Disconnect the client
             if (client) {
               await client.disconnectUser();
               console.log("User disconnected from video client");
             }
-            
-            // Close the window
             window.close();
-            
-            // Navigate as fallback if window doesn't close
-            navigate("/main");
           } catch (error) {
             console.error("Error during cleanup:", error);
-            // Try to navigate anyway as a fallback
-            navigate("/main");
+            window.close();
           }
         };
-        
-        // Execute the cleanup
         await cleanup();
       }
     } catch (error) {
       console.error("Error leaving call:", error);
-      // Navigate as a failsafe
-      navigate("/main");
+      window.close();
     }
   };
 
+  // This is the click handler for the "Join" button
+  const handleJoinCall = () => {
+    if (call) {
+      call.join();
+    }
+  };
 
-  return (
-    <div className="flex-1 h-full">
-      <StreamTheme>
-    <SpeakerLayout participantsBarPosition="top" />
-    <div className="flex justify-center items-center gap-5 mt-4">
-      <SpeakingWhileMutedNotification>
-        <ToggleAudioPublishingButton />
-      </SpeakingWhileMutedNotification>
-      <ToggleVideoPublishingButton />
-      <CancelCallButton 
-        onClick={handleLeaveCall}
-      />
-      {/* <Typography variant="h6" color="white">
-        Participants in this call: {participantCount}
-      </Typography> */}
-    </div>
-  </StreamTheme>
+  // This UI will be shown for RINGING
+  if (callingState === CallingState.RINGING) {
+    return (
+      <div className="flex-1 h-full flex justify-center items-center flex-col text-black">
+        <StreamTheme>
+          <RingingCall />
+          
+          {/* This logic shows the "Click to Join" button after acceptance */}
+          {/* {isAccepted ? (
+            <button 
+              className="str-video__button str-video__button--primary"
+              onClick={handleJoinCall}
+              style={{ marginTop: '1rem' }}
+            >
+              Call Accepted! Click to Join
+            </button>
+          ) : (
+            <div className="flex justify-center items-center gap-5 mt-4">
+              <CancelCallButton onClick={handleLeaveCall} />
+            </div>
+          )} */}
+        </StreamTheme>
+      </div>
+    );
+  }
 
-    </div>
-    
-  );
+  // This UI will be shown when the callee accepts AND you click "Join"
+  if (callingState === CallingState.JOINED) {
+    return (
+      <div className="flex-1 h-full">
+        <StreamTheme>
+          <SpeakerLayout participantsBarPosition="top" />
+          <div className="flex justify-center items-center gap-5 mt-4">
+            <SpeakingWhileMutedNotification>
+              <ToggleAudioPublishingButton />
+            </SpeakingWhileMutedNotification>
+            <ToggleVideoPublishingButton />
+            <CancelCallButton 
+              onClick={handleLeaveCall}
+            />
+          </div>
+        </StreamTheme>
+      </div>
+    );
+  }
+
+  if (callingState === CallingState.LEFT) {
+    console.log("Call has been left, closing window.");
+    handleLeaveCall(); 
+    return <div className="flex justify-center items-center h-screen">Call ended. Closing...</div>;
+  }
+
+  return <div className="flex justify-center items-center h-screen">Loading call state...</div>;
 };

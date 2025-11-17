@@ -23,16 +23,6 @@ import VideoCallIcon from "@mui/icons-material/VideoCall";
 import AddIcCallIcon from "@mui/icons-material/AddIcCall";
 import {useState, useEffect, useCallback} from "react";
 import {StreamChat} from "stream-chat";
-import {
-  StreamVideo,
-  StreamCall,
-  CallingState,
-  StreamVideoClient,
-  useCallStateHooks,
-  useCalls,
-  Call
-} from "@stream-io/video-react-sdk";
-
 
 import {
   Chat,
@@ -43,7 +33,6 @@ import {
 } from "stream-chat-react";
 import config from "../config";
 import msgTemplates from "../utils/MsgTemplates";
-import { CallPanel } from "../components/CallPanel";
 import medicalIcon from '../assets/images/Medical.png';
 import generalIcon from '../assets/images/General.png';
 import fireIcon from '../assets/images/Fire.png';
@@ -60,12 +49,22 @@ import { useProfileImageUpsert } from '../hooks/chat/useProfileImageUpsert';
 import { useOpCenConnectingStatus } from '../hooks/opcen/useOpCenConnectingStatus';
 import { useResponderStatus } from '../hooks/incident/useResponderStatus';
 
+import {
+  StreamVideo,
+  useCalls,
+  StreamCall,
+  useConnectedUser,
+} from "@stream-io/video-react-sdk";
+import { CallPanel } from '../components/CallPanel';
+import "@stream-io/video-react-sdk/dist/css/styles.css";
+
 
 type User = {
   id: string;
   email: string;
   name: string;
 };
+
 
 interface Incident {
   _id: string;
@@ -102,7 +101,6 @@ const MainScreen = () => {
   };
 
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>("");
-  const [isRinging, setIsRinging] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [openModal, setOpenModal] = useState(false);
   const [modalIncident, setModalIncident] = useState<string>("");
@@ -116,6 +114,14 @@ const MainScreen = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openMenu = Boolean(anchorEl);
   const [lastUpsertedImages, setLastUpsertedImages] = useState<{[id: string]: string}>({});
+
+  const getImageUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${config.GUARDIAN_SERVER_URL}${url}`;
+  };
+  const dispatcherAvatarUrl = getImageUrl(userStr2?.profileImage);
+  const videoClient = useStreamVideoClient(userId, user.name, token, dispatcherAvatarUrl);
 
   const {
     isResolved,
@@ -143,7 +149,6 @@ const MainScreen = () => {
   const incidentLon = coordinates?.coordinates?.[0];
   const incidentLat = coordinates?.coordinates?.[1];
   const chatClient = useStreamChatClient(userId, user, userStr2?.name, token);
-  const videoClient = useStreamVideoClient(userId, userStr2?.firstName + ' ' + userStr2?.lastName, token, avatarImg);
   const [onlineUsers, setOnlineUsers] = useState(new Set<string>());
   const { lapsTime, formatLapsTime } = useElapsedTime(acceptedAt);
   const imagesLoaded = useProfileImageUpsert(chatClient, userId, userStr2, userData, volunteerID);
@@ -344,58 +349,35 @@ const MainScreen = () => {
     }
   };
 
-  const handleCreateRingCall = async () => {
-    if (!videoClient || !volunteerID) {
-      console.error("Video client not initialized or no volunteer ID available");
-        return;
-      }
-      try {
-      setIsRinging(true);
-      const callId = `call-${Date.now()}`;
-      const newCall = videoClient.call("default", callId);
-      if (chatClient && volunteerID && userData?.profileImage) {
-        try {
-          await chatClient.upsertUser({
-            id: volunteerID,
-            image: userData.profileImage,
-          });
-      } catch (e) {
-        }
-      }
-      await newCall.getOrCreate({
-        ring: true,
-        data: {
-          members: [
-            { user_id: userId },
-            { user_id: volunteerID },
-            // { user_id: "686e7d7211e2af2a6f9be5aa" },
-          ],
-          settings_override: {
-            ring: {
-              incoming_call_timeout_ms: 30000,
-              auto_cancel_timeout_ms: 30000
-            }
-          }
-        }
-      });
-    } catch (error) {
-    } finally {
-      setIsRinging(false);
+  const handleCreateRingCall = useCallback(() => {
+    if (!incidentId || !volunteerID) {
+      console.error("Missing incidentId or volunteerID, cannot start call");
+      return;
     }
-  };
 
-  if (!user || !chatClient || !userData || !incidentType || !imagesLoaded) {
-    return <div>Loading chat...</div>;
+    console.log("Opening call window...");
+
+    const url = `/call?id=${incidentId}&volunteer=${volunteerID}`;
+    const width = window.screen.width;
+    const height = window.screen.height;
+    const newWindow = window.open(url, '_blank', `width=${width},height=${height},left=0,top=0`);
+
+    if (newWindow) {
+      newWindow.moveTo(0, 0);
+      newWindow.resizeTo(screen.availWidth, screen.availHeight);
+      newWindow.focus();
+    } else {
+      console.error("Failed to open new window! Pop-up might be blocked.");
+      alert("Failed to open call window. Please check your pop-up blocker.");
+    }
+  }, [incidentId, volunteerID]);
+
+  if (!user || !chatClient || !userData || !incidentType || !imagesLoaded || !videoClient) {
+    return <div>Loading...</div>;
   }
 
   const handleCloseModal = () => setOpenModal(false);
   const handleOpenModal = () => setOpenModal(true);
-
-  const getImageUrl = (url: string) => {
-    if (!url) return '';
-    if (url.startsWith('http')) return url;
-    return `${config.GUARDIAN_SERVER_URL}${url}`;
-  };
   const getIncidentIcon = (incidentType: string) => {
     const type = incidentType?.toLowerCase() || '';
     switch (type) {
@@ -489,9 +471,10 @@ const MainScreen = () => {
   };
 
   return (
-    <div className="h-screen bg-[#1B4965] p-5">
-    {/* // <div className="h-screen max-h-screen bg-[#1B4965] overflow-hidden"> */}
-      <Container disableGutters={true} maxWidth={false} sx={{height: "100%"}}>
+    <StreamVideo client={videoClient}>
+      <div className="h-screen bg-[#1B4965] p-5">
+      {/* // <div className="h-screen max-h-screen bg-[#1B4965] overflow-hidden"> */}
+        <Container disableGutters={true} maxWidth={false} sx={{height: "100%"}}>
         <Grid container spacing={1}>
           <Grid size={{xs: 12}}
           width={"100%"}
@@ -872,16 +855,16 @@ const MainScreen = () => {
             </div>
           </Grid>
           
-          <Grid size={{xs: 12}}
-          >
+          {/* <Grid size={{xs: 12}}>
             {videoClient && (
               <div style={{ display: 'contents' }}>
                 <StreamVideo client={videoClient}>
-                  <VideoCallHandler />
+                  
+                  <VideoCallHandler incidentId={incidentId} />
                 </StreamVideo>
               </div>
             )}
-          </Grid>
+          </Grid> */}
 
         <Grid container size={{xs: 12}}
         marginBottom={"0px"}
@@ -965,6 +948,9 @@ const MainScreen = () => {
         </Grid>
 
       </Container>
+
+      <VideoCallHandler />
+
       <OpCenConnectModal
         open={openModal}
         onClose={handleCloseModal}
@@ -1026,33 +1012,120 @@ const MainScreen = () => {
         </Alert>
       </Snackbar>
   
-    </div>
+      </div>
+    </StreamVideo>
   );
 };
 
+// const VideoCallHandler = ({ incidentId }: { incidentId: string | undefined }) => {
+//   const calls = useCalls();
+
+//   return (
+//     <>
+//       {calls.map((call) => {
+//         // If the incidentId prop isn't ready yet, do nothing.
+//         if (!incidentId) {
+//           return null;
+//         }
+
+//         // Check if the call's ID is the same as the
+//         // incidentId from the URL.
+//         const isCurrentIncidentCall = call.id === incidentId;
+
+//         // If the call's ID matches, it's the OUTGOING call.
+//         // Render NOTHING. This kills the ghost.
+//         if (isCurrentIncidentCall) {
+//           console.log(`Ignoring current outgoing call (${call.id}) in MainScreen.`);
+//           return null;
+//         }
+
+//         // If the call's ID is DIFFERENT, it is a true INCOMING call.
+//         // Render the "Accept/Decline" UI.
+//         console.log(`INCOMING call detected (${call.id}), rendering <StreamCall>`);
+//         return (
+//           <StreamCall call={call} key={call.cid}>
+//             <CallPanel />
+//           </StreamCall>
+//         );
+//       })}
+//     </>
+//   );
+// };
+
+// const VideoCallHandler = () => {
+//   const calls = useCalls();
+//   const user = useConnectedUser(); // Get the local dispatcher's user info
+//   const localUserId = user?.id;
+
+//   // Wait until we have the local user's ID
+//   if (!localUserId) {
+//     return null;
+//   }
+  
+//   return (
+//     <>
+//       {calls.map((call) => {
+        
+//         // Get the creator. This might be null/undefined initially.
+//         const creator = call.state.createdBy;
+
+//         // --- THIS IS THE CRITICAL LOGIC ---
+//         // We are *explicitly* checking for a true incoming call.
+//         // A call is "incoming" if:
+//         // 1. A creator exists (it's not in a weird temp state).
+//         // 2. The creator's ID is NOT our own.
+//         //
+//         const isIncomingCall = creator && creator.id !== localUserId;
+
+//         // If it is an incoming call, render the <StreamCall> wrapper
+//         // and the <CallPanel> to show the "Accept/Decline" UI.
+//         if (isIncomingCall) {
+//           console.log(`INCOMING call detected (${call.id}), rendering <StreamCall>`);
+//           return (
+//             <StreamCall call={call} key={call.cid}>
+//               <CallPanel />
+//             </StreamCall>
+//           );
+//         }
+
+//         // If it's our own outgoing call (isIncomingCall is false),
+//         // or if the creator is still null (race condition),
+//         // we render NOTHING.
+//         // This is what kills the ghost.
+//         console.log(`Ignoring call (${call.id}) in MainScreen.`);
+//         return null;
+//       })}
+//     </>
+//   );
+// };
 const VideoCallHandler = () => {
   const calls = useCalls();
-  const navigate = useNavigate();
-  
-  useEffect(() => {
-    if (calls.length > 0) {
-      console.log("Active calls:", calls.length);
-      calls.forEach(call => {
-        console.log(`Call ${call.cid} state:`, call.state.callingState);
-      });
-    }
-  }, [calls]);
-  
+  const user = useConnectedUser();
+  const localUserId = user?.id;
+
+  if (!localUserId) {
+    return null;
+  }
+
   return (
     <>
-      {calls.map((call) => (
-        <StreamCall call={call} key={call.cid}>
-          <CallPanel />
-        </StreamCall>
-      ))}
+      {calls.map((call) => {
+        const creator = call.state.createdBy;
+        const isIncomingCall = creator && creator.id !== localUserId;
+
+        if (isIncomingCall) {
+          console.log(`INCOMING call detected (${call.id}), rendering <StreamCall>`);
+          return (
+            <StreamCall call={call} key={call.cid}>
+              <CallPanel />
+            </StreamCall>
+          );
+        }
+
+        return null;
+      })}
     </>
   );
 };
-
 
 export default MainScreen;
