@@ -184,6 +184,7 @@ function App() {
                   <Route path="/cluster-management" element={<ClusterManagement />} />
                   <Route path="/incidents-dashboard" element={<IncidentsDashboard />} />
                   <Route path="/data-dashboard" element={<DataDashboard />} />
+                  <Route path="/recordings/:callId" element={<RecordingsPage />} />
                   
                 </Routes>
               </Chat>
