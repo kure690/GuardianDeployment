@@ -34,6 +34,7 @@ import ClusterManagement from "./pages/ClusterManager";
 import IncidentsDashboard from "./components/incidents-dashboard/IncidentsDashboard";
 import DataDashboard from "./pages/DataDashboard";
 import RecordingsPage from "./pages/RecordingsPage";
+import ManageAlerts from "./pages/ManageAlerts";
 
 const theme = createTheme({
   typography: {
@@ -174,7 +175,7 @@ function App() {
                   <Route path="/teams" element={isAuthenticated ? <Teams /> : <Navigate to="/" replace />} />
                   <Route path="/mobile-assets" element={isAuthenticated ? <MobileAssets /> : <Navigate to="/" replace />} />
                   <Route path="/add-mobile-assets" element={isAuthenticated ? <AddMobileAssets /> : <Navigate to="/" replace />} />
-                  <Route path="/notification" element={<Notification />} />
+                  <Route path="/notifications" element={<Notification />} />
                   <Route path="/add-teams" element={<AddTeams />} />
                   <Route path="/facilities" element={<Facilities />} />
                   <Route path="/add-facilities" element={<AddFacilities />} />
@@ -185,6 +186,7 @@ function App() {
                   <Route path="/incidents-dashboard" element={<IncidentsDashboard />} />
                   <Route path="/data-dashboard" element={<DataDashboard />} />
                   <Route path="/recordings/:callId" element={<RecordingsPage />} />
+                  <Route path="/managealerts" element={<ManageAlerts />} />
                   
                 </Routes>
               </Chat>

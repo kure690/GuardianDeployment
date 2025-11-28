@@ -363,133 +363,143 @@ export default function DataDashboard() {
               <Grid container spacing={4} sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <Grid size={{ xs: 12, lg: 9 }} sx={{ display: 'flex', flexDirection: 'column', gap: 4, minHeight: 0, overflow: 'hidden' }}>
               
-              <Grid container spacing={4} sx={{ flexShrink: 0 }}>
-                
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-3 hover:border-cyan-500/30 transition-all duration-300 h-full flex flex-col">
-                  <h3 className="text-base font-semibold mb-3 flex items-center gap-2 flex-shrink-0">
-                    <Activity className="w-4 h-4 text-cyan-400" />
-                    Total Incidents
-                  </h3>
-                  <div className="flex items-center gap-4 flex-1 min-h-0">
-                    {/* Donut Chart */}
-                    <div className="flex-shrink-0">
-                      <DonutChart
-                        values={Object.entries(stats.typeCounts).sort(([,a], [,b]) => b - a).slice(0, 4).map(([, count]) => count)}
-                        colors={["#06b6d4", "#3b82f6", "#a855f7", "#f59e0b"]}
-                        size={120}
-                        thickness={16}
-                        label={stats.total.toLocaleString()}
-                        sublabel="Total"
-                      />
-                    </div>
-                    
-                    {/* Combined Stats */}
-                    <div className="flex-1 space-y-2 min-w-0">
-                      {/* Status Stats */}
-                      <div className="grid grid-cols-3 gap-1.5">
-                        <div className="bg-slate-800/50 rounded-lg p-1.5 border border-slate-700/50 text-center">
-                          <div className="text-xs text-gray-400 mb-0.5">Verified</div>
-                          <div className="text-lg font-bold text-green-400">{stats.verified}</div>
-                        </div>
-                        <div className="bg-slate-800/50 rounded-lg p-1.5 border border-slate-700/50 text-center">
-                          <div className="text-xs text-gray-400 mb-0.5">Resolved</div>
-                          <div className="text-lg font-bold text-blue-400">{stats.resolved}</div>
-                        </div>
-                        <div className="bg-slate-800/50 rounded-lg p-1.5 border border-slate-700/50 text-center">
-                          <div className="text-xs text-gray-400 mb-0.5">Today</div>
-                          <div className="text-lg font-bold text-cyan-400">{stats.incidentsToday}</div>
-                        </div>
-                      </div>
+              {/* ... inside the main Grid size={{ xs: 12, lg: 9 }} ... */}
 
-                      {/* Incident Types */}
-                      <div className="bg-slate-800/30 rounded-lg p-2.5 border border-slate-700/30">
-                        <div className="text-xs font-semibold text-gray-400 mb-1.5">Breakdown by Type</div>
-                        <div className="space-y-1.5">
-                          {Object.entries(stats.typeCounts)
-                            .sort(([,a], [,b]) => b - a)
-                            .slice(0, 4)
-                            .map(([type, count], index) => {
-                              const colors = ["#06b6d4", "#3b82f6", "#a855f7", "#f59e0b"];
-                              const percentage = stats.total > 0 ? ((count / stats.total) * 100).toFixed(0) : 0;
-                              return (
-                                <div key={type} className="flex items-center gap-2">
-                                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: colors[index % colors.length] }}></div>
-                                  <span className="text-xs text-gray-300 flex-1 truncate">{type}</span>
-                                  <span className="text-xs font-semibold text-white">{percentage}%</span>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  </div>
-                </Grid>
+<Grid container spacing={4} sx={{ flexShrink: 0 }}>
+  
+  {/* Total Incidents Card */}
+  <Grid size={{ xs: 12, md: 6 }}>
+    {/* CHANGED: Set fixed height to h-80 (20rem/320px) to match Top Performers height */}
+    <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-3 hover:border-cyan-500/30 transition-all duration-300 h-80 flex flex-col">
+      <h3 className="text-base font-semibold mb-3 flex items-center gap-2 flex-shrink-0">
+        <Activity className="w-4 h-4 text-cyan-400" />
+        Total Incidents
+      </h3>
+      <div className="flex items-center gap-4 flex-1 min-h-0">
+        {/* Donut Chart */}
+        <div className="flex-shrink-0">
+          <DonutChart
+            values={Object.entries(stats.typeCounts).sort(([,a], [,b]) => b - a).slice(0, 4).map(([, count]) => count)}
+            colors={["#06b6d4", "#3b82f6", "#a855f7", "#f59e0b"]}
+            size={120}
+            thickness={16}
+            label={stats.total.toLocaleString()}
+            sublabel="Total"
+          />
+        </div>
+        
+        {/* Combined Stats */}
+        <div className="flex-1 space-y-2 min-w-0 overflow-y-auto custom-scrollbar pr-1">
+          {/* Status Stats */}
+          <div className="grid grid-cols-3 gap-1.5">
+            <div className="bg-slate-800/50 rounded-lg p-1.5 border border-slate-700/50 text-center">
+              <div className="text-xs text-gray-400 mb-0.5">Verified</div>
+              <div className="text-lg font-bold text-green-400">{stats.verified}</div>
+            </div>
+            <div className="bg-slate-800/50 rounded-lg p-1.5 border border-slate-700/50 text-center">
+              <div className="text-xs text-gray-400 mb-0.5">Resolved</div>
+              <div className="text-lg font-bold text-blue-400">{stats.resolved}</div>
+            </div>
+            <div className="bg-slate-800/50 rounded-lg p-1.5 border border-slate-700/50 text-center">
+              <div className="text-xs text-gray-400 mb-0.5">Today</div>
+              <div className="text-lg font-bold text-cyan-400">{stats.incidentsToday}</div>
+            </div>
+          </div>
 
-                
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-3 hover:border-cyan-500/30 transition-all duration-300 h-full flex flex-col">
-                    <h3 className="text-base font-semibold mb-3 flex items-center gap-2 flex-shrink-0">
-                      <Clock className="w-4 h-4 text-cyan-400" />
-                      Average Response Time
-                    </h3>
-                  <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 rounded-xl p-3 mb-3 border border-cyan-500/20 flex-shrink-0">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-xs text-gray-400 mb-1">Overall Average</div>
-                        <div className="text-xl font-bold bg-gradient-to-br from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-                          {stats.avgResponseMins} mins
-                        </div>
-                      </div>
+          {/* Incident Types List */}
+          <div className="bg-slate-800/30 rounded-lg p-2.5 border border-slate-700/30">
+            <div className="text-xs font-semibold text-gray-400 mb-1.5">Breakdown by Type</div>
+            <div className="space-y-1.5">
+              {Object.entries(stats.typeCounts)
+                .sort(([,a], [,b]) => b - a)
+                .map(([type, count], index) => { // Removed .slice(0,4) so you can scroll if many types
+                  const colors = ["#06b6d4", "#3b82f6", "#a855f7", "#f59e0b"];
+                  const percentage = stats.total > 0 ? ((count / stats.total) * 100).toFixed(0) : 0;
+                  return (
+                    <div key={type} className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: colors[index % colors.length] }}></div>
+                      <span className="text-xs text-gray-300 flex-1 truncate">{type}</span>
+                      <span className="text-xs font-semibold text-white">{percentage}%</span>
                     </div>
-                  </div>
-                  <div className="space-y-2.5 flex-1 overflow-auto min-h-0">
-                    {Object.entries(stats.perTypeAvgResponseMins)
-                      .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
-                      .map(([type, mins], index) => {
-                        const colors = ["#06b6d4", "#3b82f6", "#a855f7", "#f59e0b", "#10b981", "#ef4444"];
-                        const numericVal = parseFloat(mins);
-                        const maxTime = Math.max(...Object.values(stats.perTypeAvgResponseMins).map(v => parseFloat(v)).filter(v => !isNaN(v))) || 1;
-                        const barWidth = isNaN(numericVal) || numericVal <= 0 ? 0 : (numericVal / maxTime) * 100;
-                        const displayVal = isNaN(numericVal) || numericVal <= 0 ? 'N/A' : `${mins} mins`;
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Grid>
 
-                        return (
-                          <div key={type} className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: colors[index % colors.length] }}></div>
-                                <span className="text-sm text-gray-300">{type}</span>
-                              </div>
-                              <span className="text-sm font-semibold text-white">{displayVal}</span>
-                            </div>
-                            <div className="h-2 bg-slate-800/50 rounded-full overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all duration-700 ease-out"
-                                style={{
-                                  width: `${barWidth}%`,
-                                  backgroundColor: colors[index % colors.length],
-                                  boxShadow: `0 0 10px ${colors[index % colors.length]}40`
-                                }}
-                              ></div>
-                            </div>
-                          </div>
-                        );
-                      })}
+  {/* Average Response Time Card */}
+  <Grid size={{ xs: 12, md: 6 }}>
+    {/* CHANGED: Set fixed height to h-80 (20rem/320px) to match Top Performers height */}
+    <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-3 hover:border-cyan-500/30 transition-all duration-300 h-80 flex flex-col">
+      <h3 className="text-base font-semibold mb-3 flex items-center gap-2 flex-shrink-0">
+        <Clock className="w-4 h-4 text-cyan-400" />
+        Average Response Time
+      </h3>
+      <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 rounded-xl p-3 mb-3 border border-cyan-500/20 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs text-gray-400 mb-1">Overall Average</div>
+            <div className="text-xl font-bold bg-gradient-to-br from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+              {stats.avgResponseMins} mins
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Scrollable list for incident types */}
+      <div className="space-y-2.5 flex-1 overflow-auto custom-scrollbar pr-1">
+        {Object.entries(stats.perTypeAvgResponseMins)
+          .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+          .map(([type, mins], index) => {
+            const colors = ["#06b6d4", "#3b82f6", "#a855f7", "#f59e0b", "#10b981", "#ef4444"];
+            const numericVal = parseFloat(mins);
+            const maxTime = Math.max(...Object.values(stats.perTypeAvgResponseMins).map(v => parseFloat(v)).filter(v => !isNaN(v))) || 1;
+            const barWidth = isNaN(numericVal) || numericVal <= 0 ? 0 : (numericVal / maxTime) * 100;
+            const displayVal = isNaN(numericVal) || numericVal <= 0 ? 'N/A' : `${mins} mins`;
+
+            return (
+              <div key={type} className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: colors[index % colors.length] }}></div>
+                    <span className="text-sm text-gray-300">{type}</span>
                   </div>
-                  </div>
-                </Grid>
-              </Grid>
+                  <span className="text-sm font-semibold text-white">{displayVal}</span>
+                </div>
+                <div className="h-2 bg-slate-800/50 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700 ease-out"
+                    style={{
+                      width: `${barWidth}%`,
+                      backgroundColor: colors[index % colors.length],
+                      boxShadow: `0 0 10px ${colors[index % colors.length]}40`
+                    }}
+                  ></div>
+                </div>
+              </div>
+            );
+          })}
+      </div>
+    </div>
+  </Grid>
+</Grid>
               <TopPerformers />
               </Grid>
               <Grid size={{ xs: 12, lg: 3 }} sx={{ display: 'flex', flexDirection: 'column', gap: 4, minHeight: 0 }}>
                 
-                <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-6 hover:border-cyan-500/30 transition-all duration-300">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                {/* Recent Alerts Card */}
+                {/* ADDED: h-80 to fix the height, flex/flex-col to manage layout */}
+                <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-6 hover:border-cyan-500/30 transition-all duration-300 h-105 flex flex-col">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 flex-shrink-0">
                     <AlertTriangle className="w-5 h-5 text-cyan-400" />
                     Recent Alerts
                   </h3>
-                  <div className="space-y-4">
+                  
+                  {/* ADDED: flex-1 and overflow-auto so the list fills the space but scrolls if needed */}
+                  <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-1">
                     {stats.recentIncidents.slice(0, 3).map((incident: Incident) => (
                       <div key={incident._id} className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50">
                         <div className="text-sm font-semibold text-cyan-400 mb-1">{incident.incidentType}</div>
@@ -506,6 +516,13 @@ export default function DataDashboard() {
                         </div>
                       </div>
                     ))}
+                    
+                    {/* Optional: Placeholder if empty to show the box is still there */}
+                    {stats.recentIncidents.length === 0 && (
+                      <div className="h-full flex items-center justify-center text-gray-500 text-sm italic">
+                        No recent alerts
+                      </div>
+                    )}
                   </div>
                 </div>
 

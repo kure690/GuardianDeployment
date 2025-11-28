@@ -19,23 +19,28 @@ import {
   Select,
   MenuItem,
   Avatar,
+  Chip,
+  Tooltip,
+  Paper
 } from '@mui/material'
 import Grid from "@mui/material/Grid2"
 import SearchIcon from '@mui/icons-material/Search'
-// removed add icon and add flow
+import AddIcon from '@mui/icons-material/Add'
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
+import CloseIcon from '@mui/icons-material/Close'
+
 import axios from 'axios'
 import dayjs from 'dayjs'
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
+import { useLocation, useNavigate } from 'react-router-dom' // Added Imports
+
 import config from '../config'
 import { getAddressFromCoordinates } from '../utils/geocoding'
 import GuardianIcon from "../assets/images/icon.png"
-import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
-import AddIcon from '@mui/icons-material/Add'
+import QRCodeComponent from '../components/QRCode'
 
-// --- 1. IMPORT THE NEW QR CODE COMPONENT ---
-import QRCodeComponent from '../components/QRCode'; // Adjust path if needed
-
-
+// --- TYPES ---
 type Incident = {
   _id: string
   incidentType: string
@@ -45,12 +50,19 @@ type Incident = {
   isAccepted: boolean
   acceptedAt?: string | null
   resolvedAt?: string | null
-  onsceneAt?: string | null
   onSceneAt?: string | null
-  user?: any
-  dispatcher?: any
-  opCen?: any
-  opCenStatus?: 'idle' | 'connecting' | 'connected'
+  user?: {
+    _id: string
+    firstName: string
+    lastName: string
+  }
+  dispatcher?: {
+    firstName: string
+    lastName: string
+  }
+  opCen?: {
+    name: string
+  }
   responder?: {
     _id: string
     firstName?: string
@@ -62,13 +74,8 @@ type Incident = {
       lastName?: string
     }
   }
-  isAcceptedResponder?: boolean
   responderStatus?: 'enroute' | 'onscene' | 'facility' | 'rtb' | null
-  responderNotification?: 'unread' | 'read'
-  responderCoordinates?: { lat: number | null; lon: number | null }
-  selectedFacility?: any
   incidentDetails?: {
-    incident?: string | null
     incidentDescription?: string | null
     coordinates?: {
       type: 'Point',
@@ -79,19 +86,26 @@ type Incident = {
   updatedAt?: string
 }
 
-// --- 2. DEFINE YOUR FRONTEND URL ---
-// This is the URL base for your QR codes
-// --- Cleaned up the URL string ---
 const FRONTEND_RECORDINGS_URL = 'https://guardianphclient-7bajq.ondigitalocean.app/recordings';
 
-
 const ManageReporting: React.FC = () => {
+  // --- NAVIGATION & STATE ---
+  const navigate = useNavigate()
+  const location = useLocation()
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  
+  // Check for highlight request
+  const locationState = (location as any).state as { highlightSearch?: boolean } | null;
+  const highlightSearch = locationState?.highlightSearch;
+
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' })
   const [page, setPage] = useState<number>(1)
-  const perPage = 4
+  const [isSearchFocused, setIsSearchFocused] = useState(false)
+  
+  const perPage = 5 
 
   const [openEdit, setOpenEdit] = useState<boolean>(false)
   const [openDelete, setOpenDelete] = useState<boolean>(false)
@@ -99,38 +113,48 @@ const ManageReporting: React.FC = () => {
   const [openView, setOpenView] = useState<boolean>(false)
   const [openAdd, setOpenAdd] = useState<boolean>(false)
   const [viewAddress, setViewAddress] = useState<string>('—')
+  
   const modalContentRef = useRef<HTMLDivElement>(null)
 
-  // edit form
+  // Forms
   const [editForm, setEditForm] = useState<{
     incidentType: string
     isVerified: boolean
     isAccepted: boolean
     isResolved: boolean
     isFinished: boolean
-    incident?: string
     incidentDescription?: string
   }>({ incidentType: '', isVerified: false, isAccepted: false, isResolved: false, isFinished: false })
 
-  // add form
   const [addForm, setAddForm] = useState<{
     incidentType: string
     userId: string
-    incident?: string
     incidentDescription?: string
     lat?: string
     lon?: string
-  }>({ incidentType: '', userId: '', incident: '', incidentDescription: '', lat: '', lon: '' })
+  }>({ incidentType: '', userId: '', incidentDescription: '', lat: '', lon: '' })
 
-  // Get logged-in user (dispatcher/opcen) for filtering
   const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null
   const loggedInUser = userStr ? JSON.parse(userStr) : null
 
+  useEffect(() => {
+    if (highlightSearch && searchInputRef.current) {
+      // Add a small timeout to ensure the element is ready and transition is complete
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+        setIsSearchFocused(true);
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [highlightSearch]);
+
+  // --- API CALLS ---
   const fetchIncidents = async () => {
+    setLoading(true)
     try {
       const res = await axios.get(`${config.GUARDIAN_SERVER_URL}/incidents/`)
-      const list: Incident[] = res.data
-      setIncidents(list)
+      setIncidents(res.data)
       setLoading(false)
     } catch (e: any) {
       setSnackbar({ open: true, message: e?.response?.data?.message || 'Error fetching incidents', severity: 'error' })
@@ -140,9 +164,9 @@ const ManageReporting: React.FC = () => {
 
   useEffect(() => {
     fetchIncidents()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // --- FILTERING ---
   const filteredIncidents = useMemo(() => {
     const q = searchQuery.toLowerCase().trim()
     if (!q) return incidents
@@ -153,8 +177,8 @@ const ManageReporting: React.FC = () => {
         i.user?.lastName || '',
         i.responder?.firstName || '',
         i.responder?.lastName || '',
-        i.incidentDetails?.incident || '',
         i.incidentDetails?.incidentDescription || '',
+        i._id || ''
       ]
       return fields.some((f) => f.toLowerCase().includes(q))
     })
@@ -164,12 +188,13 @@ const ManageReporting: React.FC = () => {
     setPage(1)
   }, [searchQuery, incidents])
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredIncidents.length / perPage)), [filteredIncidents.length])
+  const totalPages = Math.max(1, Math.ceil(filteredIncidents.length / perPage))
   const pagedIncidents = useMemo(() => {
     const start = (page - 1) * perPage
     return filteredIncidents.slice(start, start + perPage)
   }, [filteredIncidents, page])
 
+  // --- HANDLERS ---
   const handleOpenEdit = (row: Incident) => {
     setSelectedIncident(row)
     setEditForm({
@@ -178,7 +203,6 @@ const ManageReporting: React.FC = () => {
       isAccepted: !!row.isAccepted,
       isResolved: !!row.isResolved,
       isFinished: !!row.isFinished,
-      incident: row.incidentDetails?.incident || '',
       incidentDescription: row.incidentDetails?.incidentDescription || '',
     })
     setOpenEdit(true)
@@ -210,9 +234,10 @@ const ManageReporting: React.FC = () => {
   const handleOpenAdd = () => setOpenAdd(true)
   const handleCloseAdd = () => {
     setOpenAdd(false)
-    setAddForm({ incidentType: '', userId: '', incident: '', incidentDescription: '', lat: '', lon: '' })
+    setAddForm({ incidentType: '', userId: '', incidentDescription: '', lat: '', lon: '' })
   }
 
+  // --- SUBMISSIONS ---
   const submitAdd = async () => {
     try {
       if (!addForm.incidentType || !addForm.userId) {
@@ -224,7 +249,6 @@ const ManageReporting: React.FC = () => {
         userId: addForm.userId,
         opCen: loggedInUser?.id || null,
         incidentDetails: {
-          incident: addForm.incident || null,
           incidentDescription: addForm.incidentDescription || null,
           coordinates: {
             lat: addForm.lat ? Number(addForm.lat) : null,
@@ -241,21 +265,15 @@ const ManageReporting: React.FC = () => {
     }
   }
 
+  // Address Loader for View
   useEffect(() => {
     const loadAddress = async () => {
       if (!openView || !selectedIncident) return;
-
-      // --- THIS IS THE FIX ---
-      // We now look for the coordinates array instead of lat/lon properties.
       const coords = selectedIncident.incidentDetails?.coordinates?.coordinates;
-
-      // Check if the coords array exists and has two numbers
       if (coords && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
-        const lon = coords[0]; // Longitude is the first element
-        const lat = coords[1]; // Latitude is the second element
-        
+        const lon = coords[0];
+        const lat = coords[1];
         setViewAddress('Loading address...');
-        // Your existing geocoding function will now get the correct values
         const addr = await getAddressFromCoordinates(String(lat), String(lon));
         setViewAddress(addr);
       } else {
@@ -275,7 +293,6 @@ const ManageReporting: React.FC = () => {
         isResolved: editForm.isResolved,
         isFinished: editForm.isFinished,
         incidentDetails: {
-          incident: editForm.incident || null,
           incidentDescription: editForm.incidentDescription || null,
         },
       }
@@ -291,7 +308,6 @@ const ManageReporting: React.FC = () => {
   const submitDelete = async () => {
     try {
       if (!selectedIncident) return
-      // Soft delete by marking finished
       await axios.put(`${config.GUARDIAN_SERVER_URL}/incidents/update/${selectedIncident._id}`, { isFinished: true })
       setSnackbar({ open: true, message: 'Incident marked as finished', severity: 'success' })
       handleCloseDelete()
@@ -301,36 +317,22 @@ const ManageReporting: React.FC = () => {
     }
   }
 
+  // --- PDF EXPORT ---
   const exportToPDF = async () => {
     if (!modalContentRef.current) return
-    
     try {
-      // Capture the modal content directly with padding
       const canvas = await html2canvas(modalContentRef.current, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
-        scrollX: 0,
-        scrollY: 0,
-        width: modalContentRef.current.scrollWidth + 80, // Add 80px for padding
-        height: modalContentRef.current.scrollHeight + 80, // Add 80px for padding
-        x: -40, // Offset to create padding effect
-        y: -40
       })
-      
-      // Calculate PDF dimensions based on the actual content
-      const imgWidth = 210 // A4 width in mm
+      const imgWidth = 210 // A4 width mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width
-      
       const pdf = new jsPDF('p', 'mm', 'a4')
-      
-      // Add the image to fit the content naturally
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight)
-      
-      const fileName = `incident-report-${selectedIncident?.incidentType || 'unknown'}-${dayjs().format('YYYY-MM-DD-HH-mm')}.pdf`
+      const fileName = `incident-report-${selectedIncident?._id}.pdf`
       pdf.save(fileName)
-      
       setSnackbar({ open: true, message: 'PDF exported successfully', severity: 'success' })
     } catch (error) {
       console.error('Error generating PDF:', error)
@@ -338,105 +340,216 @@ const ManageReporting: React.FC = () => {
     }
   }
 
+  const getTypeColor = (type: string) => {
+    switch (type?.toLowerCase()) {
+      case 'fire': return '#d32f2f'; // Red
+      case 'medical': return '#1976d2'; // Blue
+      case 'police': return '#2e7d32'; // Green
+      default: return '#757575'; // Grey
+    }
+  }
+
   return (
-    <div style={{ minHeight: '100vh', background: '#fafcfc', position: 'relative', overflow: 'hidden' }}>
-      <AppBar position="static" style={{ backgroundColor: 'transparent', padding: 0, boxShadow: 'none'}}>
-        <Container disableGutters={true} maxWidth={false} sx={{}}>
-          <Grid container spacing={1} sx={{ backgroundColor: '#1B4965',  height: '80px' }}>
-            <Grid size={{ md: 9 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'start', p: '1rem 2rem 1rem 2rem' }}>
-              <Typography variant="h6" component="div">
+    <Box sx={{ 
+      height: '100vh', 
+      width: '100vw',
+      display: 'flex', 
+      flexDirection: 'column', 
+      background: '#fafcfc', 
+      overflow: 'hidden' 
+    }}>
+      {/* --- App Bar --- */}
+      <AppBar position="static" sx={{ backgroundColor: 'transparent', boxShadow: 'none', height: 80 }}>
+        <Container disableGutters={true} maxWidth={false} sx={{ height: '100%' }}>
+          <Grid container spacing={1} sx={{ backgroundColor: '#1B4965', height: '100%' }}>
+            <Grid size={{ md: 9 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'start', px: 4 }}>
+              <Typography variant="h6" component="div" sx={{ color: 'white' }}>
                 Manage Reporting
               </Typography>
             </Grid>
-            <Grid size={{ md: 3 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'start', p: '1rem 2rem 1rem 2rem' }}>
+            <Grid size={{ md: 3 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'start', px: 4 }}>
+              {/* --- UPDATED SEARCH BAR WITH HIGHLIGHT --- */}
               <div style={{display: 'flex', width: '80%'}}>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%'}}>
                   <SearchIcon style={{ position: 'absolute', left: '8px', color: '#757575', fontSize: '20px' }} />
                   <input
+                    ref={searchInputRef}
                     type="text"
-                    placeholder="Search incidents..."
+                    placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onBlur={() => setIsSearchFocused(false)}
                     style={{ flex: 1, color: 'black', height: '38px', padding: '8px 12px 8px 36px', borderRadius: '8px', border: '1px solid #ccc', backgroundColor: 'white', fontSize: '1.1rem' }}
                   />
                 </div>
               </div>
+              {/* --- END SEARCH BAR --- */}
             </Grid>
           </Grid>
         </Container>
       </AppBar>
 
-      <Box sx={{ background: 'white', borderRadius: 1, boxShadow: 0, p: 4, border: 'none' }}>
-        <Grid container sx={{ borderBottom: '2px solid #f2f2f2', background: '#f8fafa', p: 1, fontWeight: 600 }}>
-          <Grid size={{ md: 1 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>Type</Grid>
-          <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>Details</Grid>
-          <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>User</Grid>
-          <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>Responder</Grid>
-          <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>Status</Grid>
-          <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>Created</Grid>
-          <Grid size={{ md: 1 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>Actions</Grid>
-        </Grid>
+      {/* --- Main Content --- */}
+      <Box sx={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        p: '2vh 2vw', 
+        overflow: 'hidden' 
+      }}>
+        <Box sx={{ 
+          flex: 1, 
+          background: 'white', 
+          borderRadius: 2, 
+          boxShadow: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          overflow: 'hidden'
+        }}>
+          
+          {/* Table Header */}
+          <Grid container sx={{ 
+            borderBottom: '2px solid #f2f2f2', 
+            background: '#f8fafa', 
+            height: '8%', 
+            alignItems: 'center',
+            px: 3.5 
+          }}>
+            <Grid size={{ md: 2 }} sx={{ fontWeight: 600 }}>Incident ID</Grid>
+            <Grid size={{ md: 2 }} sx={{ fontWeight: 600 }}>Details</Grid>
+            <Grid size={{ md: 2 }} sx={{ fontWeight: 600 }}>Volunteer</Grid>
+            <Grid size={{ md: 2 }} sx={{ fontWeight: 600 }}>Dispatcher</Grid>
+            <Grid size={{ md: 2 }} sx={{ fontWeight: 600 }}>Responder Status</Grid>
+            <Grid size={{ md: 2 }} sx={{ fontWeight: 600, textAlign: 'right', pr: 2}}>Actions</Grid>
+          </Grid>
 
-        {loading ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>Loading...</Box>
-        ) : (
-          pagedIncidents.map((row, idx) => (
-            <Grid container key={row._id} sx={{ background: idx % 2 === 0 ? '#f8fbfa' : 'white', borderRadius: 2, mt: 2, mb: 0, boxShadow: 0, border: '1.5px solid #e0e0e0', alignItems: 'center', p: 0.5, minHeight: 70 }}>
-              <Grid size={{ md: 1 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 700, fontSize: 18 }}>
-                <span style={{ fontWeight: 700, fontSize: 18 }}>{row.incidentType}</span>
-              </Grid>
-              <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', color: '#444', fontSize: 14 }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {(row.incidentDetails?.incident || '') + (row.incidentDetails?.incidentDescription ? ` – ${row.incidentDetails?.incidentDescription}` : '')}
-                </span>
-              </Grid>
-              <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
-                {row.user ? `${row.user.firstName || ''} ${row.user.lastName || ''}`.trim() : '—'}
-              </Grid>
-              <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontSize: 16 }}>
-                {row.responder ? `${row.responder.firstName || ''} ${row.responder.lastName || ''}`.trim() : '—'}
-              </Grid>
-              <Grid size={{ md: 2 }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5, fontSize: 13 }}>
-                <span style={{ padding: '2px 6px', borderRadius: 6, background: row.isVerified ? '#e8f5e9' : '#fff3e0', border: '1px solid #c8e6c9' }}>{row.isVerified ? 'Verified' : 'Unverified'}</span>
-                <span style={{ padding: '2px 6px', borderRadius: 6, background: row.isAccepted ? '#e3f2fd' : '#f3e5f5', border: '1px solid #bbdefb' }}>{row.isAccepted ? 'Accepted' : 'Pending'}</span>
-                <span style={{ padding: '2px 6px', borderRadius: 6, background: row.isResolved ? '#fff8e1' : '#fce4ec', border: '1px solid #ffe082' }}>{row.isResolved ? 'Resolved' : 'Unresolved'}</span>
-                <span style={{ padding: '2px 6px', borderRadius: 6, background: row.isFinished ? '#eeeeee' : '#e0f7fa', border: '1px solid #e0e0e0' }}>{row.isFinished ? 'Finished' : 'Active'}</span>
-              </Grid>
-              <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', fontSize: 14 }}>
-                {row.createdAt ? dayjs(row.createdAt).format('MMM D, YYYY h:mm A') : '—'}
-              </Grid>
-              <Grid size={{ md: 1 }} sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end', pr: 1 }}>
-                <Button variant="contained" sx={{ bgcolor: '#546e7a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }} onClick={() => handleOpenView(row)}>View</Button>
-                <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5 }} onClick={() => handleOpenEdit(row)}>Edit</Button>
-                <Button variant="contained" sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', fontSize: 13, px: 2, py: 0.5, '&:hover': { bgcolor: '#d32f2f' } }} onClick={() => handleOpenDelete(row)}>Delete</Button>
-              </Grid>
-            </Grid>
-          ))
-        )}
-        {!loading && (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mt: 2, gap: 1 }}>
-            <Typography variant="body2" sx={{ mr: 1 }}>Page {page} of {totalPages}</Typography>
-            <Button variant="outlined" size="small" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</Button>
-            <Button variant="outlined" size="small" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
+          {/* Table Body */}
+          <Box sx={{ 
+            flex: 1, 
+            display: 'flex', 
+            flexDirection: 'column',
+            p: '1vh 1vw',
+            justifyContent: 'flex-start',
+            gap: '1vh',
+            overflowY: 'auto'
+          }}>
+            {loading ? (
+               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>Loading...</Box>
+            ) : (
+              pagedIncidents.map((row, idx) => (
+                <Grid container key={row._id} sx={{ 
+                  height: '19%', 
+                  background: idx % 2 === 0 ? '#f8fbfa' : 'white', 
+                  borderRadius: 2, 
+                  boxShadow: 0, 
+                  border: '1.5px solid #e0e0e0', 
+                  alignItems: 'center', 
+                  px: 1.5,
+                  minHeight: '60px'
+                }}>
+                  {/* ID Column */}
+                  <Grid size={{ md: 2 }} sx={{ display: 'flex', flexDirection: 'column'}}>
+                     <Box component="span" sx={{ fontWeight: 700, fontFamily: 'monospace', fontSize: 'clamp(14px, 1vw, 16px)' }}>
+                       {row._id.toUpperCase()}
+                     </Box>
+                     <span style={{ fontSize: 'clamp(10px, 0.8vw, 12px)', color: '#888' }}>
+                      {dayjs(row.createdAt).format('MMM D, YYYY')}
+                    </span>
+                  </Grid>
+
+                  {/* Details Column */}
+                  <Grid size={{ md: 2 }} sx={{ display: 'flex', flexDirection: 'column', pr: 1}}>
+                    <Chip 
+                        label={row.incidentType} 
+                        size="small" 
+                        sx={{ 
+                          width: 'fit-content',
+                          bgcolor: getTypeColor(row.incidentType), 
+                          color: 'white', 
+                          fontWeight: 700, 
+                          mb: 0.5,
+                          fontSize: '10px',
+                          height: '20px'
+                        }} 
+                      />
+                    <Tooltip title={row.incidentDetails?.incidentDescription || "No description"} arrow placement="top-start">
+                      <span style={{ 
+                        fontSize: 'clamp(11px, 0.9vw, 13px)', 
+                        color: '#444', 
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        cursor: 'help'
+                      }}>
+                        {row.incidentDetails?.incidentDescription || 'No description provided.'}
+                      </span>
+                    </Tooltip>
+                  </Grid>
+
+                  {/* Volunteer Column */}
+                  <Grid size={{ md: 2 }} sx={{ fontSize: 'clamp(12px, 0.9vw, 14px)' }}>
+                    {row.user ? `${row.user.firstName} ${row.user.lastName}` : '—'}
+                  </Grid>
+
+                  {/* Dispatcher Column */}
+                  <Grid size={{ md: 2 }} sx={{ fontSize: 'clamp(12px, 0.9vw, 14px)', display: 'flex', flexDirection: 'column' }}>
+                     <span>{row.dispatcher ? `${row.dispatcher.firstName} ${row.dispatcher.lastName}` : 'Unassigned'}</span>
+                  </Grid>
+
+                  {/* Responder Column */}
+                  <Grid size={{ md: 2 }} sx={{ fontSize: 'clamp(12px, 0.9vw, 14px)', display: 'flex', flexDirection: 'column' }}>
+                     <span>{row.responder ? `${row.responder.firstName} ${row.responder.lastName}` : 'Unassigned'}</span>
+                     <span style={{ fontSize: '10px', color: '#666', fontStyle: 'italic' }}>
+                       {row.responderStatus ? row.responderStatus.toUpperCase() : 'PENDING'}
+                     </span>
+                  </Grid>
+
+                  {/* Actions Column */}
+                  <Grid size={{ md: 2 }} sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end', pr: 2}}>
+                    <Button variant="contained" size="small" sx={{ bgcolor: '#546e7a', borderRadius: 1, fontSize: 11, px: 2 }} onClick={() => handleOpenView(row)}>View</Button>
+                    <Button variant="contained" size="small" sx={{ bgcolor: '#29516a', borderRadius: 1, fontSize: 11, px: 2 }} onClick={() => handleOpenEdit(row)}>Edit</Button>
+                    <Button variant="contained" size="small" sx={{ bgcolor: '#ef5350', borderRadius: 1, fontSize: 11, px: 2, '&:hover': { bgcolor: '#d32f2f' } }} onClick={() => handleOpenDelete(row)}>Delete</Button>
+                  </Grid>
+                </Grid>
+              ))
+            )}
           </Box>
-        )}
+
+          {/* Pagination */}
+          {!loading && (
+            <Box sx={{ 
+              height: '8%', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'flex-end', 
+              px: 2, 
+              borderTop: '1px solid #eee' 
+            }}>
+              <Typography variant="body2" sx={{ mr: 1, fontSize: '0.85rem' }}>Page {page} of {totalPages}</Typography>
+              <Button variant="outlined" size="small" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} sx={{ minWidth: 30 }}>Prev</Button>
+              <Button variant="outlined" size="small" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} sx={{ ml: 1, minWidth: 30 }}>Next</Button>
+            </Box>
+          )}
+        </Box>
       </Box>
 
       {/* Floating Add Button */}
-      <Box sx={{ position: 'fixed', bottom: 40, right: 40, zIndex: 100 }}>
-        <Button variant="contained" sx={{ bgcolor: '#29516a', width: 80, height: 80, borderRadius: '50%', minWidth: 0, boxShadow: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 0 }} onClick={handleOpenAdd}>
-          <AddIcon sx={{ fontSize: 48 }} />
+      <Box sx={{ position: 'fixed', bottom: '5vh', right: '3vw', zIndex: 100 }}>
+        <Button variant="contained" sx={{ bgcolor: '#29516a', width: '70px', height: '70px', borderRadius: '50%', minWidth: 0, boxShadow: 3, p: 0 }} onClick={handleOpenAdd}>
+          <AddIcon sx={{ fontSize: 40 }} />
         </Button>
       </Box>
 
-      {/* Add flow removed by request */}
+      {/* --- MODALS --- */}
 
-      {/* Edit Incident Modal */}
+      {/* Edit Modal */}
       <Dialog open={openEdit} onClose={handleCloseEdit} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: 4 } } }}>
         <Box sx={{ background: '#6b8e9e', p: 0}}>
           <DialogTitle sx={{ color: 'white', fontSize: 32, fontWeight: 400, p: 2, pb: 2 }}>Edit Incident</DialogTitle>
         </Box>
-        <DialogContent sx={{ p: 4, pt: 2 }}>
+        <DialogContent sx={{ p: 4, pt: 3 }}>
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
             <InputLabel>Incident Type</InputLabel>
             <Select label="Incident Type" value={editForm.incidentType} onChange={(e) => setEditForm((p) => ({ ...p, incidentType: e.target.value }))}>
@@ -445,8 +558,7 @@ const ManageReporting: React.FC = () => {
               <MenuItem value="Police">Police</MenuItem>
             </Select>
           </FormControl>
-          <TextField label="Short Title" variant="outlined" size="small" fullWidth value={editForm.incident} onChange={(e) => setEditForm((p) => ({ ...p, incident: e.target.value }))} sx={{ mb: 2 }} />
-          <TextField label="Description" variant="outlined" size="small" fullWidth multiline rows={3} value={editForm.incidentDescription} onChange={(e) => setEditForm((p) => ({ ...p, incidentDescription: e.target.value }))} sx={{ mb: 2 }} />
+          <TextField label="Description" variant="outlined" size="small" fullWidth multiline rows={4} value={editForm.incidentDescription} onChange={(e) => setEditForm((p) => ({ ...p, incidentDescription: e.target.value }))} sx={{ mb: 2 }} />
           <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mb: 1 }}>
             <FormControlLabel control={<Checkbox checked={editForm.isVerified} onChange={(e) => setEditForm((p) => ({ ...p, isVerified: e.target.checked }))} />} label="Verified" />
             <FormControlLabel control={<Checkbox checked={editForm.isAccepted} onChange={(e) => setEditForm((p) => ({ ...p, isAccepted: e.target.checked }))} />} label="Accepted" />
@@ -460,26 +572,12 @@ const ManageReporting: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirmation Modal */}
-      <Dialog open={openDelete} onClose={handleCloseDelete} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: 4 } } }}>
-        <DialogTitle sx={{ fontSize: 24, fontWeight: 500, p: 3, pb: 1 }}>Confirm Deletion</DialogTitle>
-        <DialogContent sx={{ p: 3, pt: 1 }}>
-          <Typography>
-            Mark incident as finished? This hides it from active lists.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ justifyContent: 'flex-end', p: 3, pt: 1 }}>
-          <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, mr: 2 }} onClick={handleCloseDelete}>Cancel</Button>
-          <Button variant="contained" sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, '&:hover': { bgcolor: '#d32f2f' } }} onClick={submitDelete}>Delete</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Add Incident Modal */}
+      {/* Add Modal */}
       <Dialog open={openAdd} onClose={handleCloseAdd} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: 4 } } }}>
         <Box sx={{ background: '#6b8e9e', p: 0}}>
           <DialogTitle sx={{ color: 'white', fontSize: 32, fontWeight: 400, p: 2, pb: 2 }}>Add Incident</DialogTitle>
         </Box>
-        <DialogContent sx={{ p: 4, pt: 2 }}>
+        <DialogContent sx={{ p: 4, pt: 3 }}>
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
             <InputLabel>Incident Type</InputLabel>
             <Select label="Incident Type" value={addForm.incidentType} onChange={(e) => setAddForm((p) => ({ ...p, incidentType: e.target.value }))}>
@@ -488,9 +586,8 @@ const ManageReporting: React.FC = () => {
               <MenuItem value="Police">Police</MenuItem>
             </Select>
           </FormControl>
-          <TextField label="User ID" variant="outlined" size="small" fullWidth value={addForm.userId} onChange={(e) => setAddForm((p) => ({ ...p, userId: e.target.value }))} sx={{ mb: 2 }} />
-          <TextField label="Short Title" variant="outlined" size="small" fullWidth value={addForm.incident} onChange={(e) => setAddForm((p) => ({ ...p, incident: e.target.value }))} sx={{ mb: 2 }} />
-          <TextField label="Description" variant="outlined" size="small" fullWidth multiline rows={3} value={addForm.incidentDescription} onChange={(e) => setAddForm((p) => ({ ...p, incidentDescription: e.target.value }))} sx={{ mb: 2 }} />
+          <TextField label="User ID (Volunteer)" variant="outlined" size="small" fullWidth value={addForm.userId} onChange={(e) => setAddForm((p) => ({ ...p, userId: e.target.value }))} sx={{ mb: 2 }} />
+          <TextField label="Description" variant="outlined" size="small" fullWidth multiline rows={4} value={addForm.incidentDescription} onChange={(e) => setAddForm((p) => ({ ...p, incidentDescription: e.target.value }))} sx={{ mb: 2 }} />
           <Box sx={{ display: 'flex', gap: 2 }}>
             <TextField label="Latitude" variant="outlined" size="small" fullWidth value={addForm.lat} onChange={(e) => setAddForm((p) => ({ ...p, lat: e.target.value }))} />
             <TextField label="Longitude" variant="outlined" size="small" fullWidth value={addForm.lon} onChange={(e) => setAddForm((p) => ({ ...p, lon: e.target.value }))} />
@@ -502,184 +599,142 @@ const ManageReporting: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* View Incident Modal - THIS IS WHERE THE CHANGES ARE */}
-      <Dialog open={openView} onClose={handleCloseView} maxWidth="md" fullWidth slotProps={{ paper: { sx: { borderRadius: 2 } } }}>
-        <DialogContent sx={{ p: 3 }}>
-          {selectedIncident && (
-            <div ref={modalContentRef}>
-              <Box sx={{ display: 'flex', flexDirection: 'row', gap: 4 }}>
-                {/* Left column */}
-                <Box sx={{ flex: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }} data-pdf-section>
-                  {/* <Box
-                sx={{
-                  // backgroundColor: 'green',
-                  width: { xs: '100%', md: '5%' },
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderBottom: '1px solid #e0e0e0',
-                  height: '100%',
-                }}
-              > */}
-                <Box sx={{ width: 48, height: 48, bgcolor: 'red', borderRadius: 1 }}>
-                <Avatar 
-                        src={GuardianIcon}
-                        alt="Avatar Image"
-                        sx={{   
-                          color: 'white',
-                          width: 50, 
-                          height: 50,
-                          boxSizing: 'border-box',
-                          borderRadius: '0',
-                        }}
-                      />
-              </Box>
-                    <Box>
-                      <Typography variant="h6" sx={{ lineHeight: 1, fontWeight: 800 }}>GUARDIANPH</Typography>
-                      <Typography variant="subtitle2" sx={{ lineHeight: 1, letterSpacing: 1 }}>AFTER INCIDENT REPORT</Typography>
-                    </Box>
-                  </Box>
-
-                  <Box sx={{ mb: 2, mt: 5, ml: 2 }} data-pdf-section>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>TYPE: {selectedIncident.incidentType || '—'}</Typography>
-                    <Box sx={{ height: 2, bgcolor: '#222', width: '75%', mt: 1 }} />
-                  </Box>
-
-                  <Box sx={{ mb: 2, ml: 2 }} data-pdf-section>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>REPORTED BY:</Typography>
-                    <Typography variant="body2">{selectedIncident.user ? `${selectedIncident.user.firstName || ''} ${selectedIncident.user.lastName || ''}`.trim() : '—'}</Typography>
-                    <Typography variant="body2">Volunteer ID: {selectedIncident.user?._id || '—'}</Typography>
-                    <Box sx={{ height: 2, bgcolor: '#222', width: '75%', mt: 1 }} />
-                  </Box>
-
-                  <Box sx={{ mb: 2, ml: 2 }} data-pdf-section>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>LOCATION:</Typography>
-                    <Typography variant="body2">{viewAddress}</Typography>
-                    <Box sx={{ height: 2, bgcolor: '#222', width: '75%', mt: 1 }} />
-                  </Box>
-
-                  <Box sx={{ mb: 2, ml: 2 }} data-pdf-section>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>TYPE:</Typography>
-                    <Typography variant="body2">{selectedIncident.incidentDetails?.incident || '—'}</Typography>
-                    <Box sx={{ height: 2, bgcolor: '#222', width: '75%', mt: 1 }} />
-                  </Box>
-
-                  <Box sx={{ mb: 2, ml: 2 }} data-pdf-section>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>TIME RECEIVED</Typography>
-                    <Typography variant="body2">{selectedIncident.createdAt ? dayjs(selectedIncident.createdAt).format('HH:mm:ss') : '—'}</Typography>
-                    <Box sx={{ height: 2, bgcolor: '#222', width: '75%', mt: 1 }} />
-                  </Box>
-
-                  <Box sx={{ mb: 2, ml: 2 }} data-pdf-section>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>RESPONDERS DISPATCHED</Typography>
-                    <Typography variant="body2">{selectedIncident.responder ? `${selectedIncident.responder.firstName || ''} ${selectedIncident.responder.lastName || ''}`.trim() : '—'}</Typography>
-                    <Typography variant="body2">ONSCENE: {(selectedIncident.onSceneAt || selectedIncident.onsceneAt) ? dayjs(selectedIncident.onSceneAt || selectedIncident.onsceneAt).format('HH:mm:ss') : '—'}</Typography>
-                    <Box sx={{ height: 2, bgcolor: '#222', width: '75%', mt: 1 }} />
-                  </Box>
-
-                  <Box sx={{ mt: 6, }} data-pdf-section>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 800, textTransform: 'uppercase', textAlign: 'center' }}>{selectedIncident.opCen?.name || 'Cloyd Bere Dedicatoria'}</Typography>
-                    <Box sx={{ height: 2, bgcolor: '#222', width: '100%', mt: 1 }} />
-                    <Typography variant="h6" sx={{ fontWeight: 800, textAlign: 'center' }}>OPCEN ADMINISTRATOR</Typography>
-                  </Box>
-                </Box>
-
-                {/* --- 3. THIS IS THE MODIFIED RIGHT COLUMN --- */}
-                <Box sx={{ width: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }} data-pdf-section>
-                  
-                  {/* --- THIS IS THE NEW QR CODE SECTION (NOW CLICKABLE) --- */}
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    <a 
-                      href={`${FRONTEND_RECORDINGS_URL}/${selectedIncident._id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Click to open recordings page in new tab"
-                      style={{ textDecoration: 'none' }} // Remove underline from link
-                    >
-                      <Box 
-                        sx={{ 
-                          width: 170, 
-                          height: 170, 
-                          bgcolor: '#f5f5f5', 
-                          border: '2px solid #e0e0e0', 
-                          borderRadius: 1, 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          p: 2,
-                          cursor: 'pointer', // Add pointer cursor
-                          transition: 'all 0.2s ease',
-                          '&:hover': { // Add a hover effect
-                            borderColor: '#29516a',
-                            bgcolor: '#eef3f6'
-                          }
-                        }}
-                      >
-                        <QRCodeComponent 
-                          text={`${FRONTEND_RECORDINGS_URL}/${selectedIncident._id}`}
-                          size={130} 
-                        />
-                      </Box>
-                    </a>
-                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#666' }}>VERIFICATION VIDEO</Typography>
-                  </Box>
-                  
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ width: 170, height: 170, bgcolor: '#f5f5f5', border: '2px solid #e0e0e0', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Box sx={{ width: 130, height: 130, bgcolor: '#e0e0e0', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Typography variant="h4" sx={{ color: '#9e9e9e' }}>QR</Typography>
-                      </Box>
-                    </Box>
-                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#666' }}>CHAT CONVERSATION</Typography>
-                  </Box>
-                  
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ width: 130, height: 130, bgcolor: '#f5f5f5', border: '2px solid #e0e0e0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                      {selectedIncident.responder?.operationCenter?.profileImage ? (
-                        <img 
-                          src={selectedIncident.responder.operationCenter.profileImage} 
-                          alt="OPCEN Logo"
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
-                        />
-                      ) : (
-                        <Box sx={{ width: 120, height: 120, bgcolor: '#e0e0e0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Typography variant="h6" sx={{ color: '#9e9e9e' }}>LOGO</Typography>
-                        </Box>
-                      )}
-                    </Box>
-                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#666' }}>OPCEN LOGO</Typography>
-                  </Box>
-                </Box>
-              </Box>
-
-              <Box sx={{ mt: 5, textAlign: 'center' }} data-pdf-section>
-                <Typography variant="caption" sx={{ color: '#e53935', fontWeight: 700 }}>
-                  THIS REPORT IS NOT VALID WITHOUT THE SIGNATURE OF THE COMMAND CENTER ADMINISTRATOR
-                </Typography>
-              </Box>
-            </div>
-          )}
+      {/* Delete Modal */}
+      <Dialog open={openDelete} onClose={handleCloseDelete} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: 4 } } }}>
+        <DialogTitle sx={{ fontSize: 24, fontWeight: 500, p: 3, pb: 1 }}>Confirm Deletion</DialogTitle>
+        <DialogContent sx={{ p: 3, pt: 1 }}>
+          <Typography>
+            Mark incident as finished? This hides it from active lists.
+          </Typography>
         </DialogContent>
-        {/* ... (Your DialogActions) ... */}
-        <DialogActions sx={{ p: 2, justifyContent: 'space-between' }}>
-          <Button variant="contained" onClick={exportToPDF} sx={{ bgcolor: '#4caf50', textTransform: 'none' }}>
-            Export PDF
-          </Button>
-          <Button variant="contained" onClick={handleCloseView} sx={{ textTransform: 'none' }}>
-            Close
-          </Button>
+        <DialogActions sx={{ justifyContent: 'flex-end', p: 3, pt: 1 }}>
+          <Button variant="contained" sx={{ bgcolor: '#29516a', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, mr: 2 }} onClick={handleCloseDelete}>Cancel</Button>
+          <Button variant="contained" sx={{ bgcolor: '#ef5350', color: 'white', borderRadius: 1, textTransform: 'none', px: 4, '&:hover': { bgcolor: '#d32f2f' } }} onClick={submitDelete}>Confirm</Button>
         </DialogActions>
       </Dialog>
 
-      {/* ... (Your Snackbar) ... */}
+      {/* View Report Modal */}
+      <Dialog 
+        open={openView} 
+        onClose={handleCloseView} 
+        maxWidth="md" 
+        fullWidth 
+        scroll="body"
+        PaperProps={{ sx: { bgcolor: 'transparent', boxShadow: 'none' } }} 
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+          {selectedIncident && (
+            <Box sx={{ position: 'relative' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mb: 2 }}>
+                <Button variant="contained" color="success" startIcon={<PictureAsPdfIcon />} onClick={exportToPDF} sx={{ borderRadius: 20, textTransform: 'none', fontWeight: 600 }}>Export PDF</Button>
+                <Button variant="contained" color="inherit" startIcon={<CloseIcon />} onClick={handleCloseView} sx={{ borderRadius: 20, textTransform: 'none', bgcolor: 'white', color: 'black' }}>Close</Button>
+              </Box>
+
+              <Paper 
+                ref={modalContentRef}
+                elevation={4}
+                sx={{ 
+                  width: '794px', 
+                  minHeight: '1123px', 
+                  bgcolor: 'white',
+                  p: '40px', 
+                  display: 'flex',
+                  flexDirection: 'column',
+                  mx: 'auto'
+                }}
+              >
+                {/* Header */}
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 5, borderBottom: '3px solid #1B4965', pb: 2 }}>
+                  <Avatar src={GuardianIcon} variant="square" sx={{ width: 80, height: 80, mr: 3 }} />
+                  <Box>
+                    <Typography variant="h3" sx={{ fontWeight: 800, color: '#1B4965', lineHeight: 1, letterSpacing: -1 }}>GUARDIANPH</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: '#546e7a', letterSpacing: 2, textTransform: 'uppercase' }}>After Incident Report</Typography>
+                  </Box>
+                  <Box sx={{ ml: 'auto', textAlign: 'right' }}>
+                    <Typography variant="caption" display="block" color="textSecondary">REPORT ID</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>#{selectedIncident._id.toUpperCase()}</Typography>
+                  </Box>
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 5, flex: 1 }}>
+                  <Box sx={{ flex: 1 }}>
+                    <SectionLabel>Incident Details</SectionLabel>
+                    <DataRow label="Type" value={selectedIncident.incidentType} />
+                    <DataRow label="Description" value={selectedIncident.incidentDetails?.incidentDescription} />
+                    
+                    <Box sx={{ height: 20 }} />
+                    <SectionLabel>Location & Time</SectionLabel>
+                    <DataRow label="Location" value={viewAddress} />
+                    <DataRow label="Reported At" value={selectedIncident.createdAt ? dayjs(selectedIncident.createdAt).format('MMMM D, YYYY h:mm A') : '—'} />
+                    <DataRow label="On Scene" value={(selectedIncident.onSceneAt || selectedIncident.onSceneAt) ? dayjs(selectedIncident.onSceneAt || selectedIncident.onSceneAt).format('h:mm A') : 'Pending'} />
+
+                    <Box sx={{ height: 20 }} />
+                    <SectionLabel>Personnel Involved</SectionLabel>
+                    <DataRow label="Reporter (Volunteer)" value={selectedIncident.user ? `${selectedIncident.user.firstName} ${selectedIncident.user.lastName}` : '—'} />
+                    <DataRow label="Dispatcher" value={selectedIncident.dispatcher ? `${selectedIncident.dispatcher.firstName} ${selectedIncident.dispatcher.lastName}` : 'System'} />
+                    <DataRow label="Responder" value={selectedIncident.responder ? `${selectedIncident.responder.firstName} ${selectedIncident.responder.lastName}` : 'Pending Assignment'} />
+                  
+                    <Box sx={{ mt: 10, textAlign: 'center', width: '80%' }}>
+                        <Box sx={{ borderBottom: '2px solid #333', mb: 1 }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, textTransform: 'uppercase' }}>
+                            {selectedIncident.opCen?.name || 'Cloyd Bere Dedicatoria'}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">COMMAND CENTER ADMINISTRATOR</Typography>
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ width: '280px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <Box sx={{ textAlign: 'center', width: '100%' }}>
+                      <a href={`${FRONTEND_RECORDINGS_URL}/${selectedIncident._id}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit' }}>
+                        <Box sx={{ p: 2, border: '2px dashed #1B4965', borderRadius: 2, bgcolor: '#f5f9fc', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <QRCodeComponent text={`${FRONTEND_RECORDINGS_URL}/${selectedIncident._id}`} size={140} />
+                          <Typography variant="caption" sx={{ mt: 1, fontWeight: 700, color: '#1B4965' }}>CLICK OR SCAN TO VIEW EVIDENCE</Typography>
+                        </Box>
+                      </a>
+                    </Box>
+                    <Box sx={{ textAlign: 'center', width: '100%' }}>
+                       <Box sx={{ width: '100%', height: 160, bgcolor: '#f5f5f5', border: '1px solid #ddd', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Typography variant="h5" color="disabled" fontWeight={700}>CHAT LOG</Typography>
+                       </Box>
+                       <Typography variant="caption" sx={{ mt: 1, fontWeight: 600, color: '#666' }}>CONVERSATION HISTORY</Typography>
+                    </Box>
+                    <Box sx={{ textAlign: 'center', mt: 'auto' }}>
+                      <Avatar src={selectedIncident.responder?.operationCenter?.profileImage} sx={{ width: 100, height: 100, border: '4px solid #f0f0f0', mx: 'auto', mb: 1 }}>OP</Avatar>
+                      <Typography variant="caption" sx={{ fontWeight: 600, color: '#666' }}>OFFICIAL SEAL</Typography>
+                    </Box>
+                  </Box>
+                </Box>
+                <Box sx={{ mt: 4, pt: 2, borderTop: '2px solid #eee', textAlign: 'center' }}>
+                  <Typography variant="caption" sx={{ color: '#d32f2f', fontWeight: 700, fontSize: '0.7rem' }}>
+                    THIS REPORT IS NOT VALID WITHOUT THE SIGNATURE OF THE COMMAND CENTER ADMINSTRATOR
+                  </Typography>
+                </Box>
+              </Paper>
+            </Box>
+          )}
+        </Box>
+      </Dialog>
+
       <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar((p) => ({ ...p, open: false }))}>
-        <Alert onClose={() => setSnackbar((p) => ({ ...p, open: false }))} severity={snackbar.severity}>
+        <Alert onClose={() => setSnackbar((p) => ({ ...p, open: false }))} severity={snackbar.severity} sx={{ width: '100%' }}>
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </div>
+    </Box>
   )
 }
+
+// Helper Components
+const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <Typography variant="subtitle2" sx={{ color: '#1B4965', fontWeight: 800, textTransform: 'uppercase', mb: 1, borderBottom: '1px solid #ddd', pb: 0.5, width: '90%' }}>
+    {children}
+  </Typography>
+)
+const DataRow = ({ label, value }: { label: string, value: any }) => (
+  <Box sx={{ mb: 1.5, ml: 1 }}>
+    <Typography variant="caption" sx={{ color: '#777', fontWeight: 600, display: 'block', mb: 0 }}>{label.toUpperCase()}</Typography>
+    <Typography variant="body1" sx={{ fontWeight: 500, color: '#222' }}>{value || '—'}</Typography>
+  </Box>
+)
 
 export default ManageReporting

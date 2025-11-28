@@ -1,5 +1,5 @@
 import { User } from "@stream-io/video-react-sdk";
-import { Paper, Avatar, Typography, Box, Button, MenuItem, Menu } from "@mui/material";
+import { Paper, Avatar, Typography, Box, Button, MenuItem, Menu, Divider } from "@mui/material";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useChatContext } from 'stream-chat-react';
 import { useState, useEffect, useRef } from 'react';
@@ -11,6 +11,9 @@ import config from "../config";
 // Updated import to include the new helper function
 import { getAddressFromGeoPoint } from '../utils/geocoding';
 import IncidentModal from '../components/IncidentModal';
+import axios from 'axios';
+import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Snackbar, Alert } from '@mui/material';
+import { EditIcon, LogOutIcon } from "lucide-react";
 
 // --- THIS IS THE FIRST FIX ---
 // The Incident interface now matches the new GeoJSON format from the database
@@ -40,9 +43,17 @@ interface Incident {
   };
 }
 
+interface DispatcherProfile {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  profileImage: string | null;
+}
+
 export default function Status() {
   const userStr = localStorage.getItem("user");
-  const userData = userStr ? JSON.parse(userStr) : null;
+  const initialUserData = userStr ? JSON.parse(userStr) : null;
   const { client } = useChatContext();
   const navigate = useNavigate();
   const [isInvisible, setIsInvisible] = useState(true);
@@ -50,9 +61,23 @@ export default function Status() {
   const [currentIncident, setCurrentIncident] = useState<Incident | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [address, setAddress] = useState<string>('');
-  const userId = userData?.id;
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [profileData, setProfileData] = useState<DispatcherProfile>({ 
+      firstName: initialUserData?.firstName || '',
+      lastName: initialUserData?.lastName || '',
+      email: initialUserData?.email || '',
+      phone: initialUserData?.phone || '',
+      profileImage: initialUserData?.profileImage || null,
+  });
+  const [snackbar, setSnackbar] = useState({ 
+    open: false, 
+    message: '', 
+    severity: 'success' as 'success' | 'error' 
+  });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const userId = initialUserData?.id;
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const userName = userData?.name;
+  const userName = initialUserData?.name;
   const openMenu = Boolean(anchorEl);
 
   const getImageUrl = (url: string) => {
@@ -61,7 +86,9 @@ export default function Status() {
     return `${config.GUARDIAN_SERVER_URL}${url}`;
   };
 
-  if (!userData) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(getImageUrl(initialUserData?.profileImage) || null);
+
+  if (!initialUserData) {
     return <Navigate to="/" replace />;
   }
 
@@ -273,6 +300,99 @@ export default function Status() {
     name: userName,
   };
 
+  const handleEditProfileOpen = () => {
+    // Reset form data to current local storage data
+    const currentData = JSON.parse(localStorage.getItem("user") || "{}");
+    setProfileData({
+      // Use currentData for all fields
+      firstName: currentData.firstName || '',
+      lastName: currentData.lastName || '',
+      email: currentData.email || '',
+      phone: currentData.phone || '',
+      profileImage: currentData.profileImage || null,
+  });
+    // Set initial preview URL
+    setPreviewUrl(getImageUrl(currentData.profileImage) || null);
+    
+    setSelectedFile(null); 
+    setAnchorEl(null); 
+    setEditProfileOpen(true);
+  };
+
+  const handleEditProfileClose = () => {
+    setEditProfileOpen(false);
+    setSelectedFile(null);
+    // You might want to revoke the blob URL here if a file was selected but not saved
+  };
+
+  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setProfileData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+        if (file.size > MAX_FILE_SIZE) {
+            setSnackbar({ open: true, message: 'File is too large. Maximum size is 10 MB.', severity: 'error' });
+            e.target.value = '';
+            return;
+        }
+
+        setSelectedFile(file);
+        // Clean up old preview URL
+        if (previewUrl && previewUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(previewUrl);
+        }
+        setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const handleProfileSubmit = async () => {
+    try {
+        const token = localStorage.getItem('token');
+        const data = new FormData();
+        
+        // Append all text fields
+        data.append('firstName', profileData.firstName);
+        data.append('lastName', profileData.lastName);
+        data.append('email', profileData.email);
+        data.append('phone', profileData.phone);
+        
+        // Append file if a new one was selected
+        if (selectedFile) {
+            data.append('profileImage', selectedFile);
+        }
+
+        const response = await axios.put(`${config.GUARDIAN_SERVER_URL}/dispatchers/${userId}`, data, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+
+        const updatedUser = response.data;
+        
+        // Update local storage with new data
+        localStorage.setItem("user", JSON.stringify({...initialUserData, ...updatedUser}));
+        
+        setSnackbar({ open: true, message: 'Profile updated successfully!', severity: 'success' });
+        handleEditProfileClose();
+        // Force component refresh to show new name/image
+        window.location.reload(); 
+
+    } catch (error: any) {
+        console.error('Error updating profile:', error);
+        setSnackbar({ 
+            open: true, 
+            message: error.response?.data?.message || 'Error updating profile.', 
+            severity: 'error' 
+        });
+    }
+  };
+
   const handleAvatarClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
@@ -280,6 +400,7 @@ export default function Status() {
   const handleMenuClose = () => {
     setAnchorEl(null);
   };
+
 
   const handleLogout = () => {
     localStorage.clear();
@@ -291,7 +412,7 @@ export default function Status() {
       <audio ref={audioRef} />
       <div className="min-h-screen bg-[#e3e5e8] flex items-center justify-center">
         <Avatar 
-          src={getImageUrl(userData?.profileImage) || ''}
+          src={getImageUrl(initialUserData?.profileImage) || ''}
           alt={user.name}
           sx={{ 
             position: 'absolute', 
@@ -311,8 +432,36 @@ export default function Status() {
           onClose={handleMenuClose}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
           transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{ paper: { sx: { minWidth: 220, borderRadius: 2, boxShadow: 3} } }} // Custom Paper styling
         >
-          <MenuItem onClick={handleLogout}>Logout</MenuItem>
+          
+          {/* 1. Header with User Info */}
+          <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Avatar 
+                src={getImageUrl(initialUserData?.profileImage) || undefined}
+                sx={{ width: 56, height: 56, mb: 1 }}
+            />
+            <Typography variant="subtitle1" fontWeight="bold">
+              {/* Uses the combined name from localStorage */}
+              {initialUserData?.name || `${initialUserData?.firstName} ${initialUserData?.lastName}`} 
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {initialUserData?.email}
+            </Typography>
+          </Box>
+
+          <Divider /> {/* Visual separation */}
+
+          {/* 2. Action Buttons with Icons */}
+          <MenuItem onClick={handleEditProfileOpen} sx={{ py: 1.5 }}>
+            <EditIcon/>
+            Edit Profile
+          </MenuItem>
+          
+          <MenuItem onClick={handleLogout} sx={{ py: 1.5, color: 'error.main' }}>
+            <LogOutIcon/>
+            Logout
+          </MenuItem>
         </Menu>
         <Paper elevation={3}
           sx={{ 
@@ -393,6 +542,111 @@ export default function Status() {
         />
       )}
       </div>
+      <Dialog open={editProfileOpen} onClose={handleEditProfileClose} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ bgcolor: '#1B4965', color: 'white', fontSize: 24 }}>Edit Your Profile</DialogTitle>
+        <DialogContent sx={{ pt: 3, pb: 2 }}>
+            
+            <Typography variant="h6" gutterBottom>Profile Picture</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 3 }}>
+                <Avatar 
+                    src={previewUrl || undefined}
+                    sx={{ width: 80, height: 80, bgcolor: '#f0f0f0' }} 
+                />
+                <Button variant="outlined" component="label">
+                    Upload New Image
+                    <input
+                        type="file"
+                        hidden
+                        accept="image/png, image/jpeg, image/jpg"
+                        onChange={handleFileChange}
+                    />
+                </Button>
+            </Box>
+
+            <Typography variant="h6" gutterBottom>Personal Info</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField 
+                    label="First Name" 
+                    variant="outlined" 
+                    size="small" 
+                    fullWidth 
+                    name="firstName"
+                    value={profileData.firstName}
+                    onChange={handleProfileChange}
+                />
+                <TextField 
+                    label="Last Name" 
+                    variant="outlined" 
+                    size="small" 
+                    fullWidth 
+                    name="lastName"
+                    value={profileData.lastName}
+                    onChange={handleProfileChange}
+                />
+                <TextField 
+                    label="Email" 
+                    variant="outlined" 
+                    size="small" 
+                    fullWidth 
+                    name="email"
+                    value={profileData.email}
+                    onChange={handleProfileChange}
+                    disabled // Often, email is not easily editable
+                />
+                <TextField 
+                    label="Mobile Number" 
+                    variant="outlined" 
+                    size="small" 
+                    fullWidth 
+                    name="phone"
+                    value={profileData.phone}
+                    onChange={handleProfileChange}
+                />
+            </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={handleEditProfileClose} 
+            color="secondary"
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleProfileSubmit} 
+            variant="contained" 
+            sx={{ bgcolor: '#29516a' }}
+          >
+            Save Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* +++ END PROFILE EDITING MODAL +++ */}
+
+      {currentIncident && (
+        <IncidentModal
+          open={openModal}
+          onClose={handleCloseModal}
+          incident={currentIncident}
+          address={address}
+          onAccept={handleAcceptIncident}
+          userName={user.name ?? ''}
+        />
+      )}
+
+      {/* Snackbar for error/success messages */}
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={6000} 
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+      >
+        <Alert 
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} 
+          severity={snackbar.severity}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </>
   );
 }

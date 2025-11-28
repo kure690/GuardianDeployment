@@ -57,6 +57,7 @@ import {
 } from "@stream-io/video-react-sdk";
 import { CallPanel } from '../components/CallPanel';
 import "@stream-io/video-react-sdk/dist/css/styles.css";
+import { LogOutIcon } from "lucide-react";
 
 
 type User = {
@@ -717,8 +718,29 @@ const MainScreen = () => {
                     onClose={handleMenuClose}
                     anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                     transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                    >
-                    <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                    slotProps={{ paper: { sx: { minWidth: 220, borderRadius: 2, boxShadow: 3} } }} // Custom Paper styling
+        >
+                    {/* 1. Header with User Info */}
+          <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Avatar 
+                src={getImageUrl(userStr2?.profileImage) || undefined}
+                sx={{ width: 56, height: 56, mb: 1 }}
+            />
+            <Typography variant="subtitle1" fontWeight="bold">
+              {/* Uses the combined name from localStorage */}
+              {userStr2?.name || `${userStr2?.firstName} ${userStr2?.lastName}`} 
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {userStr2?.email}
+            </Typography>
+          </Box>
+
+          <Divider /> {/* Visual separation */}
+          
+          <MenuItem onClick={handleLogout} sx={{ py: 1.5, color: 'error.main' }}>
+            <LogOutIcon/>
+            Logout
+          </MenuItem>
                     </Menu>
                   </Box>
                   <div style={{ display: 'flex', justifyContent: 'center', width: '100%',}}>
@@ -908,7 +930,6 @@ const MainScreen = () => {
           
           
         </Grid>
-
         <Grid size={{md: 6}}
         
         alignItems={"center"}

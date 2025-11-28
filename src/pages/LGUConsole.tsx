@@ -8,6 +8,7 @@ import {
   Container,
   Menu,
   MenuItem,
+  Divider,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import GuardianIcon from "../assets/images/icon-removebg-preview.png";
@@ -24,6 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import config from '../config';
 import { useOpCen } from '../hooks/opcen/useOpCen';
+import { LogOutIcon } from "lucide-react";
 
 const getImageUrl = (url: string) => {
   if (!url) return '';
@@ -182,14 +184,35 @@ const LGUConsole = () => {
                           onClick={handleAvatarClick}
                         />
                         <Menu
-                          anchorEl={anchorEl}
-                          open={openMenu}
-                          onClose={handleMenuClose}
-                          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                        >
-                          <MenuItem onClick={handleLogout}>Logout</MenuItem>
-                        </Menu>
+                    anchorEl={anchorEl}
+                    open={openMenu}
+                    onClose={handleMenuClose}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                    transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                    slotProps={{ paper: { sx: { minWidth: 220, borderRadius: 2, boxShadow: 3} } }} // Custom Paper styling
+        >
+                    {/* 1. Header with User Info */}
+          <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Avatar 
+                src={getImageUrl(opcenData?.profileImage || '')}
+                sx={{ width: 56, height: 56, mb: 1 }}
+            />
+            <Typography variant="subtitle1" fontWeight="bold">
+              {/* Uses the combined name from localStorage */}
+              {`${opcenData?.firstName} ${opcenData?.lastName}`} 
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {opcenData?.email}
+            </Typography>
+          </Box>
+
+          <Divider /> {/* Visual separation */}
+          
+          <MenuItem onClick={handleLogout} sx={{ py: 1.5, color: 'error.main' }}>
+            <LogOutIcon/>
+            Logout
+          </MenuItem>
+                    </Menu>
                       </Box>
                     </Grid>  
                 </Grid>
@@ -310,7 +333,7 @@ const LGUConsole = () => {
           <div className="flex flex-row w-full h-screen">
             
           <Box sx={{ flex: 1, overflow: 'auto', background: 'white', width: '100%' }}>
-            <Box sx={{ mt: 4, mb: 4, width: '100%', p: 4 }}>
+            <Box sx={{ width: '100%', p: 4 }}>
               <Grid container spacing={3} justifyContent="center">
                 <Grid size={{ xs: 12, md: 4 }}
                 sx={{
@@ -335,9 +358,27 @@ const LGUConsole = () => {
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Active</Typography>
                     <Typography variant="h4" sx={{ mb: 2 }}>{respondersCount}</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Add a user</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Delete a user</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Update a user's name or email</Button>
+                      <Button 
+                          size="small" 
+                          sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+                          onClick={() => navigate('/usermanagement', { state: { openAddUserModal: true } })}
+                      >
+                          Add a user
+                      </Button>
+                      <Button 
+                          size="small" 
+                          sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+                          onClick={() => navigate('/usermanagement', { state: { highlightSearch: true } })}
+                      >
+                          Delete a user
+                      </Button>
+                      <Button 
+                          size="small" 
+                          sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+                          onClick={() => navigate('/usermanagement', { state: { highlightSearch: true } })}
+                      >
+                          Update a user's name or email
+                      </Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Create an alternative email address</Button>
                     </Box>
                   </Box>
@@ -381,27 +422,75 @@ const LGUConsole = () => {
                   }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Typography variant="h6">Alerts</Typography>
-                      <Button size="small" sx={{ textTransform: 'none' }}>Manage</Button>
+                      <Button 
+                          size="small" 
+                          sx={{ textTransform: 'none' }} 
+                          onClick={() => navigate('/managealerts')} // Assuming the route is /managealerts
+                      >
+                        Manage
+                      </Button>
                     </Box>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Send messages to your users</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={() => navigate('/notification')}>Create a notification</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Delete a notification</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Update notification</Button>
+                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={() => navigate('/notifications')}>Create a notification</Button>
+                      <Button 
+            size="small" 
+            sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+            onClick={() => navigate('/managealerts', { state: { highlightSearch: true, alertType: 'notification' } })}
+        >
+            Delete a notification
+        </Button>
+        
+        {/* Shortcut: Update notification (Highlights Search) */}
+        <Button 
+            size="small" 
+            sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+            onClick={() => navigate('/managealerts', { state: { highlightSearch: true, alertType: 'notification' } })}
+        >
+            Update notification
+        </Button>
                       <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={() => navigate('/announcements')}>Create a announcement</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Delete a announcement</Button>    
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Update announcement</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={() => navigate('/messages')}>Create a message</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Delete a message</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>Update message</Button>
-                    </Box>
+                      <Button 
+            size="small" 
+            sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+            onClick={() => navigate('/managealerts', { state: { highlightSearch: true, alertType: 'announcement' } })}
+        >
+            Delete a announcement
+        </Button>
+        
+        {/* Shortcut: Update announcement (Highlights Search) */}
+        <Button 
+            size="small" 
+            sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+            onClick={() => navigate('/managealerts', { state: { highlightSearch: true, alertType: 'announcement' } })}
+        >
+            Update announcement
+        </Button>
+        <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={() => navigate('/messages')}>Create a message</Button>
+        <Button 
+            size="small" 
+            sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+            onClick={() => navigate('/managealerts', { state: { highlightSearch: true, alertType: 'message' } })}
+        >
+            Delete a message
+        </Button>
+        
+        {/* Shortcut: Update message (Highlights Search) */}
+        <Button 
+            size="small" 
+            sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+            onClick={() => navigate('/managealerts', { state: { highlightSearch: true, alertType: 'message' } })}
+        >
+            Update message
+        </Button>
+        </Box>
                   </Box>
                   <Box sx={{
                     background: '#f8fbfd',
                     borderRadius: 3,
                     boxShadow: 1,
                     p: 3,
-                    minHeight: 200,
+                    
                     display: 'flex',
                     flexDirection: 'column',
                   }}>
@@ -434,10 +523,34 @@ const LGUConsole = () => {
                     </Box>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>View and download reports</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>View report with incident ID</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>View report by type and date</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>View reports by dispatcher</Button>
-                      <Button size="small" sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>View reports by location</Button>
+                      <Button 
+                        size="small" 
+                        sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+                        onClick={() => navigate('/reports', { state: { highlightSearch: true } })}
+                      >
+                        View report with incident ID
+                      </Button>
+                      <Button 
+                        size="small" 
+                        sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+                        onClick={() => navigate('/reports', { state: { highlightSearch: true } })}
+                      >
+                        View report by type and date
+                      </Button>
+                      <Button 
+                        size="small" 
+                        sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+                        onClick={() => navigate('/reports', { state: { highlightSearch: true } })}
+                      >
+                        View reports by dispatcher
+                      </Button>
+                      <Button 
+                        size="small" 
+                        sx={{ justifyContent: 'flex-start', textTransform: 'none' }} 
+                        onClick={() => navigate('/reports', { state: { highlightSearch: true } })}
+                      >
+                        View reports by location
+                      </Button>
                     </Box>
                   </Box>
 

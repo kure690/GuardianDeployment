@@ -70,7 +70,10 @@ const Login = () => {
         ...user,
         id: user.id,
         type: userType,
-        name: `${successfulLogin.data.firstName} ${successfulLogin.data.lastName}`,
+        firstName: successfulLogin.data.firstName,
+        lastName: successfulLogin.data.lastName,
+        email: successfulLogin.data.email,
+        phone: successfulLogin.data.phone,
         dispatcherType: successfulLogin.data.dispatcherType,
         profileImage: successfulLogin.data.profileImage || user.profileImage || null,
       }));
