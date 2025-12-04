@@ -394,7 +394,7 @@ const ManageUsers = () => {
         ) : (
           filteredResponders.map((responder: any, idx: number) => (
             <Grid container key={responder._id} sx={{ background: idx % 2 === 0 ? '#f8fbfa' : 'white', borderRadius: 2, mt: 2, mb: 0, boxShadow: 0, border: '1.5px solid #e0e0e0', alignItems: 'center', p: 0.5, minHeight: 70 }}>
-              <Grid size={{ md: 1.2 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Grid size={{ md: 1.2 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'start' }}>
                 <Avatar 
                   src={responder.profileImage || undefined} 
                   variant="rounded" 

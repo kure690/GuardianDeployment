@@ -171,13 +171,21 @@ const ManageReporting: React.FC = () => {
     const q = searchQuery.toLowerCase().trim()
     if (!q) return incidents
     return incidents.filter((i) => {
+      const formattedDate = i.createdAt ? dayjs(i.createdAt).format('MMM D, YYYY') : '';
       const fields: string[] = [
         i.incidentType || '',
+        `${i.user?.firstName || ''} ${i.user?.lastName || ''}`,
         i.user?.firstName || '',
         i.user?.lastName || '',
         i.responder?.firstName || '',
         i.responder?.lastName || '',
+        `${i.responder?.firstName || ''} ${i.responder?.lastName || ''}`,
+        i.dispatcher?.firstName || '',
+        i.dispatcher?.lastName || '',
+        `${i.dispatcher?.firstName || ''} ${i.dispatcher?.lastName || ''}`,
         i.incidentDetails?.incidentDescription || '',
+        formattedDate,
+        i.createdAt || '',
         i._id || ''
       ]
       return fields.some((f) => f.toLowerCase().includes(q))
@@ -556,6 +564,7 @@ const ManageReporting: React.FC = () => {
               <MenuItem value="Fire">Fire</MenuItem>
               <MenuItem value="Medical">Medical</MenuItem>
               <MenuItem value="Police">Police</MenuItem>
+              <MenuItem value="General">General</MenuItem>
             </Select>
           </FormControl>
           <TextField label="Description" variant="outlined" size="small" fullWidth multiline rows={4} value={editForm.incidentDescription} onChange={(e) => setEditForm((p) => ({ ...p, incidentDescription: e.target.value }))} sx={{ mb: 2 }} />
