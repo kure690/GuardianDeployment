@@ -44,25 +44,26 @@ const MapView = () => {
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   const [address, setAddress] = useState<string>('');
   const [incidentId, setIncidentId] = useState<string>('');
   const [incidentType, setIncidentType] = useState<string>('');
   const [userData, setUserData] = useState<{ firstName: string; lastName: string; phone: string; profileImage: string } | null>(null);
   const [isGoogleLoaded, setIsGoogleLoaded] = useState(false);
   const [infoWindowPosition, setInfoWindowPosition] = useState<google.maps.LatLng | null>(null);
-  const [routeInfo, setRouteInfo] = useState<{duration: string, distance: string} | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{ duration: string, distance: string } | null>(null);
   const [isResolved, setIsResolved] = useState(false);
   const [acceptedAt, setAcceptedAt] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
   const [isChatExpanded, setIsChatExpanded] = useState(false);
   const [chatClient, setChatClient] = useState<StreamChat | null>(null);
   const [responderId, setResponderId] = useState<string | null>(null);
-  const [responderData, setResponderData] = useState({
-    firstName: '',
-    lastName: '',
-    assignment: 'ambulance',
-  });
+  const [responderData, setResponderData] = useState<{
+    firstName: string;
+    lastName: string;
+    assignment: string;
+    [key: string]: any;
+  } | null>(null);
   const [currentChannelId, setCurrentChannelId] = useState<string>('');
   const userStr = localStorage.getItem("user");
   const userStr2 = userStr ? JSON.parse(userStr) : null;
@@ -102,7 +103,7 @@ const MapView = () => {
   }, [isGoogleLoaded]);
 
 
-  const getIncidentIcon2 = useCallback((assignment: string): google.maps.Icon | undefined => {
+  const getIncidentIcon2 = useCallback((assignment?: string): google.maps.Icon | undefined => {
     if (!isGoogleLoaded) return undefined;
 
     const iconUrl = (() => {
@@ -114,7 +115,7 @@ const MapView = () => {
         case 'police':
           return policecarIcon;
         default:
-          return ambulanceIcon; 
+          return ambulanceIcon;
       }
     })();
 
@@ -185,13 +186,13 @@ const MapView = () => {
     const fetchInitialData = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const incidentIdFromUrl = urlParams.get('incidentId');
-      
+
       if (!incidentIdFromUrl) {
         setError('No incident ID found');
         setLoading(false);
         return;
       }
-      
+
       setIncidentId(incidentIdFromUrl);
       setLoading(true);
 
@@ -214,18 +215,47 @@ const MapView = () => {
           const formattedAddress = await getAddressFromCoordinates(lat, lon);
           setAddress(formattedAddress);
         }
-        
-        // The rest of your data fetching remains the same
-        if (data.responderCoordinates) {
+
+        // ── Responder data ─────────────────────────────────────────────────
+        // Fetch BEFORE setting responderCoords so both state updates land in
+        // the same React render batch. This prevents the Marker from briefly
+        // showing the wrong (default) icon while the fetch is in flight.
+        const responderIdValue = data.responder?._id || data.responder;
+        if (responderIdValue) {
+          setResponderId(responderIdValue);
+          const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderIdValue}`);
+          if (responderResponse.ok) {
+            const responderData = await responderResponse.json();
+            setResponderData(responderData);
+          }
+        } else {
+          setResponderId(null);
+          setResponderData(null);
+        }
+
+        // ── Responder coordinates ───────────────────────────────────────────
+        // Set AFTER responderData so the Marker renders with the correct icon
+        // on its very first appearance.
+        const hasValidResponderCoords = Boolean(
+          data.responderCoordinates &&
+          data.responderCoordinates.lat != null &&
+          data.responderCoordinates.lon != null &&
+          !isNaN(Number(data.responderCoordinates.lat)) &&
+          !isNaN(Number(data.responderCoordinates.lon)) &&
+          (Number(data.responderCoordinates.lat) !== 0 || Number(data.responderCoordinates.lon) !== 0)
+        );
+
+        if (hasValidResponderCoords) {
           const responderCoordsForMap = {
             lat: Number(data.responderCoordinates.lat),
             lng: Number(data.responderCoordinates.lon)
           };
           setResponderCoords(responderCoordsForMap);
-          // --- THIS IS THE FIX ---
-          // Fetch and set the responder's address on initial load
           const responderFormattedAddress = await getAddressFromCoordinates(responderCoordsForMap.lat, responderCoordsForMap.lng);
           setResponderAddress(responderFormattedAddress);
+        } else {
+          setResponderCoords(null);
+          setResponderAddress('');
         }
 
         const volunteerId = data.user?._id || data.user;
@@ -235,16 +265,6 @@ const MapView = () => {
             const userData = await userResponse.json();
             setUserData(userData);
           }
-        }
-
-        const responderIdValue = data.responder?._id || data.responder;
-        if (responderIdValue) {
-           setResponderId(responderIdValue);
-           const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderIdValue}`);
-           if (responderResponse.ok) {
-             const responderData = await responderResponse.json();
-             setResponderData(responderData);
-           }
         }
       } catch (err) {
         console.error('Error fetching initial data:', err);
@@ -266,16 +286,16 @@ const MapView = () => {
           const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
           if (response.ok) {
             const data = await response.json();
-            
+
             if (data.selectedHospital && data.selectedHospital !== selectedHospital) {
               setSelectedHospital(data.selectedHospital);
-              
+
               // Fetch hospital details if we have a new selected hospital
               try {
                 const hospitalResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/hospitals/${data.selectedHospital}`);
                 if (hospitalResponse.ok) {
                   const hospitalData = await hospitalResponse.json();
-                  
+
                   if (hospitalData.coordinates) {
                     const hospitalCoords = {
                       lat: Number(hospitalData.coordinates.lat),
@@ -297,7 +317,7 @@ const MapView = () => {
         }
       }
     }, 5000); // Poll every 5 seconds
-    
+
     return () => clearInterval(pollInterval);
   }, [incidentId, selectedHospital]);
 
@@ -309,18 +329,48 @@ const MapView = () => {
         const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
         if (response.ok) {
           const data = await response.json();
-          if (data.responderCoordinates) {
+
+          const responderIdValue = data.responder?._id || data.responder;
+          if (responderIdValue) {
+            if (responderIdValue !== responderId) {
+              setResponderId(responderIdValue);
+              try {
+                const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderIdValue}`);
+                if (responderResponse.ok) {
+                  const newRespData = await responderResponse.json();
+                  setResponderData(newRespData);
+                }
+              } catch (err) {
+                console.error('Error fetching responder data:', err);
+              }
+            }
+          } else if (responderId) {
+            setResponderId(null);
+            setResponderData(null);
+          }
+
+          const hasValidResponderCoords = Boolean(
+            data.responderCoordinates &&
+            data.responderCoordinates.lat != null &&
+            data.responderCoordinates.lon != null &&
+            !isNaN(Number(data.responderCoordinates.lat)) &&
+            !isNaN(Number(data.responderCoordinates.lon)) &&
+            (Number(data.responderCoordinates.lat) !== 0 || Number(data.responderCoordinates.lon) !== 0)
+          );
+
+          if (hasValidResponderCoords) {
             const newResponderCoords = {
               lat: Number(data.responderCoordinates.lat),
               lng: Number(data.responderCoordinates.lon)
             };
             if (!responderCoords || responderCoords.lat !== newResponderCoords.lat || responderCoords.lng !== newResponderCoords.lng) {
               setResponderCoords(newResponderCoords);
-              // --- THIS IS THE FIX ---
-              // Fetch and set the responder's address when their location updates
               const responderFormattedAddress = await getAddressFromCoordinates(newResponderCoords.lat, newResponderCoords.lng);
               setResponderAddress(responderFormattedAddress);
             }
+          } else {
+            setResponderCoords(null);
+            setResponderAddress('');
           }
         }
       } catch (error) {
@@ -328,9 +378,9 @@ const MapView = () => {
       }
     }, 5000);
     return () => clearInterval(responderPollInterval);
-  }, [incidentId, responderCoords]);
+  }, [incidentId, responderCoords, responderId]);
 
-  
+
 
   useEffect(() => {
     if (isGoogleLoaded && responderCoords) {
@@ -388,10 +438,10 @@ const MapView = () => {
 
   if (loading && !error) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
+      <Box sx={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
         height: '100vh',
         backgroundColor: '#1B4965',
         color: 'white'
@@ -403,10 +453,10 @@ const MapView = () => {
 
   if (error) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
+      <Box sx={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
         height: '100vh',
         backgroundColor: '#1B4965'
       }}>
@@ -435,108 +485,108 @@ const MapView = () => {
 
   return (
     <Box sx={{ position: 'relative', height: '100vh' }}>
-      
-        <GoogleMap
-          mapContainerStyle={containerStyle}
-          center={incidentCoords || { lat: 10.3157, lng: 123.8854 }}
-          zoom={responderCoords ? 15 : 12}
-          onLoad={onLoad}
-          onUnmount={onUnmount}
-          options={{
-            zoomControl: true,
-            streetViewControl: true,
-            mapTypeControl: true,
-            fullscreenControl: true,
-          }}
-        >
-          <TrafficLayer />
-          
-          {responderCoords && (
-            <Marker
-              position={responderCoords}
-              icon={getIncidentIcon2(responderData.assignment)}
-              title="Responder Location"
-            />
-          )}
-          
-          {incidentCoords && (
-            <Marker
-              position={incidentCoords}
-              icon={getIncidentIcon(incidentType)}
-              title="Incident Location"
-            />
-          )}
-          
-          {hospitalCoords && (
-            <Marker
-              position={hospitalCoords}
-              icon={getHospitalIcon()}
-              title={hospitalName || "Hospital Location"}
-            />
-          )}
-          
-          {directions && responderCoords && (
-            <DirectionsRenderer
-              directions={directions}
-              options={{
-                suppressMarkers: true,
-                polylineOptions: {
-                  strokeColor: '#1976D2',
-                  strokeWeight: 5,
-                  strokeOpacity: 0.8
-                }
-              }}
-            />
-          )}
-          
-          {infoWindowPosition && routeInfo && (
-            <OverlayView
-              position={infoWindowPosition}
-              mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-              getPixelPositionOffset={(width, height) => ({
-                x: -(width / 2),
-                y: -height 
-              })}
-            >
-              <div style={{
-                backgroundColor: 'white',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-                textAlign: 'center',
-                minWidth: '100px',
-                transform: 'translateY(-50%)'
-              }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1976D2', fontSize: '1rem', margin: 0 }}>
-                  {routeInfo.duration}
-                </Typography>
-                <Typography variant="body2" color="textSecondary" sx={{ fontSize: '0.875rem', margin: 0 }}>
-                  {routeInfo.distance}
-                </Typography>
-                {/* <Typography variant="body2" color="textSecondary" sx={{ fontSize: '0.875rem', margin: 0 }}>
+
+      <GoogleMap
+        mapContainerStyle={containerStyle}
+        center={incidentCoords || { lat: 10.3157, lng: 123.8854 }}
+        zoom={responderCoords ? 15 : 12}
+        onLoad={onLoad}
+        onUnmount={onUnmount}
+        options={{
+          zoomControl: true,
+          streetViewControl: true,
+          mapTypeControl: true,
+          fullscreenControl: true,
+        }}
+      >
+        <TrafficLayer />
+
+        {responderCoords && (
+          <Marker
+            position={responderCoords}
+            icon={getIncidentIcon2(responderData?.assignment)}
+            title="Responder Location"
+          />
+        )}
+
+        {incidentCoords && (
+          <Marker
+            position={incidentCoords}
+            icon={getIncidentIcon(incidentType)}
+            title="Incident Location"
+          />
+        )}
+
+        {hospitalCoords && (
+          <Marker
+            position={hospitalCoords}
+            icon={getHospitalIcon()}
+            title={hospitalName || "Hospital Location"}
+          />
+        )}
+
+        {directions && responderCoords && (
+          <DirectionsRenderer
+            directions={directions}
+            options={{
+              suppressMarkers: true,
+              polylineOptions: {
+                strokeColor: '#1976D2',
+                strokeWeight: 5,
+                strokeOpacity: 0.8
+              }
+            }}
+          />
+        )}
+
+        {infoWindowPosition && routeInfo && (
+          <OverlayView
+            position={infoWindowPosition}
+            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+            getPixelPositionOffset={(width, height) => ({
+              x: -(width / 2),
+              y: -height
+            })}
+          >
+            <div style={{
+              backgroundColor: 'white',
+              padding: '8px 12px',
+              borderRadius: '4px',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+              textAlign: 'center',
+              minWidth: '100px',
+              transform: 'translateY(-50%)'
+            }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1976D2', fontSize: '1rem', margin: 0 }}>
+                {routeInfo.duration}
+              </Typography>
+              <Typography variant="body2" color="textSecondary" sx={{ fontSize: '0.875rem', margin: 0 }}>
+                {routeInfo.distance}
+              </Typography>
+              {/* <Typography variant="body2" color="textSecondary" sx={{ fontSize: '0.875rem', margin: 0 }}>
                   {destinationType === 'hospital' ? 'To Hospital' : 'To Incident'}
                 </Typography> */}
-              </div>
-            </OverlayView>
-          )}
-        </GoogleMap>
-      
+            </div>
+          </OverlayView>
+        )}
+      </GoogleMap>
 
-      <Box sx={{ 
-        position: 'absolute', 
-        bottom: 0, 
-        width: '100%', 
+
+      <Box sx={{
+        position: 'absolute',
+        bottom: 0,
+        width: '100%',
         display: 'flex',
         padding: '0.7rem',
         gap: '1rem'
       }}>
-        <Box sx={{ 
+        <Box sx={{
           flex: '3',
           backgroundColor: "rgba(27, 73, 101, 0.1)",
           padding: "2px",
           borderRadius: '10px'
         }}>
-          <Box sx={{ 
+          <Box sx={{
             backgroundColor: 'rgba(29, 51, 84, 0.9)',
             borderRadius: 2,
             color: 'white',
@@ -547,28 +597,28 @@ const MapView = () => {
             boxShadow: '0 2px 10px rgba(0,0,0,0.5)'
           }}>
             {/* Incident Info */}
-            <Box sx={{ 
-              display: 'flex', 
+            <Box sx={{
+              display: 'flex',
               flexDirection: 'row',
-              alignItems: 'center', 
+              alignItems: 'center',
               justifyContent: 'start',
               marginRight: 2,
               width: '33%',
               borderRight: '1px solid rgba(255,255,255,0.3)',
             }}>
-              <Box 
-                component="img" 
+              <Box
+                component="img"
                 src={getIncidentIconUrl(incidentType)}
                 alt="Emergency Icon"
-                sx={{ width: 70, height: 70}}
+                sx={{ width: 70, height: 70 }}
               />
-              <Box sx ={{
+              <Box sx={{
                 display: 'flex',
                 flexDirection: 'column',
                 marginLeft: '1rem'
               }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>
-                  ID: {incidentType.toUpperCase()}-{incidentId?.substring(5,9)}
+                  ID: {incidentType.toUpperCase()}-{incidentId?.substring(5, 9)}
                 </Typography>
                 <Typography variant="caption" sx={{ color: '#4caf50', fontWeight: 'bold' }}>
                   {incidentType ? `${incidentType.toUpperCase()} CALL` : ""}
@@ -583,20 +633,20 @@ const MapView = () => {
             </Box>
 
             {/* User Info */}
-            <Box sx={{ 
-              display: 'flex', 
+            <Box sx={{
+              display: 'flex',
               flexDirection: 'row',
-              alignItems: 'center', 
+              alignItems: 'center',
               justifyContent: 'start',
               marginRight: 2,
               width: '33%',
               borderRight: '1px solid rgba(255,255,255,0.3)',
             }}>
-              <Box 
-                component="img" 
+              <Box
+                component="img"
                 src={getImageUrl(userData?.profileImage || '')}
                 alt="Emergency Icon"
-                sx={{ width: 70, height: 70, borderRadius: '50%'}}
+                sx={{ width: 70, height: 70, borderRadius: '50%' }}
               />
               <Box sx={{
                 display: 'flex',
@@ -616,32 +666,43 @@ const MapView = () => {
             </Box>
 
             {/* Destination Info */}
-            <Box sx={{ 
-              display: 'flex', 
+            <Box sx={{
+              display: 'flex',
               flexDirection: 'row',
-              alignItems: 'center', 
+              alignItems: 'center',
               justifyContent: 'start',
               marginRight: 2,
               width: '33%',
             }}>
-              <img className='w-20 ml-3'
-                src={destinationType === 'hospital' ? getHospitalIcon()?.url : getIncidentIcon2(responderData.assignment)?.url}
-                alt="Responder Vehicle" 
-              /> 
-              <Box sx ={{
+              {destinationType === 'hospital' ? (
+                <img className='w-20 ml-3'
+                  src={getHospitalIcon()?.url}
+                  alt="Selected Hospital"
+                />
+              ) : responderData ? (
+                <img className='w-20 ml-3'
+                  src={getIncidentIcon2(responderData.assignment)?.url}
+                  alt="Responder Vehicle"
+                />
+              ) : null}
+              <Box sx={{
                 display: 'flex',
                 flexDirection: 'column',
                 marginLeft: '1rem'
               }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                  {destinationType === 'hospital' 
+                  {destinationType === 'hospital'
                     ? hospitalName || 'Selected Hospital'
-                    : (responderData ? `${responderData.firstName} ${responderData.lastName}` : 'Loading...')}
+                    : responderData
+                      ? `${responderData.firstName} ${responderData.lastName}`.trim() || 'Responder Assigned'
+                      : 'No Responder Assigned'}
                 </Typography>
                 <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-                  {destinationType === 'hospital' 
-                    ? hospitalAddress || "Hospital Address" 
-                    : responderAddress || "Loading address..."}
+                  {destinationType === 'hospital'
+                    ? hospitalAddress || "Hospital Address"
+                    : responderData
+                      ? (responderAddress || (responderCoords ? "Loading address..." : "Location not available"))
+                      : "No responder assigned yet"}
                 </Typography>
                 {destinationType === 'hospital' && (
                   <Typography variant="caption" sx={{ fontSize: '0.7rem', color: '#4caf50', fontWeight: 'bold' }}>
@@ -650,13 +711,13 @@ const MapView = () => {
                 )}
               </Box>
             </Box>
-            
-            <IconButton 
-              sx={{ 
-                position: 'absolute', 
-                top: 0, 
-                right: 0, 
-                color: 'white', 
+
+            <IconButton
+              sx={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                color: 'white',
                 backgroundColor: 'rgba(255,255,255,0.1)',
                 '&:hover': {
                   backgroundColor: 'rgba(255,255,255,0.2)'
@@ -670,8 +731,8 @@ const MapView = () => {
             </IconButton>
           </Box>
         </Box>
-        
-        <Box sx={{ 
+
+        <Box sx={{
           flex: '1',
           position: 'relative',
         }}>
@@ -702,8 +763,8 @@ const MapView = () => {
                   cursor: 'pointer',
                 }}
               >
-                <Typography sx={{ fontWeight: 'bold', textTransform: 'uppercase'  }}>
-                  Channel ID: {incidentType.toUpperCase()}-{incidentId?.substring(5,9)}
+                <Typography sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  Channel ID: {incidentType.toUpperCase()}-{incidentId?.substring(5, 9)}
                 </Typography>
                 {isChatExpanded ? <KeyboardArrowDown /> : <KeyboardArrowUp />}
               </Box>
@@ -715,7 +776,7 @@ const MapView = () => {
                 }}
               >
                 <Chat client={chatClient} theme="messaging light">
-                <Channel channel={chatClient.channel("messaging", currentChannelId)}>
+                  <Channel channel={chatClient.channel("messaging", currentChannelId)}>
                     <Window>
                       <MessageList />
                       <MessageInput />

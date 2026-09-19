@@ -5,6 +5,7 @@ import {
   StreamVideoClient,
   useCall,
   useCallStateHooks,
+  useConnectedUser,
   StreamTheme,
   SpeakerLayout,
   CancelCallButton,
@@ -22,19 +23,6 @@ import "@stream-io/video-react-sdk/dist/css/styles.css";
 import "../components/Calls.css" // Make sure this path is correct
 
 
-const userStr = localStorage.getItem("user");
-const userStr2 = userStr ? JSON.parse(userStr) : null;
-const userId = userStr2?.id;
-const token = localStorage.getItem("token");
-
-const user: User = {
-  id: userId,
-  name: userStr2?.firstName && userStr2?.lastName 
-    ? `${userStr2.firstName} ${userStr2.lastName}` 
-    : userStr2?.name || userStr2?.email || "Unknown User",
-};
-
-
 export default function Calls() {
   const [client, setClient] = useState<StreamVideoClient | null>(null);
   const [call, setCall] = useState<Call | null>(null);
@@ -48,34 +36,50 @@ export default function Calls() {
     const initCall = async () => {
       try {
         console.log("Initializing call in POPUP...");
-        videoClient = StreamVideoClient.getOrCreateInstance({
-          apiKey: config.STREAM_APIKEY,
-          user,
-          token: token || undefined,
-        });
-        console.log("User connected in POPUP");
 
-        
+        const currentUserStr = localStorage.getItem("user");
+        const currentUser = currentUserStr ? JSON.parse(currentUserStr) : null;
+        const currentUserId = currentUser?.id || currentUser?._id;
+        const currentToken = localStorage.getItem("token");
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const callIdFromUrl = urlParams.get('id');
-        const volunteerIdFromUrl = urlParams.get('volunteer');
-
-        if (!callIdFromUrl || !volunteerIdFromUrl) {
-          console.error("POPUP: No call ID or volunteer ID found in URL");
+        if (!currentUserId || !currentToken) {
+          console.error("POPUP: User or token not found in localStorage");
           return;
         }
 
-        // Use the callId from the URL
-        newCall = videoClient.call("default", callIdFromUrl);
+        const activeUser: User = {
+          id: currentUserId,
+          name: currentUser?.firstName && currentUser?.lastName 
+            ? `${currentUser.firstName} ${currentUser.lastName}` 
+            : currentUser?.name || currentUser?.email || "Unknown User",
+        };
 
-        // We DO NOT join. We just create the call.
+        videoClient = StreamVideoClient.getOrCreateInstance({
+          apiKey: config.STREAM_APIKEY,
+          user: activeUser,
+          token: currentToken,
+        });
+        console.log("User connected in POPUP", activeUser);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const callIdFromUrl = urlParams.get('id');
+        const calleeIdFromUrl = urlParams.get('volunteer') || urlParams.get('responder');
+
+        if (!callIdFromUrl || !calleeIdFromUrl) {
+          console.error("POPUP: No call ID or callee (volunteer/responder) ID found in URL");
+          return;
+        }
+
+        // Use the callId from the URL with reuseInstance: true to avoid creating duplicate Call objects
+        newCall = videoClient.call("default", callIdFromUrl, { reuseInstance: true });
+
+        // We DO NOT join yet. We create the call with ring: true and wait for callee to accept.
         await newCall.getOrCreate({
           ring: true,
           data: {
             members: [
-              { user_id: userId },
-              { user_id: volunteerIdFromUrl },
+              { user_id: currentUserId },
+              { user_id: calleeIdFromUrl },
             ],
             settings_override: {
               ring: {
@@ -85,7 +89,7 @@ export default function Calls() {
             }
           }
         });
-        console.log("POPUP: Call created and is ringing.");
+        console.log("POPUP: Call created and is ringing.", callIdFromUrl);
 
         if (mounted) {
           setClient(videoClient);
@@ -102,12 +106,6 @@ export default function Calls() {
     return () => {
       mounted = false;
       console.log("POPUP: Cleanup running.");
-      if (newCall) {
-        newCall.leave();
-      }
-      // if (videoClient) {
-      //   videoClient.disconnectUser();
-      // }
     };
   }, []);
 
@@ -131,11 +129,14 @@ export default function Calls() {
 // --- VideoCall component ---
 export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
   const call = useCall();
+  const connectedUser = useConnectedUser();
+  const currentUserId = connectedUser?.id || call?.currentUserId;
   const navigate = useNavigate();
   const [callingState, setCallingState] = useState(call?.state.callingState);
   
   // This state tracks if the callee has accepted
   const [isAccepted, setIsAccepted] = useState(false);
+  const isJoiningRef = useRef(false);
   
   useEffect(() => {
     if (!call) return;
@@ -149,9 +150,19 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
     });
     
     // Listen for the 'call.accepted' event
-    const handleCallAccepted = (event: any) => {
-      console.log('call.accepted event received!', event);
+    const handleCallAccepted = async (event: any) => {
+      console.log('call.accepted event received in POPUP!', event);
       setIsAccepted(true); // Set our new state to true
+      if (!isJoiningRef.current && call.state.callingState !== CallingState.JOINED && call.state.callingState !== CallingState.JOINING) {
+        isJoiningRef.current = true;
+        try {
+          await call.join();
+          console.log('Caller auto-joined call after callee accepted');
+        } catch (error) {
+          console.log('Auto-join status in popup:', error);
+          isJoiningRef.current = false;
+        }
+      }
     };
 
     call.on('call.accepted', handleCallAccepted);
@@ -195,10 +206,28 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
     }
   };
 
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (call) {
+        call.leave().catch(() => {});
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [call]);
+
   // This is the click handler for the "Join" button
-  const handleJoinCall = () => {
-    if (call) {
-      call.join();
+  const handleJoinCall = async () => {
+    if (call && !isJoiningRef.current) {
+      isJoiningRef.current = true;
+      try {
+        await call.join();
+      } catch (err) {
+        console.error("Error joining call:", err);
+        isJoiningRef.current = false;
+      }
     }
   };
 
@@ -209,20 +238,24 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
         <StreamTheme>
           <RingingCall />
           
-          {/* This logic shows the "Click to Join" button after acceptance */}
-          {/* {isAccepted ? (
-            <button 
-              className="str-video__button str-video__button--primary"
-              onClick={handleJoinCall}
-              style={{ marginTop: '1rem' }}
-            >
-              Call Accepted! Click to Join
-            </button>
+          {isAccepted ? (
+            <div className="flex flex-col items-center gap-3 mt-4">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1B4965', fontWeight: 600 }}>
+                <span>Connecting to call...</span>
+              </div>
+              <button 
+                className="str-video__button str-video__button--primary"
+                onClick={handleJoinCall}
+                style={{ padding: '8px 16px', fontSize: '0.85rem', backgroundColor: '#1976D2', color: 'white', borderRadius: '6px', border: 'none', cursor: 'pointer' }}
+              >
+                Click if not redirected automatically
+              </button>
+            </div>
           ) : (
             <div className="flex justify-center items-center gap-5 mt-4">
               <CancelCallButton onClick={handleLeaveCall} />
             </div>
-          )} */}
+          )}
         </StreamTheme>
       </div>
     );
@@ -233,7 +266,17 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
     return (
       <div className="flex-1 h-full">
         <StreamTheme>
-          <SpeakerLayout participantsBarPosition="top" />
+          <SpeakerLayout 
+            participantsBarPosition="top"
+            filterParticipants={(participant) => {
+              // Exclude ghost/duplicate session of local user from another tab or previous connection
+              if (currentUserId && participant.userId === currentUserId && !participant.isLocalParticipant) {
+                console.log("Filtering out duplicate dispatcher participant session:", participant.sessionId);
+                return false;
+              }
+              return true;
+            }}
+          />
           <div className="flex justify-center items-center gap-5 mt-4">
             <SpeakingWhileMutedNotification>
               <ToggleAudioPublishingButton />

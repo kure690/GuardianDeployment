@@ -36,6 +36,7 @@ import {
   StreamVideoClient,
   useCallStateHooks,
   useCalls,
+  useConnectedUser,
   Call
 } from "@stream-io/video-react-sdk";
 import { CallPanel } from "../components/CallPanel";
@@ -803,11 +804,27 @@ const LGUMain = () => {
           
           client.on('all', (event: any) => {
             if (event.type?.includes('call')) {
-              console.log('Call event received:', {
+              console.log('Call event received in LGUMain:', {
                 type: event.type,
                 callCid: event.call_cid,
                 details: event
               });
+
+              // If this is an outgoing call initiated by this dispatcher, disarm it so LGUMain never joins the SFU
+              const callData = event.call;
+              if (callData && (callData.created_by?.id === userId || callData.created_by_user_id === userId)) {
+                try {
+                  const outgoingCall = client.call(callData.type || 'default', callData.id, { reuseInstance: true });
+                  if (outgoingCall.state.callingState === CallingState.RINGING) {
+                    console.log("LGUMain: Disarming outgoing ringing call on event:", callData.id);
+                    outgoingCall.state.setCallingState(CallingState.IDLE);
+                  } else if ([CallingState.JOINING, CallingState.JOINED].includes(outgoingCall.state.callingState)) {
+                    outgoingCall.leave().catch(() => {});
+                  }
+                } catch (e) {
+                  console.error("Error disarming outgoing call in LGUMain:", e);
+                }
+              }
             }
           });
           
@@ -873,72 +890,54 @@ const LGUMain = () => {
       checkUserStatus();
     }, [client, userId, globalSocket, isConnected]);
 
-    const handleCreateRingCall = async (incident: any) => {
-        if (!videoClient || !incident?.responder) {
-            console.error("Video client not initialized or no responder ID available");
+    const handleCreateRingCall = (incident: any) => {
+        const responderId = typeof incident.responder === 'object' && incident.responder !== null
+            ? incident.responder._id
+            : incident.responder;
+
+        if (!incident?._id || !responderId) {
+            console.warn("No responder assigned to this incident yet.");
+            alert("Cannot initiate call: No responder has been assigned to this incident yet.");
             return;
         }
-        
-        try {
-            setIsRinging(true);
-            const responderId = typeof incident.responder === 'object' && incident.responder !== null
-                ? incident.responder._id
-                : incident.responder;
-            let responderData = null;
-            try {
-                const token = localStorage.getItem("token");
-                const response = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                if (response.ok) {
-                    responderData = await response.json();
+
+        // Generate a fresh unique call ID each time so Stream Video rings reliably
+        const callId = `call-${incident._id}-${Date.now()}`;
+
+        console.log("Opening call window for incident:", incident._id, "responder:", responderId, "callId:", callId);
+
+        const url = `/call?id=${callId}&responder=${responderId}`;
+        const width = window.screen.width;
+        const height = window.screen.height;
+        // Synchronous window.open ensures modern browser popup blockers allow the new tab
+        const newWindow = window.open(url, '_blank', `width=${width},height=${height},left=0,top=0`);
+
+        if (newWindow) {
+            newWindow.moveTo(0, 0);
+            newWindow.resizeTo(screen.availWidth, screen.availHeight);
+            newWindow.focus();
+        } else {
+            console.error("Failed to open new window! Pop-up might be blocked.");
+            alert("Failed to open call window. Please check your pop-up blocker.");
+        }
+
+        // Async upsert user in background without delaying window.open
+        if (chatClient && responderId) {
+            const token = localStorage.getItem("token");
+            fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(res => res.ok ? res.json() : null)
+            .then(responderData => {
+                if (responderData) {
+                    chatClient.upsertUser({
+                        id: responderId,
+                        name: `${responderData.firstName || ''} ${responderData.lastName || ''}`.trim() || 'Responder',
+                        image: responderData.profileImage || undefined
+                    }).catch(console.error);
                 }
-            } catch (error) {
-                console.error("Error fetching responder data for upsert:", error);
-            }
-            if (chatClient && responderData) {
-                await chatClient.upsertUser({
-                    id: responderId,
-                    name: `${responderData.firstName || ''} ${responderData.lastName || ''}`.trim() || 'Responder',
-                    image: responderData.profileImage || undefined
-                });
-            }
-            console.log("Calling responder ID:", responderId);
-            console.log("Video client state:", videoClient.state);
-            
-            const callId = `call-${Date.now()}`;
-            console.log("Creating call with ID:", callId);
-            
-            const newCall = videoClient.call("default", callId);
-            console.log("New call created with ID:", newCall.id);
-            
-            await newCall.getOrCreate({
-                ring: true,
-                data: {
-                    members: [
-                        { user_id: userId },
-                        { user_id: responderId }
-                    ],
-                    settings_override: {
-                        ring: {
-                            incoming_call_timeout_ms: 30000,
-                            auto_cancel_timeout_ms: 30000
-                        }
-                    }
-                }
-            });
-            
-            console.log("Ring call created successfully", {
-                callId: newCall.id,
-                isCreatedByMe: newCall.isCreatedByMe,
-                members: newCall.state.members
-            });
-        } catch (error) {
-            console.error("Error creating ring call:", error);
-        } finally {
-            setIsRinging(false);
+            })
+            .catch(console.error);
         }
     };
 
@@ -1005,11 +1004,21 @@ const LGUMain = () => {
 
     function CallAudioHandler({ stopSound }: { stopSound: () => void }) {
         const calls = useCalls();
+        const user = useConnectedUser();
+        const localUserId = user?.id;
+
         useEffect(() => {
             if (!calls || calls.length === 0) return;
-            let prevStates = calls.map(call => call.state.callingState);
+            // Only process incoming calls so outgoing calls aren't interfered with
+            const incomingCalls = calls.filter(call => {
+                const creator = call.state.createdBy;
+                return !localUserId || (creator && creator.id !== localUserId);
+            });
+            if (incomingCalls.length === 0) return;
+
+            let prevStates = incomingCalls.map(call => call.state.callingState);
             const interval = setInterval(() => {
-                calls.forEach((call, idx) => {
+                incomingCalls.forEach((call, idx) => {
                     const currentState = call.state.callingState;
                     if (prevStates[idx] === 'ringing' && currentState !== 'ringing') {
                         stopSound();
@@ -1021,7 +1030,7 @@ const LGUMain = () => {
                 });
             }, 200);
             return () => clearInterval(interval);
-        }, [calls, stopSound]);
+        }, [calls, stopSound, localUserId]);
         return null;
     }
 
@@ -1714,24 +1723,52 @@ const LGUMain = () => {
 
 const VideoCallHandler = () => {
     const calls = useCalls();
-    const navigate = useNavigate();
-    
+    const user = useConnectedUser();
+    const localUserId = user?.id;
+
     useEffect(() => {
-        if (calls.length > 0) {
-            console.log("Active calls in LGUMain:", calls.length);
-            calls.forEach(call => {
-                console.log(`Call ${call.cid} state:`, call.state.callingState);
-            });
-        }
-    }, [calls]);
-    
+        if (!localUserId || !calls) return;
+
+        calls.forEach((call) => {
+            const creator = call.state.createdBy;
+            const isOutgoingCall = call.isCreatedByMe || (creator && creator.id === localUserId);
+
+            if (isOutgoingCall) {
+                // Ensure this call never joins from the LGUMain dashboard tab
+                if (call.state.callingState === CallingState.RINGING) {
+                    console.log("LGUMain: Setting outgoing call to IDLE:", call.id);
+                    call.state.setCallingState(CallingState.IDLE);
+                } else if ([CallingState.JOINING, CallingState.JOINED].includes(call.state.callingState)) {
+                    console.log("LGUMain: Leaving outgoing call session:", call.id);
+                    call.leave().catch(() => {});
+                }
+            }
+        });
+    }, [calls, localUserId]);
+
+    if (!localUserId) {
+        return null;
+    }
+
     return (
         <>
-            {calls.map((call) => (
-                <StreamCall call={call} key={call.cid}>
-                    <CallPanel />
-                </StreamCall>
-            ))}
+            {calls.map((call) => {
+                const creator = call.state.createdBy;
+                const isIncomingCall = creator && creator.id !== localUserId;
+
+                if (isIncomingCall) {
+                    console.log(`INCOMING call detected (${call.id}), rendering <StreamCall> in LGUMain`);
+                    return (
+                        <StreamCall call={call} key={call.cid}>
+                            <CallPanel />
+                        </StreamCall>
+                    );
+                }
+
+                // If it's our own outgoing call, render NOTHING in LGUMain.
+                // The dedicated popup window handles the call. This kills the ghost caller.
+                return null;
+            })}
         </>
     );
 };

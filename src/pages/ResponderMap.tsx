@@ -104,10 +104,10 @@ const ResponderMap = () => {
     return { url: iconUrl, scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 40) };
   }, [isGoogleLoaded]);
 
-  const getIncidentIcon2 = useCallback((assignment: string): google.maps.Icon | undefined => {
-    if (!isGoogleLoaded || !assignment) return undefined;
+  const getIncidentIcon2 = useCallback((assignment?: string): google.maps.Icon | undefined => {
+    if (!isGoogleLoaded) return undefined;
     const iconUrl = (() => {
-      switch (assignment.toLowerCase()) {
+      switch (assignment?.toLowerCase()) {
         case 'ambulance': return ambulanceIcon;
         case 'firetruck': return firetruckIcon;
         case 'police': return policecarIcon;
@@ -192,13 +192,6 @@ const ResponderMap = () => {
           setAddress(formattedAddress);
         }
 
-        if (data.responderCoordinates) {
-          setResponderCoords({
-            lat: Number(data.responderCoordinates.lat),
-            lng: Number(data.responderCoordinates.lon)
-          });
-        }
-
         const volunteerId = data.user?._id || data.user;
         if (volunteerId) {
           const userResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/volunteers/${volunteerId}`);
@@ -209,6 +202,13 @@ const ResponderMap = () => {
         if (responderIdValue) {
           const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderIdValue}`);
           if (responderResponse.ok) setResponderData(await responderResponse.json());
+        }
+
+        if (data.responderCoordinates) {
+          setResponderCoords({
+            lat: Number(data.responderCoordinates.lat),
+            lng: Number(data.responderCoordinates.lon)
+          });
         }
 
       } catch (err) {
@@ -224,23 +224,69 @@ const ResponderMap = () => {
   useEffect(() => {
     if (!socket) return;
 
-    const handleAssignmentResponse = (data: any) => {
+    const handleAssignmentAccepted = async (data: any) => {
       // Check if the response is for the responder we are waiting on
       if (dispatchedResponder && data.responderId === dispatchedResponder._id) {
         setIsConnecting(false); // Close the modal
+
+        // Immediately set responder data from dispatchedResponder so icon renders with correct assignment immediately
+        setResponderData({
+          firstName: dispatchedResponder.firstName,
+          lastName: dispatchedResponder.lastName,
+          assignment: dispatchedResponder.assignment,
+        });
+
+        // Set coordinates immediately if available
+        const coords = data.incident?.responderCoordinates || dispatchedResponder.coordinates;
+        if (coords) {
+          const lat = Number(coords.lat);
+          const lng = Number(coords.lon ?? coords.lng);
+          if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
+            setResponderCoords({ lat, lng });
+          }
+        }
+
         setDispatchedResponder(null); // Clear the dispatched responder
-        // You can add a success/failure toast message here
+        console.log('Received assignment response:', data.message);
+
+        // Fetch fresh responder details from server to guarantee sync
+        try {
+          const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${data.responderId}`);
+          if (responderResponse.ok) {
+            const respData = await responderResponse.json();
+            setResponderData(respData);
+          }
+        } catch (err) {
+          console.error('Error fetching responder details after acceptance:', err);
+        }
+      } else if (data.responderId) {
+        try {
+          const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${data.responderId}`);
+          if (responderResponse.ok) {
+            const respData = await responderResponse.json();
+            setResponderData(respData);
+          }
+        } catch (err) {
+          console.error('Error fetching responder details after acceptance:', err);
+        }
+      }
+    };
+
+    const handleAssignmentDeclined = (data: any) => {
+      if (dispatchedResponder && data.responderId === dispatchedResponder._id) {
+        setIsConnecting(false);
+        setDispatchedResponder(null);
         console.log('Received assignment response:', data.message);
       }
     };
     
-    socket.on('assignmentAccepted', handleAssignmentResponse);
-    socket.on('assignmentDeclined', handleAssignmentResponse);
+    socket.on('assignmentAccepted', handleAssignmentAccepted);
+    socket.on('assignmentDeclined', handleAssignmentDeclined);
 
     // Cleanup listeners
     return () => {
-      socket.off('assignmentAccepted', handleAssignmentResponse);
-      socket.off('assignmentDeclined', handleAssignmentResponse);
+      socket.off('assignmentAccepted', handleAssignmentAccepted);
+      socket.off('assignmentDeclined', handleAssignmentDeclined);
     };
   }, [socket, dispatchedResponder]);
 
@@ -599,7 +645,7 @@ const ResponderMap = () => {
       return () => clearInterval(pollInterval);
     }, [incidentId, selectedHospital]);
     
-    // Poll for updates to responder coordinates
+    // Poll for updates to responder coordinates and data
     useEffect(() => {
       const responderPollInterval = setInterval(async () => {
         if (incidentId) {
@@ -607,6 +653,24 @@ const ResponderMap = () => {
             const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
             if (response.ok) {
               const data = await response.json();
+
+              const responderIdValue = data.responder?._id || data.responder;
+              if (responderIdValue) {
+                try {
+                  const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderIdValue}`);
+                  if (responderResponse.ok) {
+                    const newRespData = await responderResponse.json();
+                    setResponderData(prev => {
+                      if (!prev.assignment || prev.assignment !== newRespData.assignment || prev.firstName !== newRespData.firstName) {
+                        return newRespData;
+                      }
+                      return prev;
+                    });
+                  }
+                } catch (err) {
+                  console.error('Error polling responder data:', err);
+                }
+              }
               
               if (data.responderCoordinates) {
                 const newResponderCoords = {
@@ -1153,14 +1217,6 @@ const ResponderMap = () => {
                     title={`${responder.firstName} ${responder.lastName} (${responder.assignment})`}
                   />
                 ))
-            )}
-            
-            {responderCoords && (
-                <Marker
-                    position={responderCoords}
-                    icon={getIncidentIcon2(responderData.assignment)}
-                    title="Responder Location"
-                />
             )}
             
             {incidentCoords && (

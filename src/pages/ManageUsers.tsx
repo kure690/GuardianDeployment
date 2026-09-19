@@ -331,34 +331,25 @@ const ManageUsers = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fafcfc', position: 'relative' }}>
-      <AppBar position="static" style={{ backgroundColor: 'transparent', padding: 0, boxShadow: 'none'}}>
-        <Container disableGutters={true} maxWidth={false} sx={{}}>
-          <Grid container spacing={1} sx={{ backgroundColor: '#1B4965',  height: '80px' }}>
-             <Grid
-              size={{ md: 9 }}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'start',
-                p: '1rem 2rem 1rem 2rem'
-              }}
-            >
-              <Typography variant="h6" component="div">
-                Create and manage your users
+    <Box sx={{ 
+      height: '100vh', 
+      width: '100vw',
+      display: 'flex', 
+      flexDirection: 'column', 
+      background: '#fafcfc', 
+      overflow: 'hidden' 
+    }}>
+      <AppBar position="static" sx={{ backgroundColor: 'transparent', boxShadow: 'none', height: 80 }}>
+        <Container disableGutters={true} maxWidth={false} sx={{ height: '100%' }}>
+          <Grid container spacing={1} sx={{ backgroundColor: '#1B4965', height: '100%' }}>
+            <Grid size={{ md: 9 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'start', px: 4 }}>
+              <Typography variant="h6" component="div" sx={{ color: 'white' }}>
+              Create and manage your users
               </Typography>
             </Grid>
-            <Grid
-              size={{ md: 3 }}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'start',
-                p: '1rem 2rem 1rem 2rem'
-              }}
-            >
-              <Grid size={{ md: 3 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'start', px: 4 }}>
-              <div style={{display: 'flex', width: '80%'}}>
+            <Grid size={{ md: 3 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'start', px: 4 }}>
+              {/* --- UPDATED SEARCH BAR WITH HIGHLIGHT --- */}
+              <div style={{display: 'flex', width: '100%',}}>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%'}}>
                   <SearchIcon style={{ position: 'absolute', left: '8px', color: '#757575', fontSize: '20px' }} />
                   <input
@@ -369,17 +360,29 @@ const ManageUsers = () => {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onFocus={() => setIsSearchFocused(true)}
                     onBlur={() => setIsSearchFocused(false)}
-                    style={{ flex: 1, color: 'black', height: '38px', padding: '8px 12px 8px 36px', borderRadius: '8px', border: '1px solid #ccc', backgroundColor: 'white', fontSize: '1.1rem' }}
+                    style={{ flex: 1, color: 'black', height: '38px', padding: '8px 12px 8px 36px', borderRadius: '8px',border: isSearchFocused ? '1px solid #4dd0e1' : '1px solid #ccc',boxShadow: isSearchFocused ? '0 0 0 2.5px rgba(77, 208, 225, 0.4)' : 'none', outline: 'none', backgroundColor: 'white', fontSize: '1.1rem' }}
                   />
                 </div>
               </div>
-            </Grid>
             </Grid>
           </Grid>
         </Container>
       </AppBar>
       
-      <Box sx={{ background: 'white', borderRadius: 1, boxShadow: 0, p: 4, border: 'none' }}>
+      <Box sx={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        p: '2vh 2vw', // Dynamic padding based on viewport
+        overflow: 'hidden',
+        backgroundColor: '#fafcfc',
+
+        transition: 'all 0.3s ease',
+      
+        filter: isSearchFocused ? 'brightness(0.4)' : 'none',
+        
+        pointerEvents: isSearchFocused ? 'none' : 'auto'
+      }}>
         <Grid container sx={{ borderBottom: '2px solid #f2f2f2', background: '#f8fafa', p: 1, fontWeight: 600 }}>
           <Grid size={{ md: 1.2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>Photo</Grid>
           <Grid size={{ md: 2.2 }} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>Name/Call Sign</Grid>
@@ -562,7 +565,7 @@ const ManageUsers = () => {
       <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>
         <Alert onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>
-    </div>
+    </Box>
   )
 }
 

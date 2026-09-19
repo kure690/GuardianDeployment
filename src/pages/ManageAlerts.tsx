@@ -373,7 +373,8 @@ const ManageAlerts: React.FC = () => {
               </Typography>
             </Grid>
             <Grid size={{ md: 3 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'start', px: 4 }}>
-              <div style={{display: 'flex', width: '80%'}}>
+              {/* --- UPDATED SEARCH BAR WITH HIGHLIGHT --- */}
+              <div style={{display: 'flex', width: '100%',}}>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%'}}>
                   <SearchIcon style={{ position: 'absolute', left: '8px', color: '#757575', fontSize: '20px' }} />
                   <input
@@ -384,7 +385,7 @@ const ManageAlerts: React.FC = () => {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onFocus={() => setIsSearchFocused(true)}
                     onBlur={() => setIsSearchFocused(false)}
-                    style={{ flex: 1, color: 'black', height: '38px', padding: '8px 12px 8px 36px', borderRadius: '8px', border: '1px solid #ccc', backgroundColor: 'white', fontSize: '1.1rem' }}
+                    style={{ flex: 1, color: 'black', height: '38px', padding: '8px 12px 8px 36px', borderRadius: '8px',border: isSearchFocused ? '1px solid #4dd0e1' : '1px solid #ccc',boxShadow: isSearchFocused ? '0 0 0 2.5px rgba(77, 208, 225, 0.4)' : 'none', outline: 'none', backgroundColor: 'white', fontSize: '1.1rem' }}
                   />
                 </div>
               </div>
@@ -399,7 +400,14 @@ const ManageAlerts: React.FC = () => {
         display: 'flex', 
         flexDirection: 'column', 
         p: '2vh 2vw', // Dynamic padding based on viewport
-        overflow: 'hidden' 
+        overflow: 'hidden',
+        backgroundColor: '#fafcfc',
+
+        transition: 'all 0.3s ease',
+      
+        filter: isSearchFocused ? 'brightness(0.4)' : 'none',
+        
+        pointerEvents: isSearchFocused ? 'none' : 'auto'
       }}>
         
         {/* --- Tabs --- */}

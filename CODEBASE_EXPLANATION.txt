@@ -1,0 +1,761 @@
+================================================================================
+                    GUARDIAN DEPLOYMENT - CODEBASE EXPLANATION
+================================================================================
+
+PROJECT OVERVIEW
+================================================================================
+
+GuardianPH V3 is an Emergency Dispatch Operator web application built with 
+React and TypeScript. It's designed to manage emergency incidents, coordinate 
+responders, and facilitate real-time communication between dispatchers, 
+operation centers, and volunteers.
+
+The system handles multiple types of emergency incidents:
+- Medical emergencies
+- Fire incidents
+- Police/Crime incidents
+- General emergencies
+
+Key User Types:
+1. Dispatchers - Handle incoming emergency calls and coordinate responses
+2. Operation Centers (OpCen) - Manage multiple dispatchers and incidents
+3. Volunteers - Report emergencies through mobile apps
+4. Responders - Field personnel (ambulance, firetruck, police) responding to incidents
+
+================================================================================
+TECH STACK & ARCHITECTURE
+================================================================================
+
+Frontend Framework:
+- React 19.0.0 with TypeScript
+- Vite as build tool
+- React Router DOM for routing
+
+UI Libraries:
+- Material-UI (MUI) v6 - Primary UI component library
+- TailwindCSS v4 - Utility-first CSS framework
+- Emotion - CSS-in-JS styling
+
+Real-time Communication:
+- Socket.IO Client - WebSocket connections for real-time updates
+- Stream Chat SDK - Chat functionality
+- Stream Video SDK - Video calling capabilities
+
+Maps & Location:
+- Google Maps API - Map rendering and geocoding
+- React Google Maps API - React wrapper for Google Maps
+
+State Management:
+- React Query (TanStack Query) - Server state management
+- React Hooks - Local component state
+
+HTTP Client:
+- Axios - API requests
+
+Other Libraries:
+- Leaflet & React-Leaflet - Alternative map library
+- QRCode - QR code generation
+- jsPDF & html2canvas - PDF generation
+- date-fns - Date manipulation
+
+================================================================================
+PROJECT STRUCTURE
+================================================================================
+
+src/
+├── main.tsx                    # Application entry point
+├── App.tsx                     # Main app component with routing
+├── config.ts                   # Configuration (API URLs, keys)
+├── index.css                   # Global styles
+│
+├── pages/                      # Page components (29 pages)
+│   ├── Login.tsx              # User authentication
+│   ├── Status.tsx             # Dispatcher standby/online status
+│   ├── MainScreen.tsx         # Main incident management interface
+│   ├── Calls.tsx              # Video call interface
+│   ├── MapView.tsx            # Real-time map with responder tracking
+│   ├── OperationCenter.tsx   # OpCen profile management
+│   ├── IncidentsDashboard.tsx # Dashboard for viewing all incidents
+│   └── ... (22 more pages)
+│
+├── components/                 # Reusable UI components
+│   ├── CallPanel.tsx          # Video call controls
+│   ├── IncidentModal.tsx      # Modal for accepting incidents
+│   ├── ConnectingModal.tsx    # Connection status modal
+│   ├── OpCenConnectModal.tsx  # OpCen connection request modal
+│   ├── Participants.tsx       # Call participants list
+│   ├── RingingCall.tsx        # Incoming call UI
+│   └── incidents-dashboard/   # Incident dashboard components
+│
+├── hooks/                      # Custom React hooks
+│   ├── chat/                  # Chat-related hooks
+│   ├── incident/              # Incident management hooks
+│   ├── opcen/                 # Operation center hooks
+│   ├── video/                 # Video call hooks
+│   └── utils/                 # Utility hooks
+│
+└── utils/                      # Utility functions
+    ├── socket.ts              # Socket.IO context
+    ├── SocketProvider.tsx    # Socket.IO provider component
+    ├── geocoding.ts          # Google Maps geocoding utilities
+    ├── maps.ts                # Map-related utilities
+    └── MsgTemplates.ts       # Pre-defined message templates
+
+================================================================================
+CORE FUNCTIONALITY BREAKDOWN
+================================================================================
+
+1. AUTHENTICATION & AUTHORIZATION
+================================================================================
+
+Login Flow (Login.tsx):
+- Supports two user types: 'opcen' and 'dispatcher'
+- Attempts login for both types simultaneously
+- Stores authentication token and user data in localStorage
+- Initializes Stream Chat client on successful login
+- Redirects based on user type:
+  * OpCen → /lgu-console
+  * Guardian Dispatcher → /status
+  * LGU Dispatcher → /lgu-main
+
+Authentication State (App.tsx):
+- Checks localStorage for existing session on mount
+- Reconnects Stream Chat client if token exists
+- Provides Socket.IO connection with authentication token
+- Wraps app in QueryClientProvider for React Query
+
+Socket Authentication (SocketProvider.tsx):
+- Creates Socket.IO connection with token in auth payload
+- Handles connection/disconnection states
+- Shows loading screen while connecting
+- Auto-reconnects on disconnect
+
+================================================================================
+
+2. DISPATCHER WORKFLOW
+================================================================================
+
+Status Page (Status.tsx):
+- Dispatcher's main standby interface
+- Toggle online/offline status (invisible mode in Stream Chat)
+- Polls for new unaccepted incidents every 3 seconds
+- Shows IncidentModal when new incident arrives
+- Plays sound alert based on incident type
+- Displays user profile with edit capability
+- Accepts incident → navigates to MainScreen
+
+Main Screen (MainScreen.tsx):
+- Primary incident management interface
+- Displays:
+  * Incident details (type, ID, address)
+  * Volunteer information (name, phone, profile)
+  * Real-time chat with volunteer
+  * Message templates sidebar
+  * Incident verification toggle
+  * Elapsed time since acceptance
+- Features:
+  * Connect to Operation Center
+  * Open map view in new window
+  * Initiate video call with volunteer
+  * Send pre-defined message templates
+  * Verify/close incidents
+  * Receive responder status updates (on-scene, finished)
+
+Incident Acceptance Flow:
+1. Status page receives incident via polling
+2. IncidentModal displays with incident details
+3. Dispatcher clicks "ACCEPT"
+4. Incident marked as accepted in database
+5. Stream Chat channel created for communication
+6. Initial message sent to volunteer
+7. Navigate to MainScreen with incident ID
+
+================================================================================
+
+3. REAL-TIME COMMUNICATION
+================================================================================
+
+Socket.IO Integration:
+- Global socket connection via SocketProvider
+- Authenticated with JWT token
+- Events handled:
+  * requestOpCenConnect - Request connection to OpCen
+  * opCenConnecting - OpCen is connecting
+  * opCenConnected - OpCen connected successfully
+  * opCenDeclined - OpCen declined connection
+  * onlineUsersUpdate - List of online users
+  * responderStatusUpdate - Responder location/status updates
+
+Stream Chat:
+- Used for text messaging between dispatchers and volunteers
+- Channel naming: `{incidentType}-{incidentId.substring(5,9)}`
+- Features:
+  * Real-time messaging
+  * Message reactions
+  * Message editing/deletion
+  * User presence (online/offline)
+  * Profile image updates
+
+Stream Video:
+- Video calling between dispatchers and volunteers
+- Call creation in Calls.tsx (popup window)
+- Call handling in MainScreen.tsx (incoming calls)
+- Features:
+  * Ringing state
+  * Join/leave controls
+  * Audio/video toggle
+  * Speaker layout
+  * Call recording (via Stream)
+
+================================================================================
+
+4. MAP & LOCATION SERVICES
+================================================================================
+
+MapView Component:
+- Real-time map showing:
+  * Incident location (colored icon by type)
+  * Responder location (vehicle icon by assignment)
+  * Hospital location (if selected)
+  * Route visualization with traffic
+  * Distance and ETA overlay
+- Features:
+  * Google Maps integration
+  * Traffic layer
+  * Directions API for routing
+  * Polling for location updates (every 5 seconds)
+  * Collapsible chat panel
+  * Incident/User/Responder info panels
+
+Geocoding Utilities (geocoding.ts):
+- getAddressFromCoordinates: Converts lat/lng to address
+- getLatLngFromAddress: Converts address to lat/lng
+- getAddressFromGeoPoint: Handles GeoJSON Point format
+- Uses Google Maps Geocoding API
+
+Location Data Format:
+- GeoJSON Point: { type: 'Point', coordinates: [longitude, latitude] }
+- Note: GeoJSON uses [lon, lat] order (opposite of typical lat/lng)
+
+================================================================================
+
+5. INCIDENT MANAGEMENT
+================================================================================
+
+Incident Data Structure:
+- _id: Unique incident identifier
+- incidentType: 'Medical' | 'Fire' | 'Police' | 'General'
+- isVerified: Boolean (dispatcher verification)
+- isResolved: Boolean (incident closed)
+- isAccepted: Boolean (assigned to dispatcher)
+- user: Volunteer who reported
+- incidentDetails:
+  * coordinates: GeoJSON Point
+  * incident: Incident description
+  * incidentDescription: Detailed description
+- responderCoordinates: Current responder location
+- acceptedAt: Timestamp when accepted
+- channelId: Stream Chat channel ID
+
+Incident Lifecycle:
+1. Created: Volunteer reports via mobile app
+2. Pending: Available for dispatcher acceptance
+3. Accepted: Assigned to dispatcher, channel created
+4. Verified: Dispatcher verifies incident
+5. In Progress: Responder en route or on scene
+6. Resolved: Incident closed
+
+useIncidentData Hook:
+- Fetches incident data from API
+- Manages incident state (verified, resolved, etc.)
+- Fetches volunteer data
+- Converts coordinates to address
+- Updates in real-time
+
+================================================================================
+
+6. OPERATION CENTER (OPCEN) FEATURES
+================================================================================
+
+OperationCenter Page:
+- Profile management for OpCen
+- Fields:
+  * Personal info (name, contact)
+  * Description and assignment
+  * Address with map picker
+  * Social media links
+  * Images (profile, cover, marker)
+- Uses React Query for data fetching/updating
+- Image upload with preview
+
+OpCen Connection Flow:
+1. Dispatcher requests OpCen connection via modal
+2. Socket event 'requestOpCenConnect' sent
+3. OpCen receives connection request
+4. OpCen accepts/declines
+5. If accepted, OpCen joins incident channel
+6. Dispatcher receives confirmation
+
+LGU Console:
+- Dashboard for LGU (Local Government Unit) operation centers
+- Manages multiple dispatchers
+- Views all incidents in jurisdiction
+
+================================================================================
+
+7. CUSTOM HOOKS
+================================================================================
+
+Chat Hooks:
+- useStreamChatClient: Initializes Stream Chat client
+- useProfileImageUpsert: Updates user profile images in chat
+
+Video Hooks:
+- useStreamVideoClient: Initializes Stream Video client
+
+Incident Hooks:
+- useIncidentData: Manages incident state and data
+- useIncidents: Fetches list of incidents
+- useResponderStatus: Tracks responder status updates
+
+OpCen Hooks:
+- useOpCen: Fetches/updates OpCen data
+- useOpCenConnectingStatus: Handles OpCen connection status
+- useRegisterDispatcher: Registers dispatchers
+
+Utility Hooks:
+- useElapsedTime: Calculates elapsed time since incident acceptance
+- useReliableSocketEmit: Reliable socket event emission
+- useRingSound: Manages ring sound for calls
+
+================================================================================
+
+8. COMPONENT ARCHITECTURE
+================================================================================
+
+IncidentModal:
+- Displays when new incident arrives
+- Shows incident type, location, volunteer info
+- Shake animation to draw attention
+- Accept button to take incident
+
+OpCenConnectModal:
+- Lists available OpCen users
+- Shows online/offline status
+- Allows dispatcher to request connection
+- Displays incident details for OpCen
+
+ConnectingModal:
+- Shows while waiting for OpCen response
+- Displays connecting OpCen name
+- Auto-dismisses on connection/decline
+
+CallPanel:
+- Video call controls
+- Accept/decline buttons
+- Audio/video toggles
+- Leave call button
+
+IncidentsDashboard:
+- Map view of all incidents
+- List view with filtering
+- Incident details panel
+- Real-time updates
+
+================================================================================
+
+9. ROUTING STRUCTURE
+================================================================================
+
+Public Routes (no auth required):
+- / - Login page
+- /register - Dispatcher registration
+- /register-opcen - OpCen registration
+- /recordings/:callId - Call recordings (public access)
+
+Protected Routes (auth required):
+- /status - Dispatcher standby
+- /main/:incidentId - Incident management
+- /call - Video call interface
+- /map - Map view
+- /responder-map - Responder tracking map
+- /lgu-main - LGU dispatcher main
+- /lgu-console - LGU console dashboard
+- /opcen - OpCen profile
+- /usermanagement - User management
+- /teams - Team management
+- /mobile-assets - Mobile assets
+- /facilities - Facilities management
+- /announcements - Announcements
+- /messages - Messages
+- /reports - Reports
+- /cluster-management - Cluster management
+- /incidents-dashboard - Incidents dashboard
+- /data-dashboard - Data analytics
+- /managealerts - Alert management
+
+Route Protection:
+- Checks localStorage for token
+- Redirects to / if not authenticated
+- Different redirects based on user type
+
+================================================================================
+
+10. DATA FLOW
+================================================================================
+
+Incident Flow:
+1. Volunteer reports via mobile app
+2. Backend creates incident record
+3. Dispatcher polls /incidents/for-dispatcher
+4. IncidentModal shows new incident
+5. Dispatcher accepts → updates incident
+6. Stream Chat channel created
+7. Real-time updates via Socket.IO
+8. Responder assigned → location tracked
+9. Incident resolved → closed
+
+Real-time Updates:
+- Socket.IO for instant notifications
+- Polling for data consistency (every 3-5 seconds)
+- React Query for cache management
+- Stream SDK for chat/video events
+
+State Management:
+- Local state: useState for component-specific data
+- Global state: React Query for server state
+- Context: Socket.IO context for real-time
+- localStorage: Authentication and user data
+
+================================================================================
+
+11. API INTEGRATION
+================================================================================
+
+Base URL: VITE_GUARDIAN_SERVER_URL (from config)
+
+Key Endpoints:
+- POST /opcens/login - OpCen login
+- POST /dispatchers/login - Dispatcher login
+- GET /incidents/for-dispatcher - Get pending incidents
+- GET /incidents/:id - Get incident details
+- PUT /incidents/update/:id - Update incident
+- GET /volunteers/:id - Get volunteer data
+- GET /responders/:id - Get responder data
+- PUT /dispatchers/:id - Update dispatcher profile
+- PUT /opcens/:id - Update OpCen profile
+- GET /hospitals/:id - Get hospital data
+
+Authentication:
+- JWT tokens in Authorization header
+- Token stored in localStorage
+- Token sent with Socket.IO auth
+
+================================================================================
+
+12. STYLING & UI
+================================================================================
+
+Theme:
+- Primary color: #1B4965 (dark blue)
+- Material-UI theme with Verdana font
+- TailwindCSS for utility classes
+- Custom CSS for animations (shake effect)
+
+Responsive Design:
+- Material-UI Grid2 for layout
+- Responsive breakpoints (xs, sm, md, lg)
+- Mobile-friendly modals and components
+
+Icons:
+- Material-UI icons
+- Lucide React icons
+- Custom incident type icons (Medical, Fire, Police, General)
+- Vehicle icons (ambulance, firetruck, police car)
+
+================================================================================
+
+13. ENVIRONMENT CONFIGURATION
+================================================================================
+
+Environment Variables (required):
+- VITE_GUARDIAN_SERVER_URL - Backend API URL
+- VITE_STREAM_APIKEY - Stream.io API key
+- VITE_GOOGLE_MAPS_API_KEY - Google Maps API key
+
+Config File (config.ts):
+- Centralized configuration
+- Reads from import.meta.env
+- Exports config object
+
+Vite Configuration:
+- React plugin
+- TailwindCSS plugin
+- Proxy for API requests
+- Base path configuration
+
+================================================================================
+
+14. KEY FEATURES SUMMARY
+================================================================================
+
+Real-time Features:
+✓ Live incident notifications
+✓ Real-time chat messaging
+✓ Video calling
+✓ Location tracking
+✓ Online/offline status
+✓ OpCen connection requests
+
+Incident Management:
+✓ Incident acceptance workflow
+✓ Incident verification
+✓ Multiple incident types
+✓ Message templates
+✓ Incident resolution
+✓ Elapsed time tracking
+
+Mapping & Location:
+✓ Google Maps integration
+✓ Real-time responder tracking
+✓ Route visualization
+✓ Traffic information
+✓ Geocoding (address ↔ coordinates)
+✓ Hospital selection
+
+User Management:
+✓ Profile editing
+✓ Image uploads
+✓ Online status toggle
+✓ User roles (Dispatcher, OpCen)
+✓ Team management
+
+Communication:
+✓ Text messaging (Stream Chat)
+✓ Video calls (Stream Video)
+✓ Pre-defined message templates
+✓ Real-time notifications
+
+================================================================================
+
+15. FILE-SPECIFIC DETAILS
+================================================================================
+
+main.tsx:
+- Entry point
+- Renders App in React root
+- Wraps in BrowserRouter
+- StrictMode enabled
+
+App.tsx:
+- Main application component
+- Route definitions
+- Authentication check
+- Stream Chat provider
+- Socket.IO provider
+- Material-UI theme
+- React Query setup
+- Google Maps LoadScript
+
+config.ts:
+- Environment variable access
+- API URL configuration
+- Stream API key
+- Google Maps API key
+
+SocketProvider.tsx:
+- Socket.IO connection management
+- Authentication token handling
+- Connection state tracking
+- Auto-reconnection
+- Loading state during connection
+
+Status.tsx:
+- Dispatcher standby interface
+- Online/offline toggle
+- Incident polling
+- Sound alerts
+- Profile management
+- Incident acceptance
+
+MainScreen.tsx:
+- Incident management interface
+- Chat integration
+- Video call initiation
+- OpCen connection
+- Map view link
+- Message templates
+- Incident verification
+- Responder status notifications
+
+Calls.tsx:
+- Video call popup window
+- Call creation and management
+- Ringing state handling
+- Join/leave controls
+- Call cleanup
+
+MapView.tsx:
+- Google Maps integration
+- Real-time location tracking
+- Route visualization
+- Chat panel
+- Incident/responder info panels
+- Hospital selection
+
+OperationCenter.tsx:
+- OpCen profile management
+- Form with validation
+- Image uploads
+- Address geocoding
+- Social media links
+- React Query mutations
+
+IncidentsDashboard.tsx:
+- Dashboard for viewing all incidents
+- Map and list views
+- Incident filtering
+- Real-time updates
+
+================================================================================
+
+16. INTEGRATION POINTS
+================================================================================
+
+Backend API:
+- RESTful API for CRUD operations
+- JWT authentication
+- WebSocket server for Socket.IO
+
+Stream.io Services:
+- Chat API for messaging
+- Video API for calls
+- User presence tracking
+
+Google Maps:
+- Maps JavaScript API
+- Geocoding API
+- Directions API
+- Places API (potentially)
+
+Mobile App:
+- Volunteer incident reporting
+- Responder location updates
+- Push notifications
+
+================================================================================
+
+17. ERROR HANDLING
+================================================================================
+
+Authentication Errors:
+- Token validation failures
+- Redirect to login
+- Clear localStorage on error
+
+API Errors:
+- Try-catch blocks
+- Error messages in UI
+- Fallback states
+
+Socket Errors:
+- Connection error handling
+- Reconnection logic
+- Error logging
+
+Network Errors:
+- Retry logic in React Query
+- Offline state handling
+- Error notifications
+
+================================================================================
+
+18. PERFORMANCE CONSIDERATIONS
+================================================================================
+
+Optimizations:
+- React Query caching
+- Component lazy loading (potential)
+- Image optimization
+- Polling intervals (3-5 seconds)
+- Memoization in hooks
+- Efficient re-renders
+
+Potential Improvements:
+- WebSocket instead of polling
+- Code splitting
+- Image lazy loading
+- Virtual scrolling for lists
+- Debouncing for search
+
+================================================================================
+
+19. SECURITY CONSIDERATIONS
+================================================================================
+
+Current Implementation:
+- JWT token authentication
+- Token in localStorage
+- Token in Socket.IO auth
+- Protected routes
+- API authorization headers
+
+Recommendations:
+- Token refresh mechanism
+- Secure token storage (httpOnly cookies)
+- HTTPS only
+- Input validation
+- XSS prevention
+- CSRF protection
+
+================================================================================
+
+20. DEPLOYMENT
+================================================================================
+
+Build Process:
+- TypeScript compilation
+- Vite build
+- Static asset optimization
+- Environment variable injection
+
+Deployment Platform:
+- Vercel (vercel.json present)
+- Static hosting compatible
+- Environment variables required
+
+Build Command:
+npm run build
+
+================================================================================
+
+CONCLUSION
+================================================================================
+
+GuardianPH V3 is a comprehensive emergency dispatch system with:
+- Real-time communication (chat, video, sockets)
+- Incident management workflow
+- Location tracking and mapping
+- Multi-user role support
+- Modern React/TypeScript architecture
+
+The codebase is well-structured with:
+- Separation of concerns (pages, components, hooks, utils)
+- Reusable custom hooks
+- Centralized configuration
+- Type safety with TypeScript
+- Modern React patterns
+
+Key technologies enable:
+- Real-time updates (Socket.IO, Stream)
+- Rich UI (Material-UI, TailwindCSS)
+- Location services (Google Maps)
+- Video communication (Stream Video)
+
+The system supports a complete emergency response workflow from
+incident reporting to resolution with real-time coordination between
+all parties involved.
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
