@@ -6,6 +6,7 @@ import Grid from "@mui/material/Grid2";
 import SearchIcon from '@mui/icons-material/Search';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import CallIcon from '@mui/icons-material/Call';
 import config from "../config";
 import medicalIcon from '../assets/images/Medical.png';
 import generalIcon from '../assets/images/General.png';
@@ -69,27 +70,80 @@ const ResponderMap = () => {
   const [isSecondChatExpanded, setIsSecondChatExpanded] = useState(false);
   const userStr = localStorage.getItem("user");
   const userStr2 = userStr ? JSON.parse(userStr) : null;
-  const userId = userStr2?.id;
+  const userId = userStr2?.id || userStr2?._id;
   const [destinationType, setDestinationType] = useState<string>('incident');
   const token = localStorage.getItem("token");
   const { socket, isConnected } = useSocket();
-  const [responderData, setResponderData] = useState({
+  const [responderData, setResponderData] = useState<any>({
     firstName: '',
     lastName: '',
     assignment: '',
   });
+  const [responderId, setResponderId] = useState<string>('');
 
   const [isConnecting, setIsConnecting] = useState(false);
   const [dispatchedResponder, setDispatchedResponder] = useState<any>(null);
   const [realtimeOnlineResponders, setRealtimeOnlineResponders] = useState<OnlineResponderData[]>([]);
-  
+
 
   const getImageUrl = (url: string) => {
     if (!url) return '';
     if (url.startsWith('http')) return url;
     return `${config.GUARDIAN_SERVER_URL}${url}`;
   };
-    
+
+  const handleCallResponder = () => {
+    const targetResponderId =
+      responderId ||
+      (responderData as any)?._id ||
+      dispatchedResponder?._id;
+
+    if (!incidentId || !targetResponderId) {
+      console.warn("No responder assigned to this incident yet.");
+      alert("Cannot initiate call: No responder has been assigned to this incident yet.");
+      return;
+    }
+
+    // Generate a fresh unique call ID each time so Stream Video rings reliably
+    const callId = `call-${incidentId}-${Date.now()}`;
+
+    console.log("Opening call window for incident:", incidentId, "responder:", targetResponderId, "callId:", callId);
+
+    const url = `/call?id=${callId}&responder=${targetResponderId}`;
+    const width = window.screen.width;
+    const height = window.screen.height;
+    // Synchronous window.open ensures modern browser popup blockers allow the new tab
+    const newWindow = window.open(url, '_blank', `width=${width},height=${height},left=0,top=0`);
+
+    if (newWindow) {
+      newWindow.moveTo(0, 0);
+      newWindow.resizeTo(screen.availWidth, screen.availHeight);
+      newWindow.focus();
+    } else {
+      console.error("Failed to open new window! Pop-up might be blocked.");
+      alert("Failed to open call window. Please check your pop-up blocker.");
+    }
+
+    // Async upsert user in background without delaying window.open
+    if (chatClient && targetResponderId) {
+      const authToken = localStorage.getItem("token");
+      fetch(`${config.GUARDIAN_SERVER_URL}/responders/${targetResponderId}`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(fetchedResponderData => {
+          if (fetchedResponderData) {
+            chatClient.upsertUser({
+              id: targetResponderId,
+              name: `${fetchedResponderData.firstName || ''} ${fetchedResponderData.lastName || ''}`.trim() || 'Responder',
+              image: fetchedResponderData.profileImage || undefined
+            }).catch(console.error);
+          }
+        })
+        .catch(console.error);
+    }
+  };
+
 
   const getIncidentIcon = useCallback((type: string): google.maps.Icon | undefined => {
     if (!isGoogleLoaded || !type) return undefined;
@@ -161,7 +215,7 @@ const ResponderMap = () => {
     const fetchIncidentData = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const incidentIdFromUrl = urlParams.get('incidentId');
-      
+
       if (!incidentIdFromUrl) {
         setError('No incident ID found');
         setLoading(false);
@@ -179,7 +233,7 @@ const ResponderMap = () => {
         setIncidentType(data.incidentType);
         setIncident(data.incidentDetails?.incident || "Not specified");
         setCurrentChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${data._id.substring(4, 9)}`);
-        setSecondChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${data._id.substring(5,10)}`);
+        setSecondChannelId(data.channelId || `${data.incidentType.toLowerCase()}-${data._id.substring(5, 10)}`);
         setAcceptedAt(data.acceptedAt);
 
         // --- THIS IS THE FIX ---
@@ -200,7 +254,9 @@ const ResponderMap = () => {
 
         const responderIdValue = data.responder?._id || data.responder;
         if (responderIdValue) {
-          const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderIdValue}`);
+          const idStr = typeof responderIdValue === 'string' ? responderIdValue : responderIdValue._id;
+          setResponderId(idStr);
+          const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${idStr}`);
           if (responderResponse.ok) setResponderData(await responderResponse.json());
         }
 
@@ -209,6 +265,30 @@ const ResponderMap = () => {
             lat: Number(data.responderCoordinates.lat),
             lng: Number(data.responderCoordinates.lon)
           });
+        }
+
+        const facilityId = data.selectedFacility?._id || data.selectedFacility || data.selectedHospital;
+        if (facilityId) {
+          const idStr = typeof facilityId === 'string' ? facilityId : facilityId._id;
+          setSelectedHospital(idStr);
+          try {
+            const facResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/facilities/${idStr}`);
+            if (facResponse.ok) {
+              const facData = await facResponse.json();
+              const coords = facData.location?.coordinates || facData.coordinates;
+              if (coords && coords.lat && coords.lng) {
+                setHospitalCoords({
+                  lat: Number(coords.lat),
+                  lng: Number(coords.lng)
+                });
+                setHospitalName(facData.name || '');
+                setHospitalAddress(facData.address || facData.description || '');
+                setDestinationType('hospital');
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching initial facility data:', error);
+          }
         }
 
       } catch (err) {
@@ -246,6 +326,11 @@ const ResponderMap = () => {
           }
         }
 
+        if (data.responderId) {
+          setResponderId(data.responderId);
+        } else if (dispatchedResponder?._id) {
+          setResponderId(dispatchedResponder._id);
+        }
         setDispatchedResponder(null); // Clear the dispatched responder
         console.log('Received assignment response:', data.message);
 
@@ -260,6 +345,7 @@ const ResponderMap = () => {
           console.error('Error fetching responder details after acceptance:', err);
         }
       } else if (data.responderId) {
+        setResponderId(data.responderId);
         try {
           const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${data.responderId}`);
           if (responderResponse.ok) {
@@ -279,7 +365,7 @@ const ResponderMap = () => {
         console.log('Received assignment response:', data.message);
       }
     };
-    
+
     socket.on('assignmentAccepted', handleAssignmentAccepted);
     socket.on('assignmentDeclined', handleAssignmentDeclined);
 
@@ -313,12 +399,12 @@ const ResponderMap = () => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const incidentIdFromUrl = urlParams.get('incidentId');
-      
+
       if (!incidentIdFromUrl) {
         console.error('No incident ID found for dispatching responder');
         return;
       }
-      
+
       // --- 4. OPEN THE MODAL WHEN DISPATCHING ---
       setDispatchedResponder(responderToDispatch);
       setIsConnecting(true);
@@ -338,93 +424,93 @@ const ResponderMap = () => {
       setDispatchedResponder(null);
     }
   };
-    
+
   const sendInitialMessage = async (responderId: string) => {
     if (!chatClient || !userId || !token || !secondChannelId) {
       console.error('Missing required data for sending initial message');
       return;
     }
-    
+
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const incidentIdFromUrl = urlParams.get('incidentId');
-      
+
       if (!incidentIdFromUrl) {
         console.error('No incident ID found for sending initial message');
         return;
       }
-      
+
       const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentIdFromUrl}`);
       if (!response.ok) {
         console.error('Failed to fetch incident data for initial message');
         return;
       }
-      
+
       const incidentData = await response.json();
-      
+
       const incidentDetails = {
         incident: incidentData.incidentDetails?.incident || "Not specified",
         incidentDescription: incidentData.incidentDetails?.incidentDescription || "No description provided"
       };
-      
+
       const channel = chatClient.channel("messaging", secondChannelId);
       await channel.create();
       await channel.sendMessage({
         text: `Incident: ${incidentDetails.incident}\nDescription: ${incidentDetails.incidentDescription}`,
         user_id: userId
       });
-      
+
       console.log('Initial message sent to second channel after dispatch');
     } catch (error) {
       console.error('Error sending initial message to second channel:', error);
     }
   };
 
-    useEffect(() => {
-      const interval = setInterval(() => {
-        if (acceptedAt) {
-          const now = new Date();
-          const acceptedTime = new Date(acceptedAt);
-          const elapsedSeconds = Math.floor((now.getTime() - acceptedTime.getTime()) / 1000);
-          setLapsTime(elapsedSeconds);
-        }
-      }, 1000);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (acceptedAt) {
+        const now = new Date();
+        const acceptedTime = new Date(acceptedAt);
+        const elapsedSeconds = Math.floor((now.getTime() - acceptedTime.getTime()) / 1000);
+        setLapsTime(elapsedSeconds);
+      }
+    }, 1000);
 
-      return () => clearInterval(interval);
-    }, [acceptedAt]);
+    return () => clearInterval(interval);
+  }, [acceptedAt]);
 
-    const formatLapsTime = (seconds: number) => {
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      return `${minutes} min ${remainingSeconds} sec`;
-    };
+  const formatLapsTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes} min ${remainingSeconds} sec`;
+  };
 
-    // useEffect(() => {
-    //   const fetchResponderUsers = async () => {
-    //     try {
-    //       const response = await fetch(`${config.GUARDIAN_SERVER_URL}/responders`);
-    //       if (response.ok) {
-    //         const data = await response.json();
-    //         // Filter out inactive responders
-    //         const activeResponders = data.filter((responder: any) => responder.status === 'active');
-    //         setResponderUsers(activeResponders);
-    //         const respondersWithCoords = activeResponders.filter(
-    //           (responder: any) =>
-    //             responder.coordinates &&
-    //             responder.coordinates.lat !== null &&
-    //             responder.coordinates.lon !== null
-    //         );
-    //         setOnlineResponders(respondersWithCoords);
-    //       } else {
-    //         console.error('Failed to fetch responder users');
-    //       }
-    //     } catch (error) {
-    //       console.error('Error fetching responder users:', error);
-    //     }
-    //   };
+  // useEffect(() => {
+  //   const fetchResponderUsers = async () => {
+  //     try {
+  //       const response = await fetch(`${config.GUARDIAN_SERVER_URL}/responders`);
+  //       if (response.ok) {
+  //         const data = await response.json();
+  //         // Filter out inactive responders
+  //         const activeResponders = data.filter((responder: any) => responder.status === 'active');
+  //         setResponderUsers(activeResponders);
+  //         const respondersWithCoords = activeResponders.filter(
+  //           (responder: any) =>
+  //             responder.coordinates &&
+  //             responder.coordinates.lat !== null &&
+  //             responder.coordinates.lon !== null
+  //         );
+  //         setOnlineResponders(respondersWithCoords);
+  //       } else {
+  //         console.error('Failed to fetch responder users');
+  //       }
+  //     } catch (error) {
+  //       console.error('Error fetching responder users:', error);
+  //     }
+  //   };
 
-    //   fetchResponderUsers();
-    // }, []);
+  //   fetchResponderUsers();
+  // }, []);
 
   // useEffect(() => {
   //   // Define the function that fetches and updates responders
@@ -434,7 +520,7 @@ const ResponderMap = () => {
   //       if (response.ok) {
   //         const data = await response.json();
   //         const activeResponders = data.filter((responder: any) => responder.status === 'active');
-          
+
   //         // This state is for your dispatch list/drawer
   //         setResponderUsers(activeResponders);
 
@@ -464,7 +550,7 @@ const ResponderMap = () => {
   //   // 3. Cleanup function: This is important! It stops the interval 
   //   //    when the component is removed, preventing errors.
   //   return () => clearInterval(intervalId);
-    
+
   // }, []); // The empty array ensures this effect runs only on mount and unmount
 
   // useEffect(() => {
@@ -485,7 +571,7 @@ const ResponderMap = () => {
   //     setOnlineRespondersWithDistance([]);
   //     return;
   //   }
-    
+
   //   console.log("Proceeding: All conditions met. Calling Distance Matrix API.");
 
   //   const distanceMatrixService = new google.maps.DistanceMatrixService();
@@ -531,28 +617,28 @@ const ResponderMap = () => {
   //   );
   // }, [onlineResponders, incidentCoords, isGoogleLoaded]);
 
-    useEffect(() => {
-      if (responderCoords && isGoogleLoaded) {
+  useEffect(() => {
+    if (responderCoords && isGoogleLoaded) {
+      if (destinationType === 'hospital' && hospitalCoords) {
+        // Route from responder to hospital
+        fetchDirections(responderCoords, hospitalCoords);
+      } else if (incidentCoords) {
+        // Route from responder to incident
+        fetchDirections(responderCoords, incidentCoords);
+      }
+
+      // Set up a timer to periodically refresh directions to get updated traffic info
+      const intervalId = setInterval(() => {
         if (destinationType === 'hospital' && hospitalCoords) {
-          // Route from responder to hospital
           fetchDirections(responderCoords, hospitalCoords);
         } else if (incidentCoords) {
-          // Route from responder to incident
           fetchDirections(responderCoords, incidentCoords);
         }
-        
-        // Set up a timer to periodically refresh directions to get updated traffic info
-        const intervalId = setInterval(() => {
-          if (destinationType === 'hospital' && hospitalCoords) {
-            fetchDirections(responderCoords, hospitalCoords);
-          } else if (incidentCoords) {
-            fetchDirections(responderCoords, incidentCoords);
-          }
-        }, 60000); // Refresh every minute
-        
-        return () => clearInterval(intervalId);
-      }
-    }, [responderCoords, incidentCoords, hospitalCoords, destinationType, fetchDirections, isGoogleLoaded]);
+      }, 60000); // Refresh every minute
+
+      return () => clearInterval(intervalId);
+    }
+  }, [responderCoords, incidentCoords, hospitalCoords, destinationType, fetchDirections, isGoogleLoaded]);
 
   const onLoad = (mapInstance: google.maps.Map) => {
     setMap(mapInstance);
@@ -567,145 +653,172 @@ const ResponderMap = () => {
     setIsDrawerOpen(!isDrawerOpen);
   };
 
-    useEffect(() => {
-      const initChatClient = async () => {
-        console.log('Initializing chat client with userId:', userId);
-        const chat = new StreamChat(config.STREAM_APIKEY);
-        await chat.connectUser(
-          {
+  useEffect(() => {
+    const initChatClient = async () => {
+      console.log('Initializing chat client with userId:', userId);
+      const chat = new StreamChat(config.STREAM_APIKEY);
+      const dispatcherFullName =
+        userStr2?.firstName && userStr2?.lastName
+          ? `${userStr2.firstName} ${userStr2.lastName}`.trim()
+          : userStr2?.name || userStr2?.email || "Dispatcher";
+
+      await chat.connectUser(
+        {
+          id: userId,
+          name: dispatcherFullName,
+          image: avatarImg,
+        },
+        token
+      );
+      if (dispatcherFullName && chat.user && chat.user.name !== dispatcherFullName) {
+        try {
+          await chat.upsertUser({
             id: userId,
-            name: userStr2?.firstName && userStr2?.lastName 
-              ? `${userStr2.firstName} ${userStr2.lastName}` 
-              : userStr2?.email || "Unknown User",
+            name: dispatcherFullName,
             image: avatarImg,
-          },
-          token
-        );
-        setChatClient(chat);
-        console.log('Chat client initialized successfully');
-      };
-
-      if (userId && !chatClient) {
-        initChatClient();
-      } else {
-        console.log('Skipping chat client initialization:', { userId, hasChatClient: !!chatClient });
+          });
+        } catch (e) {
+          console.warn("Could not upsert user in ResponderMap:", e);
+        }
       }
+      setChatClient(chat);
+      console.log('Chat client initialized successfully');
+    };
 
-      return () => {
-        if (chatClient) {
-          chatClient.disconnectUser();
-          setChatClient(null);
+    if (userId && !chatClient) {
+      initChatClient();
+    } else {
+      console.log('Skipping chat client initialization:', { userId, hasChatClient: !!chatClient });
+    }
+
+    return () => {
+      if (chatClient) {
+        chatClient.disconnectUser();
+        setChatClient(null);
+      }
+    };
+  }, [userId]);
+
+  useEffect(() => {
+  }, [chatClient, userId, token, secondChannelId]);
+
+  // Poll for updates to check if selectedFacility/selectedHospital changes
+  useEffect(() => {
+    const pollInterval = setInterval(async () => {
+      if (incidentId) {
+        try {
+          const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
+          if (response.ok) {
+            const data = await response.json();
+
+            const facilityId = data.selectedFacility?._id || data.selectedFacility || data.selectedHospital;
+            const facilityIdStr = facilityId ? (typeof facilityId === 'string' ? facilityId : facilityId._id) : null;
+
+            if (facilityIdStr && facilityIdStr !== selectedHospital) {
+              setSelectedHospital(facilityIdStr);
+
+              // Fetch facility details if we have a new selected facility
+              try {
+                const facilityResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/facilities/${facilityIdStr}`);
+                if (facilityResponse.ok) {
+                  const facilityData = await facilityResponse.json();
+                  const coords = facilityData.location?.coordinates || facilityData.coordinates;
+
+                  if (coords && coords.lat && coords.lng) {
+                    const facilityCoords = {
+                      lat: Number(coords.lat),
+                      lng: Number(coords.lng)
+                    };
+                    setHospitalCoords(facilityCoords);
+                    setHospitalName(facilityData.name || '');
+                    setHospitalAddress(facilityData.address || facilityData.description || '');
+                    setDestinationType('hospital');
+                  }
+                }
+              } catch (error) {
+                console.error('Error fetching facility data:', error);
+              }
+            } else if (!facilityIdStr && selectedHospital) {
+              // Facility was unassigned/cleared
+              setSelectedHospital(null);
+              setHospitalCoords(null);
+              setHospitalName('');
+              setHospitalAddress('');
+              setDestinationType('incident');
+            }
+          }
+        } catch (error) {
+          console.error('Error polling for updates:', error);
         }
-      };
-    }, [userId]);
+      }
+    }, 3000); // Poll every 3 seconds
 
-    useEffect(() => {
-    }, [chatClient, userId, token, secondChannelId]);
+    return () => clearInterval(pollInterval);
+  }, [incidentId, selectedHospital]);
 
-    // Poll for updates to check if selectedHospital changes
-    useEffect(() => {
-      const pollInterval = setInterval(async () => {
-        if (incidentId) {
-          try {
-            const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
-            if (response.ok) {
-              const data = await response.json();
-              
-              if (data.selectedHospital && data.selectedHospital !== selectedHospital) {
-                setSelectedHospital(data.selectedHospital);
-                
-                // Fetch hospital details if we have a new selected hospital
-                try {
-                  const hospitalResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/hospitals/${data.selectedHospital}`);
-                  if (hospitalResponse.ok) {
-                    const hospitalData = await hospitalResponse.json();
-                    
-                    if (hospitalData.coordinates) {
-                      const hospitalCoords = {
-                        lat: Number(hospitalData.coordinates.lat),
-                        lng: Number(hospitalData.coordinates.lng)
-                      };
-                      setHospitalCoords(hospitalCoords);
-                      setHospitalName(hospitalData.name || '');
-                      setHospitalAddress(hospitalData.address || '');
-                      setDestinationType('hospital');
+  // Poll for updates to responder coordinates and data
+  useEffect(() => {
+    const responderPollInterval = setInterval(async () => {
+      if (incidentId) {
+        try {
+          const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
+          if (response.ok) {
+            const data = await response.json();
+
+            const responderIdValue = data.responder?._id || data.responder;
+            if (responderIdValue) {
+              const idStr = typeof responderIdValue === 'string' ? responderIdValue : responderIdValue._id;
+              setResponderId(idStr);
+              try {
+                const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${idStr}`);
+                if (responderResponse.ok) {
+                  const newRespData = await responderResponse.json();
+                  setResponderData((prev: any) => {
+                    if (!prev?.assignment || prev.assignment !== newRespData.assignment || prev.firstName !== newRespData.firstName) {
+                      return newRespData;
                     }
-                  }
-                } catch (error) {
-                  console.error('Error fetching hospital data:', error);
+                    return prev;
+                  });
                 }
+              } catch (err) {
+                console.error('Error polling responder data:', err);
               }
             }
-          } catch (error) {
-            console.error('Error polling for updates:', error);
-          }
-        }
-      }, 5000); // Poll every 5 seconds
-      
-      return () => clearInterval(pollInterval);
-    }, [incidentId, selectedHospital]);
-    
-    // Poll for updates to responder coordinates and data
-    useEffect(() => {
-      const responderPollInterval = setInterval(async () => {
-        if (incidentId) {
-          try {
-            const response = await fetch(`${config.GUARDIAN_SERVER_URL}/incidents/${incidentId}`);
-            if (response.ok) {
-              const data = await response.json();
 
-              const responderIdValue = data.responder?._id || data.responder;
-              if (responderIdValue) {
+            if (data.responderCoordinates) {
+              const newResponderCoords = {
+                lat: Number(data.responderCoordinates.lat),
+                lng: Number(data.responderCoordinates.lon)
+              };
+
+              // Only update if coordinates have changed
+              if (!responderCoords ||
+                responderCoords.lat !== newResponderCoords.lat ||
+                responderCoords.lng !== newResponderCoords.lng) {
+
+                setResponderCoords(newResponderCoords);
+
+                // Update responder address
                 try {
-                  const responderResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/responders/${responderIdValue}`);
-                  if (responderResponse.ok) {
-                    const newRespData = await responderResponse.json();
-                    setResponderData(prev => {
-                      if (!prev.assignment || prev.assignment !== newRespData.assignment || prev.firstName !== newRespData.firstName) {
-                        return newRespData;
-                      }
-                      return prev;
-                    });
-                  }
-                } catch (err) {
-                  console.error('Error polling responder data:', err);
-                }
-              }
-              
-              if (data.responderCoordinates) {
-                const newResponderCoords = {
-                  lat: Number(data.responderCoordinates.lat),
-                  lng: Number(data.responderCoordinates.lon)
-                };
-                
-                // Only update if coordinates have changed
-                if (!responderCoords || 
-                    responderCoords.lat !== newResponderCoords.lat || 
-                    responderCoords.lng !== newResponderCoords.lng) {
-                  
-                  setResponderCoords(newResponderCoords);
-                  
-                  // Update responder address
-                  try {
-                    const responderFormattedAddress = await getAddressFromCoordinates(
-                      newResponderCoords.lat.toString(),
-                      newResponderCoords.lng.toString()
-                    );
-                    // If we had an address update functionality, we would use it here
-                  } catch (error) {
-                    console.error('Error fetching responder address:', error);
-                  }
+                  const responderFormattedAddress = await getAddressFromCoordinates(
+                    newResponderCoords.lat.toString(),
+                    newResponderCoords.lng.toString()
+                  );
+                  // If we had an address update functionality, we would use it here
+                } catch (error) {
+                  console.error('Error fetching responder address:', error);
                 }
               }
             }
-          } catch (error) {
-            console.error('Error polling for responder updates:', error);
           }
+        } catch (error) {
+          console.error('Error polling for responder updates:', error);
         }
-      }, 5000); // Poll every 5 seconds
-      
-      return () => clearInterval(responderPollInterval);
-    }, [incidentId, responderCoords]);
+      }
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(responderPollInterval);
+  }, [incidentId, responderCoords]);
 
   useEffect(() => {
     const fetchAllResponders = async () => {
@@ -732,13 +845,13 @@ const ResponderMap = () => {
       socket.on('onlineResponderListUpdate', handleListUpdate);
       console.log("[ResponderMap] Requesting initial online responder list...");
       socket.emit('getOnlineResponderList');
-  
+
       return () => {
         socket.off('onlineResponderListUpdate', handleListUpdate);
       };
     } else {
-       // Optional: Log if the socket isn't ready when the effect runs
-       console.log("[ResponderMap] Socket not ready for listener setup.");
+      // Optional: Log if the socket isn't ready when the effect runs
+      console.log("[ResponderMap] Socket not ready for listener setup.");
     }
   }, [socket, isConnected]);
 
@@ -746,24 +859,24 @@ const ResponderMap = () => {
   useEffect(() => {
     // Now depends on the REAL-TIME list
     if (!isGoogleLoaded || !incidentCoords || realtimeOnlineResponders.length === 0) {
-       setOnlineRespondersWithDistance([]); // Clear if no online responders
-       return; 
+      setOnlineRespondersWithDistance([]); // Clear if no online responders
+      return;
     }
-    
+
     // Filter responders with valid coordinates from the real-time list
     const respondersToCalc = realtimeOnlineResponders.filter(
-        r => r.coordinates && r.coordinates.lat != null && r.coordinates.lon != null
+      r => r.coordinates && r.coordinates.lat != null && r.coordinates.lon != null
     );
 
     if (respondersToCalc.length === 0) {
-       setOnlineRespondersWithDistance([]); // Clear if no one has coordinates
-       return; 
+      setOnlineRespondersWithDistance([]); // Clear if no one has coordinates
+      return;
     }
 
     const distanceMatrixService = new google.maps.DistanceMatrixService();
     const origins = respondersToCalc.map(r => ({
       lat: r.coordinates.lat!, // Use non-null assertion as we filtered
-      lng: r.coordinates.lon!, 
+      lng: r.coordinates.lon!,
     }));
     const destination = { lat: incidentCoords.lat, lng: incidentCoords.lng };
 
@@ -783,11 +896,11 @@ const ResponderMap = () => {
         } else {
           console.error('Error fetching distance matrix:', status);
           // Fallback: still show online responders, just without distance/duration
-          setOnlineRespondersWithDistance(respondersToCalc); 
+          setOnlineRespondersWithDistance(respondersToCalc);
         }
       }
     );
-  // Dependencies now include the real-time list
+    // Dependencies now include the real-time list
   }, [realtimeOnlineResponders, incidentCoords, isGoogleLoaded]);
 
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Typography>Loading...</Typography></Box>;
@@ -804,475 +917,475 @@ const ResponderMap = () => {
   }
 
   return (
-      <Box sx={{ position: 'relative', height: '100vh' }}>
-        <Drawer
-          anchor="left"
-          open={isDrawerOpen}
-          onClose={toggleDrawer}
-          sx={{
-            '& .MuiDrawer-paper': {
-              width: '350px',
-              backgroundColor: "rgba(27, 73, 101, 0.8)",
-              color: 'white',
-              top: 'calc(125px)',
-              left: '10px',
-              height: 'calc(100% - 80px - 1rem)',
-            }
-          }}
-          variant="persistent"
-        >
-          <Box sx={{ width: '100%' }}>
-            <Box sx={{ mb: 1 }}>
-              <Box sx={{
-                p: 2,
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}>
-                <Typography variant="h5" sx={{ fontWeight: 'bold'}}>
-                  DISPATCH
-                </Typography>
-              </Box>
-              
-              <Box sx={{
-                backgroundColor: '#4285F4',
-                display: 'flex',
-                flexDirection: 'row',
-                justifyContent: 'space-around',
-                alignItems: 'center',
-                py: 1,
-                px: 1,
-              }}>
-                <Box sx={{
-                  width: '25%',
-                  // backgroundColor: 'white'
-                }}>
-                <Box 
-              component="img" 
-              src={getIncidentIconUrl(incidentType)}
-              alt="Emergency Icon"
-              sx={{ width: 65, height: 65}}
-            />
-                </Box>
-                <Box sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  // backgroundColor: 'red',
-                  width: '75%',
-                  maxHeight: '100px'
-                }}>
-              <Typography variant="subtitle1" sx={{ textAlign: 'center', fontSize: '0.8rem'}}>
-                {incidentType.toUpperCase()}
+    <Box sx={{ position: 'relative', height: '100vh' }}>
+      <Drawer
+        anchor="left"
+        open={isDrawerOpen}
+        onClose={toggleDrawer}
+        sx={{
+          '& .MuiDrawer-paper': {
+            width: '350px',
+            backgroundColor: "rgba(27, 73, 101, 0.8)",
+            color: 'white',
+            top: 'calc(125px)',
+            left: '10px',
+            height: 'calc(100% - 80px - 1rem)',
+          }
+        }}
+        variant="persistent"
+      >
+        <Box sx={{ width: '100%' }}>
+          <Box sx={{ mb: 1 }}>
+            <Box sx={{
+              p: 2,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}>
+              <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                DISPATCH
               </Typography>
-              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center', }}>
-              {incident}
-              </Typography>
-              <Typography variant="body2" sx={{ 
-                color: 'rgba(255,255,255,0.7)',
-                textAlign: 'center', 
-                display: '-webkit-box',
-                WebkitLineClamp: 2, 
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                lineHeight: '1.2em',
-                maxHeight: '2.4em'
-                }}
-                title={address || "Loading address..."}>
-                {address || "Loading address..."}
-              </Typography>
-
-                </Box>
-              
-              </Box>
-              
             </Box>
-            
+
+            <Box sx={{
+              backgroundColor: '#4285F4',
+              display: 'flex',
+              flexDirection: 'row',
+              justifyContent: 'space-around',
+              alignItems: 'center',
+              py: 1,
+              px: 1,
+            }}>
+              <Box sx={{
+                width: '25%',
+                // backgroundColor: 'white'
+              }}>
+                <Box
+                  component="img"
+                  src={getIncidentIconUrl(incidentType)}
+                  alt="Emergency Icon"
+                  sx={{ width: 65, height: 65 }}
+                />
+              </Box>
+              <Box sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                // backgroundColor: 'red',
+                width: '75%',
+                maxHeight: '100px'
+              }}>
+                <Typography variant="subtitle1" sx={{ textAlign: 'center', fontSize: '0.8rem' }}>
+                  {incidentType.toUpperCase()}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center', }}>
+                  {incident}
+                </Typography>
+                <Typography variant="body2" sx={{
+                  color: 'rgba(255,255,255,0.7)',
+                  textAlign: 'center',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  lineHeight: '1.2em',
+                  maxHeight: '2.4em'
+                }}
+                  title={address || "Loading address..."}>
+                  {address || "Loading address..."}
+                </Typography>
+
+              </Box>
+
+            </Box>
+
+          </Box>
+
 
           <Box sx={{ mb: 4, p: 1 }}>
-          
-          <Box sx={{ 
-            display: 'flex', 
-            mb: 1, 
-            px: 1,
-            gap: 1
-          }}>
-            <TextField
-              size="small"
-              placeholder="Search"
-              variant="outlined"
-              fullWidth
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-                sx: { 
-                  backgroundColor: 'white',
-                  borderRadius: 1
-                }
-              }}
-            />
-            <Button 
-              variant="contained" 
-              sx={{ 
-                backgroundColor: '#4285F4',
-                '&:hover': { backgroundColor: '#4285F4' }
-              }}
-            >
-              Search
-            </Button>
-          </Box>
 
-          <Typography sx={{ color: 'black', fontWeight: 'bold', fontSize: '1rem' }}>AMBULANCE</Typography>
-          {responderUsers
-            .filter(user => user.assignment === 'ambulance')
-            .map((user) => {
-              const isOnline = realtimeOnlineResponders.some(onlineUser => onlineUser._id === user._id);
-              // Get distance/duration data IF they are online
-              const onlineDataWithDistance = isOnline 
-                ? onlineRespondersWithDistance.find(onlineUser => onlineUser._id === user._id) 
-                : null;
-              return (
-                <Box
-                  key={user._id} // Use a unique ID for the key
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    p: 0.7,
-                    backgroundColor: 'rgba(255,255,255)',
-                    width: '100%',
-                    opacity: isOnline ? 1 : 0.6,
-                    mb: '0.3rem',
-                    height: '52px'
-                  }}
-                >
-                  <Box sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          backgroundColor: isOnline ? '#2ecc71' : '#95a5a6',
-                        }} />
-                  <Box sx={{color: 'black', display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
-                    <Box
-                      sx={{
-                        // backgroundColor: 'green',
-                        width: '25%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                    <img className='w-12 h-6'
-                      src={ambulanceIcon}
-                      alt="Ambulance"
-                    />
-                    </Box>
-                    <Box
-                      sx={{
-                        // backgroundColor: 'green',
-                        width: '50%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      
-                      <Typography variant="caption" sx={{textAlign: 'center'}}>{user.firstName} {user.lastName}</Typography>
-                    </Box>
-                    <Box sx={{display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '25%', textAlign: 'center'}}>
-          
-                    <Typography variant="caption">{onlineDataWithDistance?.durationText ?? '--'}</Typography>
-                    <Typography variant="caption">{onlineDataWithDistance?.distanceText ?? '--'}</Typography>
-                    </Box>
-                  </Box>
-                  <Button
-                    sx={{
-                      backgroundColor: '#1976D2',
-                      color: 'white',
-                      '&:hover': { backgroundColor: '#1565C0' },
-                      '&.Mui-disabled': { backgroundColor: '#bdc3c7' } 
-                    }}
-                    onClick={() => handleDispatchResponder(user)}
-                    disabled={!isOnline}
-                  >
-                    <Typography sx={{fontSize: '0.7rem'}}>Dispatch</Typography>
-                  </Button>
-                </Box>
-              )
-            })}
-          
-          <Typography sx={{color: 'black', fontSize: '1rem', fontWeight: 'bold'}}>FIRETRUCK</Typography>
-          <Box sx={{  }}>
-            
-            {responderUsers
-              .filter(user => user.assignment === 'firetruck')
-              .map((user) => {
-                const isOnline = realtimeOnlineResponders.some(onlineUser => onlineUser._id === user._id);
-                // Get distance/duration data IF they are online
-                const onlineDataWithDistance = isOnline 
-                  ? onlineRespondersWithDistance.find(onlineUser => onlineUser._id === user._id) 
-                  : null;
-                return (
-                  <Box
-                  key={user._id} // Use a unique ID for the key
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    p: 0.7,
-                    backgroundColor: 'rgba(255,255,255)',
-                    width: '100%',
-                    opacity: isOnline ? 1 : 0.6,
-                    mb: '0.3rem',
-                    height: '52px'
-                  }}
-                >
-                  <Box sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          backgroundColor: isOnline ? '#2ecc71' : '#95a5a6', 
-                        }} />
-                  <Box sx={{color: 'black', display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
-                    <Box
-                      sx={{
-                        // backgroundColor: 'green',
-                        width: '25%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                    <img className='w-12 h-6'
-                      src={firetruckIcon}
-                      alt="Ambulance"
-                    />
-                    </Box>
-                    <Box
-                      sx={{
-                        // backgroundColor: 'green',
-                        width: '50%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      
-                      <Typography variant="caption" sx={{textAlign: 'center'}}>{user.firstName} {user.lastName}</Typography>
-                    </Box>
-                    <Box sx={{display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '25%', textAlign: 'center'}}>
-          
-                      <Typography variant="caption">{onlineDataWithDistance?.durationText ?? '--'}</Typography>
-                      <Typography variant="caption" sx={{ display: 'block' }}>{onlineDataWithDistance?.distanceText ?? '--'}</Typography>
-                    </Box>
-                  </Box>
-                  <Button
-                    sx={{
-                      backgroundColor: '#1976D2',
-                      color: 'white',
-                      '&:hover': { backgroundColor: '#1565C0' },
-                      '&.Mui-disabled': { backgroundColor: '#bdc3c7' } 
-                    }}
-                    onClick={() => handleDispatchResponder(user)}
-                    disabled={!isOnline} 
-                  >
-                    <Typography sx={{fontSize: '0.7rem'}}>Dispatch</Typography>
-                  </Button>
-                </Box>
-                )
-              })}
-          </Box>
-
-  <Typography sx={{  color: 'black', fontSize: '1rem', fontWeight: 'bold'}}>POLICE</Typography>
-
-          <Box sx={{ mb: 1 }}>
-            
-            {responderUsers
-              .filter(user => user.assignment === 'police')
-              .map((user) => {
-                const isOnline = realtimeOnlineResponders.some(onlineUser => onlineUser._id === user._id);
-                // Get distance/duration data IF they are online
-                const onlineDataWithDistance = isOnline 
-                  ? onlineRespondersWithDistance.find(onlineUser => onlineUser._id === user._id) 
-                  : null;
-                return (
-                  <Box
-                  key={user._id} // Use a unique ID for the key
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    p: 0.7,
-                    backgroundColor: 'rgba(255,255,255)',
-                    width: '100%',
-                    opacity: isOnline ? 1 : 0.6,
-                    mb: '0.3rem',
-                    height: '52px'
-                  }}
-                >
-                  <Box sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          backgroundColor: isOnline ? '#2ecc71' : '#95a5a6', 
-                        }} />
-                  <Box sx={{color: 'black', display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
-                    <Box
-                      sx={{
-                        // backgroundColor: 'green',
-                        width: '25%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                    <img className='w-12 h-6'
-                      src={policecarIcon}
-                      alt="Ambulance"
-                    />
-                    </Box>
-                    <Box
-                      sx={{
-                        // backgroundColor: 'green',
-                        width: '50%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      
-                      <Typography variant="caption" sx={{textAlign: 'center'}}>{user.firstName} {user.lastName}</Typography>
-                    </Box>
-                    <Box sx={{display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '25%', textAlign: 'center'}}>
-          
-                      <Typography variant="caption">{onlineDataWithDistance?.durationText ?? '--'}</Typography>
-                      <Typography variant="caption" sx={{ display: 'block' }}>{onlineDataWithDistance?.distanceText ?? '--'}</Typography>
-                    </Box>
-                  </Box>
-                  <Button
-                    sx={{
-                      backgroundColor: '#1976D2',
-                      color: 'white',
-                      '&:hover': { backgroundColor: '#1565C0' },
-                      '&.Mui-disabled': { backgroundColor: '#bdc3c7' } 
-                    }}
-                    onClick={() => handleDispatchResponder(user)}
-                    disabled={!isOnline} 
-                  >
-                    <Typography sx={{fontSize: '0.7rem'}}>Dispatch</Typography>
-                  </Button>
-                </Box>
-                )
-              })}
-          </Box>
-          </Box>
-          </Box>
-        </Drawer>
-
-          <GoogleMap
-            mapContainerStyle={containerStyle}
-            center={incidentCoords || { lat: 10.3157, lng: 123.8854 }}
-            zoom={15}
-            onLoad={onLoad}
-            onUnmount={onUnmount}
-            options={{
-              zoomControl: true,
-              streetViewControl: true,
-              mapTypeControl: true,
-              fullscreenControl: true,
-            }}
-          >
-            <TrafficLayer />
-
-            {responderCoords ? (
-              <Marker
-                  position={responderCoords}
-                  icon={getIncidentIcon2(responderData.assignment)}
-                  title="Responder Location"
+            <Box sx={{
+              display: 'flex',
+              mb: 1,
+              px: 1,
+              gap: 1
+            }}>
+              <TextField
+                size="small"
+                placeholder="Search"
+                variant="outlined"
+                fullWidth
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                  sx: {
+                    backgroundColor: 'white',
+                    borderRadius: 1
+                  }
+                }}
               />
-            ) : (
-              realtimeOnlineResponders
-                .filter(r => r.coordinates && r.coordinates.lat != null && r.coordinates.lon != null)
-                .map((responder) => (
-                  <Marker
-                    key={responder._id} 
-                    position={{
-                      lat: responder.coordinates.lat!,
-                      lng: responder.coordinates.lon!, 
+              <Button
+                variant="contained"
+                sx={{
+                  backgroundColor: '#4285F4',
+                  '&:hover': { backgroundColor: '#4285F4' }
+                }}
+              >
+                Search
+              </Button>
+            </Box>
+
+            <Typography sx={{ color: 'black', fontWeight: 'bold', fontSize: '1rem' }}>AMBULANCE</Typography>
+            {responderUsers
+              .filter(user => user.assignment === 'ambulance')
+              .map((user) => {
+                const isOnline = realtimeOnlineResponders.some(onlineUser => onlineUser._id === user._id);
+                // Get distance/duration data IF they are online
+                const onlineDataWithDistance = isOnline
+                  ? onlineRespondersWithDistance.find(onlineUser => onlineUser._id === user._id)
+                  : null;
+                return (
+                  <Box
+                    key={user._id} // Use a unique ID for the key
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      p: 0.7,
+                      backgroundColor: 'rgba(255,255,255)',
+                      width: '100%',
+                      opacity: isOnline ? 1 : 0.6,
+                      mb: '0.3rem',
+                      height: '52px'
                     }}
-                    icon={getIncidentIcon2(responder.assignment)}
-                    title={`${responder.firstName} ${responder.lastName} (${responder.assignment})`}
-                  />
-                ))
-            )}
-            
-            {incidentCoords && (
-                <Marker
-                    position={incidentCoords}
-                    icon={getIncidentIcon(incidentType)}
-                    title="Incident Location"
-                />
-            )}
-            
-            {hospitalCoords && (
-                <Marker
-                    position={hospitalCoords}
-                    icon={getHospitalIcon()}
-                    title={hospitalName}
-                />
-            )}
-            
-            {directions && (
-                <DirectionsRenderer directions={directions} options={{ suppressMarkers: true }} />
-            )}
-            
-            {infoWindowPosition && routeInfo && (
-                <OverlayView position={infoWindowPosition} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
-                    <div style={{ 
-                        backgroundColor: 'white', 
-                        padding: '12px 16px', 
-                        borderRadius: '8px', 
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-                        border: '2px solid #1976D2',
-                        minWidth: '100px',
-                        textAlign: 'center',
-                        fontFamily: 'Arial, sans-serif'
-                    }}>
-                        <div style={{ 
-                            fontSize: '16px', 
-                            fontWeight: 'bold', 
-                            color: '#1976D2',
-                            marginBottom: '4px'
-                        }}>
-                            {routeInfo.duration}
-                        </div>
-                        <div style={{ 
-                            fontSize: '14px', 
-                            color: '#666',
-                            fontWeight: '500'
-                        }}>
-                            {routeInfo.distance}
-                        </div>
-                    </div>
-                </OverlayView>
-            )}
-          </GoogleMap>
-        <Grid container spacing={1}>
-          <Grid size={{xs: 12}}
-          sx = {{
+                  >
+                    <Box sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: isOnline ? '#2ecc71' : '#95a5a6',
+                    }} />
+                    <Box sx={{ color: 'black', display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                      <Box
+                        sx={{
+                          // backgroundColor: 'green',
+                          width: '25%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <img className='w-12 h-6'
+                          src={ambulanceIcon}
+                          alt="Ambulance"
+                        />
+                      </Box>
+                      <Box
+                        sx={{
+                          // backgroundColor: 'green',
+                          width: '50%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+
+                        <Typography variant="caption" sx={{ textAlign: 'center' }}>{user.firstName} {user.lastName}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '25%', textAlign: 'center' }}>
+
+                        <Typography variant="caption">{onlineDataWithDistance?.durationText ?? '--'}</Typography>
+                        <Typography variant="caption">{onlineDataWithDistance?.distanceText ?? '--'}</Typography>
+                      </Box>
+                    </Box>
+                    <Button
+                      sx={{
+                        backgroundColor: '#1976D2',
+                        color: 'white',
+                        '&:hover': { backgroundColor: '#1565C0' },
+                        '&.Mui-disabled': { backgroundColor: '#bdc3c7' }
+                      }}
+                      onClick={() => handleDispatchResponder(user)}
+                      disabled={!isOnline}
+                    >
+                      <Typography sx={{ fontSize: '0.7rem' }}>Dispatch</Typography>
+                    </Button>
+                  </Box>
+                )
+              })}
+
+            <Typography sx={{ color: 'black', fontSize: '1rem', fontWeight: 'bold' }}>FIRETRUCK</Typography>
+            <Box sx={{}}>
+
+              {responderUsers
+                .filter(user => user.assignment === 'firetruck')
+                .map((user) => {
+                  const isOnline = realtimeOnlineResponders.some(onlineUser => onlineUser._id === user._id);
+                  // Get distance/duration data IF they are online
+                  const onlineDataWithDistance = isOnline
+                    ? onlineRespondersWithDistance.find(onlineUser => onlineUser._id === user._id)
+                    : null;
+                  return (
+                    <Box
+                      key={user._id} // Use a unique ID for the key
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        p: 0.7,
+                        backgroundColor: 'rgba(255,255,255)',
+                        width: '100%',
+                        opacity: isOnline ? 1 : 0.6,
+                        mb: '0.3rem',
+                        height: '52px'
+                      }}
+                    >
+                      <Box sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: isOnline ? '#2ecc71' : '#95a5a6',
+                      }} />
+                      <Box sx={{ color: 'black', display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                        <Box
+                          sx={{
+                            // backgroundColor: 'green',
+                            width: '25%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <img className='w-12 h-6'
+                            src={firetruckIcon}
+                            alt="Ambulance"
+                          />
+                        </Box>
+                        <Box
+                          sx={{
+                            // backgroundColor: 'green',
+                            width: '50%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+
+                          <Typography variant="caption" sx={{ textAlign: 'center' }}>{user.firstName} {user.lastName}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '25%', textAlign: 'center' }}>
+
+                          <Typography variant="caption">{onlineDataWithDistance?.durationText ?? '--'}</Typography>
+                          <Typography variant="caption" sx={{ display: 'block' }}>{onlineDataWithDistance?.distanceText ?? '--'}</Typography>
+                        </Box>
+                      </Box>
+                      <Button
+                        sx={{
+                          backgroundColor: '#1976D2',
+                          color: 'white',
+                          '&:hover': { backgroundColor: '#1565C0' },
+                          '&.Mui-disabled': { backgroundColor: '#bdc3c7' }
+                        }}
+                        onClick={() => handleDispatchResponder(user)}
+                        disabled={!isOnline}
+                      >
+                        <Typography sx={{ fontSize: '0.7rem' }}>Dispatch</Typography>
+                      </Button>
+                    </Box>
+                  )
+                })}
+            </Box>
+
+            <Typography sx={{ color: 'black', fontSize: '1rem', fontWeight: 'bold' }}>POLICE</Typography>
+
+            <Box sx={{ mb: 1 }}>
+
+              {responderUsers
+                .filter(user => user.assignment === 'police')
+                .map((user) => {
+                  const isOnline = realtimeOnlineResponders.some(onlineUser => onlineUser._id === user._id);
+                  // Get distance/duration data IF they are online
+                  const onlineDataWithDistance = isOnline
+                    ? onlineRespondersWithDistance.find(onlineUser => onlineUser._id === user._id)
+                    : null;
+                  return (
+                    <Box
+                      key={user._id} // Use a unique ID for the key
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        p: 0.7,
+                        backgroundColor: 'rgba(255,255,255)',
+                        width: '100%',
+                        opacity: isOnline ? 1 : 0.6,
+                        mb: '0.3rem',
+                        height: '52px'
+                      }}
+                    >
+                      <Box sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: isOnline ? '#2ecc71' : '#95a5a6',
+                      }} />
+                      <Box sx={{ color: 'black', display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                        <Box
+                          sx={{
+                            // backgroundColor: 'green',
+                            width: '25%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <img className='w-12 h-6'
+                            src={policecarIcon}
+                            alt="Ambulance"
+                          />
+                        </Box>
+                        <Box
+                          sx={{
+                            // backgroundColor: 'green',
+                            width: '50%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+
+                          <Typography variant="caption" sx={{ textAlign: 'center' }}>{user.firstName} {user.lastName}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '25%', textAlign: 'center' }}>
+
+                          <Typography variant="caption">{onlineDataWithDistance?.durationText ?? '--'}</Typography>
+                          <Typography variant="caption" sx={{ display: 'block' }}>{onlineDataWithDistance?.distanceText ?? '--'}</Typography>
+                        </Box>
+                      </Box>
+                      <Button
+                        sx={{
+                          backgroundColor: '#1976D2',
+                          color: 'white',
+                          '&:hover': { backgroundColor: '#1565C0' },
+                          '&.Mui-disabled': { backgroundColor: '#bdc3c7' }
+                        }}
+                        onClick={() => handleDispatchResponder(user)}
+                        disabled={!isOnline}
+                      >
+                        <Typography sx={{ fontSize: '0.7rem' }}>Dispatch</Typography>
+                      </Button>
+                    </Box>
+                  )
+                })}
+            </Box>
+          </Box>
+        </Box>
+      </Drawer>
+
+      <GoogleMap
+        mapContainerStyle={containerStyle}
+        center={incidentCoords || { lat: 10.3157, lng: 123.8854 }}
+        zoom={15}
+        onLoad={onLoad}
+        onUnmount={onUnmount}
+        options={{
+          zoomControl: true,
+          streetViewControl: true,
+          mapTypeControl: true,
+          fullscreenControl: true,
+        }}
+      >
+        <TrafficLayer />
+
+        {responderCoords ? (
+          <Marker
+            position={responderCoords}
+            icon={getIncidentIcon2(responderData.assignment)}
+            title="Responder Location"
+          />
+        ) : (
+          realtimeOnlineResponders
+            .filter(r => r.coordinates && r.coordinates.lat != null && r.coordinates.lon != null)
+            .map((responder) => (
+              <Marker
+                key={responder._id}
+                position={{
+                  lat: responder.coordinates.lat!,
+                  lng: responder.coordinates.lon!,
+                }}
+                icon={getIncidentIcon2(responder.assignment)}
+                title={`${responder.firstName} ${responder.lastName} (${responder.assignment})`}
+              />
+            ))
+        )}
+
+        {incidentCoords && (
+          <Marker
+            position={incidentCoords}
+            icon={getIncidentIcon(incidentType)}
+            title="Incident Location"
+          />
+        )}
+
+        {hospitalCoords && (
+          <Marker
+            position={hospitalCoords}
+            icon={getHospitalIcon()}
+            title={hospitalName}
+          />
+        )}
+
+        {directions && (
+          <DirectionsRenderer directions={directions} options={{ suppressMarkers: true }} />
+        )}
+
+        {infoWindowPosition && routeInfo && (
+          <OverlayView position={infoWindowPosition} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
+            <div style={{
+              backgroundColor: 'white',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+              border: '2px solid #1976D2',
+              minWidth: '100px',
+              textAlign: 'center',
+              fontFamily: 'Arial, sans-serif'
+            }}>
+              <div style={{
+                fontSize: '16px',
+                fontWeight: 'bold',
+                color: '#1976D2',
+                marginBottom: '4px'
+              }}>
+                {routeInfo.duration}
+              </div>
+              <div style={{
+                fontSize: '14px',
+                color: '#666',
+                fontWeight: '500'
+              }}>
+                {routeInfo.distance}
+              </div>
+            </div>
+          </OverlayView>
+        )}
+      </GoogleMap>
+      <Grid container spacing={1}>
+        <Grid size={{ xs: 12 }}
+          sx={{
             position: "absolute",
             top: "0",
             padding: "0.7rem",
@@ -1281,310 +1394,330 @@ const ResponderMap = () => {
             height: '125px',
             // backgroundColor: 'red'
           }}>
-            <Grid size={{md: 9}}
-            sx = {{
-            padding: "2",
-            borderRadius: '10px'
-          }}>
-            <Box sx={{ 
-          backgroundColor: "rgba(27, 73, 101, 0.8)",
-          // backgroundColor: "white",
-          borderRadius: 2,
-          color: 'white',
-          padding: 0.7,
-          display: 'flex',
-          alignItems: 'center',
-          zIndex: 1000,
-          boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
-          height: "100%"
-        }}>
-    <Box sx={{ 
-    display: 'flex', 
-    flexDirection: 'row',
-    alignItems: 'center', 
-    justifyContent: 'center',
-    width: '7%',
-  }}>
-    <button 
-      onClick={toggleDrawer}
-      aria-label="Menu"
-      style={{
-        background: 'transparent',
-        border: 'none',
-        cursor: 'pointer',
-        display: 'flex',
-        flexDirection: 'column',
-        height: '16px',
-        justifyContent: 'space-between',
-        padding: 0,
-        marginLeft: '8px',
-      }}
-    >
-      <span style={{ display: 'block', height: '2px', width: '20px', backgroundColor: 'white', borderRadius: '1px' }} />
-      <span style={{ display: 'block', height: '2px', width: '20px', backgroundColor: 'white', borderRadius: '1px' }} />
-      <span style={{ display: 'block', height: '2px', width: '20px', backgroundColor: 'white', borderRadius: '1px' }} />
-    </button>
-  </Box>
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: 'row',
-            alignItems: 'center', 
-            justifyContent: 'start',
-            marginRight: 2,
-            width: '31%',
-            borderRight: '1px solid rgba(255,255,255,0.3)',
-          }}>
-            <Box 
-              component="img" 
-              src={getIncidentIconUrl(incidentType)}
-              alt="Emergency Icon"
-              sx={{ width: 70, height: 70}}
-            />
-            <Box sx ={{
-              display: 'flex',
-              flexDirection: 'column',
-              marginLeft: '1rem'
+          <Grid size={{ md: 9 }}
+            sx={{
+              padding: "2",
+              borderRadius: '10px'
             }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>
-              ID: {incidentType ? `${incidentType}-${incidentId?.substring(5,9)}` : ""}
-            </Typography>
-            <Typography variant="caption" sx={{ color: '#4caf50', fontWeight: 'bold' }}>
-              {incidentType ? `${incidentType.toUpperCase()} CALL` : ""}
-            </Typography>
-            <Typography variant="caption" sx={{ 
-              fontSize: '0.7rem',
-              display: '-webkit-box',
-              WebkitLineClamp: 2, 
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              lineHeight: '1.2em',
-              maxHeight: '2.4em'
-              }}
-              title={address || "Loading address..."}>
-              {address || "Loading address..."}
-            </Typography>
-            {/* <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+            <Box sx={{
+              backgroundColor: "rgba(27, 73, 101, 0.8)",
+              // backgroundColor: "white",
+              borderRadius: 2,
+              color: 'white',
+              padding: 0.7,
+              display: 'flex',
+              alignItems: 'center',
+              zIndex: 1000,
+              boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+              height: "100%"
+            }}>
+              <Box sx={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '7%',
+              }}>
+                <button
+                  onClick={toggleDrawer}
+                  aria-label="Menu"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '16px',
+                    justifyContent: 'space-between',
+                    padding: 0,
+                    marginLeft: '8px',
+                  }}
+                >
+                  <span style={{ display: 'block', height: '2px', width: '20px', backgroundColor: 'white', borderRadius: '1px' }} />
+                  <span style={{ display: 'block', height: '2px', width: '20px', backgroundColor: 'white', borderRadius: '1px' }} />
+                  <span style={{ display: 'block', height: '2px', width: '20px', backgroundColor: 'white', borderRadius: '1px' }} />
+                </button>
+              </Box>
+              <Box sx={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'start',
+                marginRight: 2,
+                width: '31%',
+                borderRight: '1px solid rgba(255,255,255,0.3)',
+              }}>
+                <Box
+                  component="img"
+                  src={getIncidentIconUrl(incidentType)}
+                  alt="Emergency Icon"
+                  sx={{ width: 70, height: 70 }}
+                />
+                <Box sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  marginLeft: '1rem'
+                }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>
+                    ID: {incidentType ? `${incidentType}-${incidentId?.substring(5, 9)}` : ""}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#4caf50', fontWeight: 'bold' }}>
+                    {incidentType ? `${incidentType.toUpperCase()} CALL` : ""}
+                  </Typography>
+                  <Typography variant="caption" sx={{
+                    fontSize: '0.7rem',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    lineHeight: '1.2em',
+                    maxHeight: '2.4em'
+                  }}
+                    title={address || "Loading address..."}>
+                    {address || "Loading address..."}
+                  </Typography>
+                  {/* <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
               Coordinates: {incidentCoords ? incidentCoords.lat + " " + incidentCoords.lng : ""}
             </Typography> */}
-            </Box>
-          </Box>
+                </Box>
+              </Box>
 
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: 'row',
-            alignItems: 'center', 
-            justifyContent: 'start',
-            marginRight: 2,
-            width: '31%',
-            borderRight: '1px solid rgba(255,255,255,0.3)',
-          }}>
-            <Box 
-              component="img" 
-              src={getImageUrl(userData?.profileImage || '')}
-              alt="Emergency Icon"
-              sx={{ width: 70, height: 70, borderRadius: '50%'}}
-            />
-            <Box sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              marginLeft: '1rem'
-            }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-              {userData ? `${userData.firstName} ${userData.lastName}` : 'Loading...'}
-            </Typography>
-            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-              {userData ? userData.phone : 'Loading...'}
-            </Typography>
-            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-              GuardianPH OpCen
-            </Typography>
-            </Box>
-          </Box>
-
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: 'row',
-            alignItems: 'center', 
-            justifyContent: 'start',
-            marginRight: 2,
-            width: '31%',
-          }}>
-            <Box sx ={{
-              display: 'flex',
-              flexDirection: 'column',
-              marginLeft: '1rem'
-            }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-              RECEIVED AT: {acceptedAt ? new Date(acceptedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : "Not Accepted"}
-            </Typography>
-            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-              {incident}
-            </Typography>
-            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-              LAPS TIME: {formatLapsTime(lapsTime)}
-            </Typography>
-            </Box>
-          </Box>
-        </Box>
-        </Grid>
-        {responderCoords && responderData.firstName && (
-          <>
-            <Grid size={{md: 1.5}}
-            sx ={{
-              display: 'flex',
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: "rgba(27, 73, 101, 0.8)",
-              padding: "2",
-              borderRadius: '10px',
-              height: "100%"
-            }}>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'white'}}>
-                1
-              </Typography>
-              <img className='w-20 ml-3'
-                  src={getIncidentIcon2(responderData.assignment)?.url}
-                  alt="Responder Vehicle" 
+              <Box sx={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'start',
+                marginRight: 2,
+                width: '31%',
+                borderRight: '1px solid rgba(255,255,255,0.3)',
+              }}>
+                <Box
+                  component="img"
+                  src={getImageUrl(userData?.profileImage || '')}
+                  alt="Emergency Icon"
+                  sx={{ width: 70, height: 70, borderRadius: '50%' }}
                 />
-            </Grid>
-            <Grid size={{md: 1.5}}
-            sx ={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: "rgba(27, 73, 101, 0.8)",
-              padding: "2",
-              borderRadius: '10px',
-              height: "100%"
-            }}>
-              <Box 
-                  component="img" 
+                <Box sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  marginLeft: '1rem'
+                }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                    {userData ? `${userData.firstName} ${userData.lastName}` : 'Loading...'}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                    {userData ? userData.phone : 'Loading...'}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                    GuardianPH OpCen
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'start',
+                marginRight: 2,
+                width: '31%',
+              }}>
+                <Box sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  marginLeft: '1rem'
+                }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                    RECEIVED AT: {acceptedAt ? new Date(acceptedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : "Not Accepted"}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                    {incident}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                    LAPS TIME: {formatLapsTime(lapsTime)}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          </Grid>
+          {responderCoords && responderData.firstName && (
+            <>
+              <Grid size={{ md: 1.5 }}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: "rgba(27, 73, 101, 0.8)",
+                  padding: "2",
+                  borderRadius: '10px',
+                  height: "100%"
+                }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'white' }}>
+                  1
+                </Typography>
+                <img className='w-20 ml-3'
+                  src={getIncidentIcon2(responderData.assignment)?.url}
+                  alt="Responder Vehicle"
+                />
+              </Grid>
+              <Grid size={{ md: 1.5 }}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: "rgba(27, 73, 101, 0.8)",
+                  padding: "2",
+                  borderRadius: '10px',
+                  height: "100%"
+                }}>
+                <Box
+                  component="img"
                   src={getImageUrl(userStr2?.profileImage) || ''}
                   alt="Emergency Icon"
-                  sx={{ width: 70, height: 70, borderRadius: '50%'}}
+                  sx={{ width: 70, height: 70, borderRadius: '50%' }}
                 />
-            </Grid>
-          </>
-        )}
-        
-        
-          </Grid>
-          </Grid>
-        
-        {chatClient && currentChannelId && (
-          <Box
-            sx={{
-              position: 'fixed',
-              bottom: 0,
-              right: 20,
-              width: '350px',
-              backgroundColor: 'white',
-              borderRadius: '10px 10px 0 0',
-              boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
-              transition: 'height 0.3s ease',
-              height: isChatExpanded ? '500px' : '50px',
-              overflow: 'hidden',
-              zIndex: 1000
-            }}
-          >
-            <Box
-              onClick={() => setIsChatExpanded(!isChatExpanded)}
-              sx={{
-                bgcolor: '#4a90e2',
-                color: 'white',
-                p: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer'
-              }}
-            >
-              <Typography sx={{ fontWeight: 'bold', textTransform: "uppercase" }}>
-                {/* Channel ID: {incidentType ? `${incidentType}-${incidentId?.substring(5,9)}` : ""} */}
-                Channel ID: DISPATCHER-LGU
-              </Typography>
-              {isChatExpanded ? <KeyboardArrowDownIcon /> : <KeyboardArrowUpIcon />}
-            </Box>
+              </Grid>
+            </>
+          )}
 
-            <Box
-              sx={{
-                height: 'calc(100% - 40px)',
-                display: isChatExpanded ? 'block' : 'none'
-              }}
-            >
-              <Chat client={chatClient} theme="messaging light">
-                <Channel channel={chatClient.channel("messaging", currentChannelId)}>
-                  <Window>
-                    <MessageList />
-                    <MessageInput />
-                  </Window>
-                </Channel>
-              </Chat>
-            </Box>
-          </Box>
-        )}
-        
-        {chatClient && secondChannelId && (
+
+        </Grid>
+      </Grid>
+
+      {chatClient && currentChannelId && (
+        <Box
+          sx={{
+            position: 'fixed',
+            bottom: 0,
+            right: 20,
+            width: '350px',
+            backgroundColor: 'white',
+            borderRadius: '10px 10px 0 0',
+            boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
+            transition: 'height 0.3s ease',
+            height: isChatExpanded ? '500px' : '50px',
+            overflow: 'hidden',
+            zIndex: 1000
+          }}
+        >
           <Box
+            onClick={() => setIsChatExpanded(!isChatExpanded)}
             sx={{
-              position: 'fixed',
-              bottom: 0,
-              right: 380, 
-              width: '350px',
-              backgroundColor: 'white',
-              borderRadius: '10px 10px 0 0',
-              boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
-              transition: 'height 0.3s ease',
-              height: isSecondChatExpanded ? '500px' : '50px',
-              overflow: 'hidden',
-              zIndex: 1000
+              bgcolor: '#4a90e2',
+              color: 'white',
+              p: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer'
             }}
           >
-            <Box
-              onClick={() => setIsSecondChatExpanded(!isSecondChatExpanded)}
-              sx={{
-                bgcolor: '#e53935', 
-                color: 'white',
-                p: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer'
-              }}
-            >
+            <Typography sx={{ fontWeight: 'bold', textTransform: "uppercase" }}>
+              {/* Channel ID: {incidentType ? `${incidentType}-${incidentId?.substring(5,9)}` : ""} */}
+              GUARDIAN
+            </Typography>
+            {isChatExpanded ? <KeyboardArrowDownIcon /> : <KeyboardArrowUpIcon />}
+          </Box>
+
+          <Box
+            sx={{
+              height: 'calc(100% - 40px)',
+              display: isChatExpanded ? 'block' : 'none'
+            }}
+          >
+            <Chat client={chatClient} theme="messaging light">
+              <Channel channel={chatClient.channel("messaging", currentChannelId)}>
+                <Window>
+                  <MessageList />
+                  <MessageInput />
+                </Window>
+              </Channel>
+            </Chat>
+          </Box>
+        </Box>
+      )}
+
+      {chatClient && secondChannelId && (
+        <Box
+          sx={{
+            position: 'fixed',
+            bottom: 0,
+            right: 380,
+            width: '350px',
+            backgroundColor: 'white',
+            borderRadius: '10px 10px 0 0',
+            boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
+            transition: 'height 0.3s ease',
+            height: isSecondChatExpanded ? '500px' : '50px',
+            overflow: 'hidden',
+            zIndex: 1000
+          }}
+        >
+          <Box
+            onClick={() => setIsSecondChatExpanded(!isSecondChatExpanded)}
+            sx={{
+              bgcolor: '#e53935',
+              color: 'white',
+              p: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer'
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
               <Typography sx={{ fontWeight: 'bold', textTransform: "uppercase" }}>
                 {/* Channel ID: {incidentType ? `${incidentType}-${incidentId?.substring(5,10)}` : ""} */}
-                Channel ID: LGU-RESPONDER
+                RESPONDER
               </Typography>
-              {isSecondChatExpanded ? <KeyboardArrowDownIcon /> : <KeyboardArrowUpIcon />}
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCallResponder();
+                }}
+                sx={{
+                  color: 'white',
+                  bgcolor: 'rgba(255, 255, 255, 0.2)',
+                  '&:hover': {
+                    bgcolor: 'rgba(255, 255, 255, 0.35)',
+                  },
+                  p: 0.5,
+                }}
+                title="Call Responder"
+              >
+                <CallIcon sx={{ fontSize: 18 }} />
+              </IconButton>
             </Box>
-            <Box
-              sx={{
-                height: 'calc(100% - 40px)',
-                display: isSecondChatExpanded ? 'block' : 'none'
-              }}
-            >
-              <Chat client={chatClient} theme="messaging light">
-                <Channel channel={chatClient.channel("messaging", secondChannelId)}>
-                  <Window>
-                    <MessageList />
-                    <MessageInput />
-                  </Window>
-                </Channel>
-              </Chat>
-            </Box>
+            {isSecondChatExpanded ? <KeyboardArrowDownIcon /> : <KeyboardArrowUpIcon />}
           </Box>
-        )}
-        
-        <ConnectingResponderModal 
-          open={isConnecting}
-          onClose={handleCancelDispatch}
-          responderName={dispatchedResponder ? `${dispatchedResponder.firstName} ${dispatchedResponder.lastName}` : ''}
-        />
-      </Box>
-    );
-  };
+          <Box
+            sx={{
+              height: 'calc(100% - 40px)',
+              display: isSecondChatExpanded ? 'block' : 'none'
+            }}
+          >
+            <Chat client={chatClient} theme="messaging light">
+              <Channel channel={chatClient.channel("messaging", secondChannelId)}>
+                <Window>
+                  <MessageList />
+                  <MessageInput />
+                </Window>
+              </Channel>
+            </Chat>
+          </Box>
+        </Box>
+      )}
 
-  export default ResponderMap; 
+      <ConnectingResponderModal
+        open={isConnecting}
+        onClose={handleCancelDispatch}
+        responderName={dispatchedResponder ? `${dispatchedResponder.firstName} ${dispatchedResponder.lastName}` : ''}
+      />
+    </Box>
+  );
+};
+
+export default ResponderMap; 

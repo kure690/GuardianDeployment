@@ -93,13 +93,18 @@ const MainScreen = () => {
   const userStr = localStorage.getItem("user");
   const userStr2 = userStr ? JSON.parse(userStr) : null;
   console.log("Logged-in user object from localStorage:", userStr2);
-  const userId = userStr2?.id;
+  const userId = userStr2?.id || userStr2?._id;
   const dispatcherTeamId = userStr2?.team;
   const token = localStorage.getItem("token");
 
+  const dispatcherFullName =
+    userStr2?.firstName && userStr2?.lastName
+      ? `${userStr2.firstName} ${userStr2.lastName}`.trim()
+      : userStr2?.name || userStr2?.email || "Dispatcher";
+
   const user = {
     id: userId,
-    name: userStr2?.name
+    name: dispatcherFullName
   };
 
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>("");
@@ -150,7 +155,7 @@ const MainScreen = () => {
 
   const incidentLon = coordinates?.coordinates?.[0];
   const incidentLat = coordinates?.coordinates?.[1];
-  const chatClient = useStreamChatClient(userId, user, userStr2?.name, token);
+  const chatClient = useStreamChatClient(userId, user, dispatcherFullName, token);
   const [onlineUsers, setOnlineUsers] = useState(new Set<string>());
   const { lapsTime, formatLapsTime } = useElapsedTime(acceptedAt);
   const imagesLoaded = useProfileImageUpsert(chatClient, userId, userStr2, userData, volunteerID);
@@ -359,9 +364,11 @@ const MainScreen = () => {
 
     console.log("Opening call window...");
 
-    const url = `/call?id=${incidentId}&volunteer=${volunteerID}`;
+    const callId = `call-${incidentId}-${Date.now()}`;
+    const url = `/call?id=${callId}&volunteer=${volunteerID}`;
     const width = window.screen.width;
     const height = window.screen.height;
+
     const newWindow = window.open(url, '_blank', `width=${width},height=${height},left=0,top=0`);
 
     if (newWindow) {
@@ -372,7 +379,7 @@ const MainScreen = () => {
       console.error("Failed to open new window! Pop-up might be blocked.");
       alert("Failed to open call window. Please check your pop-up blocker.");
     }
-  }, [incidentId, volunteerID]);
+  }, [incidentId, volunteerID, videoClient]);
 
   if (!user || !chatClient || !userData || !incidentType || !imagesLoaded || !videoClient) {
     return <div>Loading...</div>;
@@ -1127,22 +1134,51 @@ const VideoCallHandler = () => {
   const localUserId = user?.id;
 
   useEffect(() => {
-    if (!localUserId || !calls) return;
+    if (!localUserId || !calls || calls.length === 0) return;
+
+    const subscriptions: (() => void)[] = [];
 
     calls.forEach((call) => {
       const creator = call.state.createdBy;
-      const isOutgoingCall = call.isCreatedByMe || (creator && creator.id === localUserId);
+      const isOutgoingCall =
+        call.isCreatedByMe ||
+        (creator && creator.id === localUserId) ||
+        (call.state.createdBy?.id === localUserId);
 
-      if (isOutgoingCall) {
-        if (call.state.callingState === CallingState.RINGING) {
-          console.log("MainScreen: Setting outgoing call to IDLE:", call.id);
-          call.state.setCallingState(CallingState.IDLE);
-        } else if ([CallingState.JOINING, CallingState.JOINED].includes(call.state.callingState)) {
-          console.log("MainScreen: Leaving outgoing call session:", call.id);
+      if (!isOutgoingCall) return;
+
+      // Immediately silence and leave the outgoing call on this window.
+      // We use leave() for ALL active states — never setCallingState(IDLE)
+      // because that only changes client-side state and can still allow the
+      // SFU to publish audio from this window (the ghost participant).
+      const leaveOutgoingCall = () => {
+        const state = call.state.callingState;
+        if (
+          state === CallingState.RINGING ||
+          state === CallingState.JOINING ||
+          state === CallingState.JOINED
+        ) {
+          console.log(`MainScreen: Leaving outgoing call (${call.id}) in state: ${state}`);
+          // Disable mic/camera first to prevent any brief audio/video publish
+          call.microphone.disable().catch(() => {});
+          call.camera.disable().catch(() => {});
           call.leave().catch(() => {});
         }
-      }
+      };
+
+      leaveOutgoingCall();
+
+      // Also subscribe to state changes in case the call transitions
+      // into an active state after this effect first runs
+      const sub = call.state.callingState$.subscribe(() => {
+        leaveOutgoingCall();
+      });
+      subscriptions.push(() => sub.unsubscribe());
     });
+
+    return () => {
+      subscriptions.forEach((unsub) => unsub());
+    };
   }, [calls, localUserId]);
 
   if (!localUserId) {

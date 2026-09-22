@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StreamVideoClient } from '@stream-io/video-react-sdk';
+import { StreamVideoClient, CallingState } from '@stream-io/video-react-sdk';
 import config from '../../config';
 
 export function useStreamVideoClient(userId: string, userName: string, token: string | null, avatarImg: string) {
@@ -22,6 +22,11 @@ export function useStreamVideoClient(userId: string, userName: string, token: st
         });
         client.on('all', (event: any) => {
           if (event.type?.includes('call')) {
+            console.log('Call event received in MainScreen videoClient:', {
+              type: event.type,
+              callCid: event.call_cid,
+              details: event
+            });
           }
         });
         client.on('connection.changed', (event: any) => {

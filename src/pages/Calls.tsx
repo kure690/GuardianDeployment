@@ -10,7 +10,6 @@ import {
   SpeakerLayout,
   CancelCallButton,
   ToggleAudioPublishingButton,
-  ToggleVideoPublishingButton,
   SpeakingWhileMutedNotification,
   User,
   RingingCall,
@@ -23,6 +22,10 @@ import "@stream-io/video-react-sdk/dist/css/styles.css";
 import "../components/Calls.css" // Make sure this path is correct
 
 
+// Module-level cache so React StrictMode or component re-renders NEVER execute
+// newCall.getOrCreate({ ring: true }) twice for the same callId.
+const callInitCache = new Map<string, Promise<{ client: StreamVideoClient; call: Call }>>();
+
 export default function Calls() {
   const [client, setClient] = useState<StreamVideoClient | null>(null);
   const [call, setCall] = useState<Call | null>(null);
@@ -30,8 +33,6 @@ export default function Calls() {
 
   useEffect(() => {
     let mounted = true;
-    let videoClient: StreamVideoClient | null = null;
-    let newCall: Call | null = null;
 
     const initCall = async () => {
       try {
@@ -47,20 +48,6 @@ export default function Calls() {
           return;
         }
 
-        const activeUser: User = {
-          id: currentUserId,
-          name: currentUser?.firstName && currentUser?.lastName 
-            ? `${currentUser.firstName} ${currentUser.lastName}` 
-            : currentUser?.name || currentUser?.email || "Unknown User",
-        };
-
-        videoClient = StreamVideoClient.getOrCreateInstance({
-          apiKey: config.STREAM_APIKEY,
-          user: activeUser,
-          token: currentToken,
-        });
-        console.log("User connected in POPUP", activeUser);
-
         const urlParams = new URLSearchParams(window.location.search);
         const callIdFromUrl = urlParams.get('id');
         const calleeIdFromUrl = urlParams.get('volunteer') || urlParams.get('responder');
@@ -70,30 +57,64 @@ export default function Calls() {
           return;
         }
 
-        // Use the callId from the URL with reuseInstance: true to avoid creating duplicate Call objects
-        newCall = videoClient.call("default", callIdFromUrl, { reuseInstance: true });
+        // Cache the initialization promise so StrictMode double-mount or multiple renders
+        // will await the exact same single Call instance instead of creating duplicates.
+        if (!callInitCache.has(callIdFromUrl)) {
+          const initPromise = (async () => {
+            const getImageUrl = (url?: string) => {
+              if (!url) return undefined;
+              if (url.startsWith('http://') || url.startsWith('https://')) return url;
+              const serverUrl = config.GUARDIAN_SERVER_URL || '';
+              return `${serverUrl.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`;
+            };
 
-        // We DO NOT join yet. We create the call with ring: true and wait for callee to accept.
-        await newCall.getOrCreate({
-          ring: true,
-          data: {
-            members: [
-              { user_id: currentUserId },
-              { user_id: calleeIdFromUrl },
-            ],
-            settings_override: {
-              ring: {
-                incoming_call_timeout_ms: 30000,
-                auto_cancel_timeout_ms: 30000
+            const profileImageUrl = getImageUrl(currentUser?.profileImage || currentUser?.image);
+
+            const activeUser: User = {
+              id: currentUserId,
+              name: currentUser?.firstName && currentUser?.lastName 
+                ? `${currentUser.firstName} ${currentUser.lastName}` 
+                : currentUser?.name || currentUser?.email || "Unknown User",
+              image: profileImageUrl,
+            };
+
+            const videoClient = StreamVideoClient.getOrCreateInstance({
+              apiKey: config.STREAM_APIKEY,
+              user: activeUser,
+              token: currentToken,
+            });
+            console.log("User connected in POPUP", activeUser);
+
+            const newCall = videoClient.call("default", callIdFromUrl, { reuseInstance: true });
+
+            await newCall.getOrCreate({
+              ring: true,
+              data: {
+                members: [
+                  { user_id: currentUserId },
+                  { user_id: calleeIdFromUrl },
+                ],
+                settings_override: {
+                  ring: {
+                    incoming_call_timeout_ms: 30000,
+                    auto_cancel_timeout_ms: 30000
+                  }
+                }
               }
-            }
-          }
-        });
-        console.log("POPUP: Call created and is ringing.", callIdFromUrl);
+            });
+            console.log("POPUP: Call created and is ringing.", callIdFromUrl);
+
+            return { client: videoClient, call: newCall };
+          })();
+
+          callInitCache.set(callIdFromUrl, initPromise);
+        }
+
+        const { client: videoClient, call: activeCall } = await callInitCache.get(callIdFromUrl)!;
 
         if (mounted) {
           setClient(videoClient);
-          setCall(newCall);
+          setCall(activeCall);
           setIsCallInitialized(true);
         }
       } catch (error) {
@@ -126,6 +147,40 @@ export default function Calls() {
   );
 }
 
+// --- Participant Logger (must be inside StreamCall context) ---
+function ParticipantLogger() {
+  const { useParticipants } = useCallStateHooks();
+  const participants = useParticipants();
+  const call = useCall();
+
+  useEffect(() => {
+    console.group('%c[PARTICIPANTS IN CALL]', 'color: #00bcd4; font-weight: bold;');
+    console.log('Total participant count:', participants.length);
+    participants.forEach((p, i) => {
+      console.log(`  [${i}] userId: ${p.userId} | sessionId: ${p.sessionId} | isLocal: ${p.isLocalParticipant} | audioMuted: ${!p.publishedTracks?.includes(1)} | videoMuted: ${!p.publishedTracks?.includes(2)} | name: ${p.name}`);
+    });
+    console.groupEnd();
+  }, [participants]);
+
+  // Also log raw call state every 5s for debugging
+  useEffect(() => {
+    if (!call) return;
+    const interval = setInterval(() => {
+      const pts = call.state.participants;
+      console.group('%c[CALL STATE POLL - every 5s]', 'color: #ff9800; font-weight: bold;');
+      console.log('callingState:', call.state.callingState);
+      console.log('participants from call.state:', pts.length);
+      pts.forEach((p: any, i: number) => {
+        console.log(`  [${i}] userId: ${p.userId} | sessionId: ${p.sessionId} | isLocal: ${p.isLocalParticipant} | publishedTracks: ${JSON.stringify(p.publishedTracks)} | name: ${p.name}`);
+      });
+      console.groupEnd();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [call]);
+
+  return null;
+}
+
 // --- VideoCall component ---
 export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
   const call = useCall();
@@ -138,6 +193,14 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
   const [isAccepted, setIsAccepted] = useState(false);
   const isJoiningRef = useRef(false);
   
+  // Disable dispatcher camera on mount and whenever call or callingState changes
+  useEffect(() => {
+    if (!call) return;
+    call.camera.disable().catch((err) => {
+      console.log("Error disabling dispatcher camera:", err);
+    });
+  }, [call, callingState]);
+
   useEffect(() => {
     if (!call) return;
 
@@ -151,18 +214,17 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
     
     // Listen for the 'call.accepted' event
     const handleCallAccepted = async (event: any) => {
-      console.log('call.accepted event received in POPUP!', event);
-      setIsAccepted(true); // Set our new state to true
-      if (!isJoiningRef.current && call.state.callingState !== CallingState.JOINED && call.state.callingState !== CallingState.JOINING) {
-        isJoiningRef.current = true;
-        try {
-          await call.join();
-          console.log('Caller auto-joined call after callee accepted');
-        } catch (error) {
-          console.log('Auto-join status in popup:', error);
-          isJoiningRef.current = false;
-        }
-      }
+      console.log('call.accepted event received in POPUP! Current state:', call.state.callingState, event);
+      setIsAccepted(true);
+      // NOTE: Do NOT call call.join() here.
+      // The Stream SDK auto-joins the caller when the callee accepts a ring call.
+      // Calling join() explicitly here in addition to the SDK auto-join creates
+      // a DUPLICATE SFU session (ghost participant with a second sessionId for the
+      // same userId). The auto-join will transition callingState → JOINING → JOINED
+      // automatically, which the callingState$ subscription will pick up and re-render.
+      // The "Click if not redirected automatically" button (handleJoinCall) is the
+      // fallback if the auto-join doesn't fire within a reasonable time.
+      console.log('Waiting for SDK auto-join to transition state from RINGING to JOINED...');
     };
 
     call.on('call.accepted', handleCallAccepted);
@@ -178,8 +240,31 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
   }, [callingState]);
 
   
+  // Safeguard: If another session of this same dispatcher somehow exists as a remote participant,
+  // mute their audio immediately on the SFU so ghost audio cannot be heard by other participants.
+  useEffect(() => {
+    if (!call || !currentUserId) return;
+
+    const muteGhostRemoteSessions = () => {
+      const duplicateRemote = call.state.remoteParticipants.some(
+        p => p.userId === currentUserId && !p.isLocalParticipant
+      );
+      if (duplicateRemote) {
+        console.warn("Ghost remote session detected for dispatcher, muting remotely...");
+        call.muteUser(currentUserId, 'audio').catch(() => {});
+      }
+    };
+
+    const unsubscribe = call.state.remoteParticipants$.subscribe(muteGhostRemoteSessions);
+    return () => unsubscribe.unsubscribe();
+  }, [call, currentUserId]);
+
   const handleLeaveCall = async () => {
     try {
+      const callIdFromUrl = new URLSearchParams(window.location.search).get('id');
+      if (callIdFromUrl) {
+        callInitCache.delete(callIdFromUrl);
+      }
       if (call) {
         const cleanup = async () => {
           try {
@@ -208,6 +293,10 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
 
   useEffect(() => {
     const handleBeforeUnload = () => {
+      const callIdFromUrl = new URLSearchParams(window.location.search).get('id');
+      if (callIdFromUrl) {
+        callInitCache.delete(callIdFromUrl);
+      }
       if (call) {
         call.leave().catch(() => {});
       }
@@ -224,6 +313,7 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
       isJoiningRef.current = true;
       try {
         await call.join();
+        await call.camera.disable();
       } catch (err) {
         console.error("Error joining call:", err);
         isJoiningRef.current = false;
@@ -238,7 +328,7 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
         <StreamTheme>
           <RingingCall />
           
-          {isAccepted ? (
+          {isAccepted && (
             <div className="flex flex-col items-center gap-3 mt-4">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1B4965', fontWeight: 600 }}>
                 <span>Connecting to call...</span>
@@ -251,10 +341,6 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
                 Click if not redirected automatically
               </button>
             </div>
-          ) : (
-            <div className="flex justify-center items-center gap-5 mt-4">
-              <CancelCallButton onClick={handleLeaveCall} />
-            </div>
           )}
         </StreamTheme>
       </div>
@@ -266,8 +352,11 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
     return (
       <div className="flex-1 h-full">
         <StreamTheme>
+          {/* ParticipantLogger lives inside StreamCall so it can use useCallStateHooks */}
+          <ParticipantLogger />
           <SpeakerLayout 
-            participantsBarPosition="top"
+            participantsBarPosition={null}
+            excludeLocalParticipant={true}
             filterParticipants={(participant) => {
               // Exclude ghost/duplicate session of local user from another tab or previous connection
               if (currentUserId && participant.userId === currentUserId && !participant.isLocalParticipant) {
@@ -281,7 +370,6 @@ export const VideoCall = ({ client }: { client: StreamVideoClient }) => {
             <SpeakingWhileMutedNotification>
               <ToggleAudioPublishingButton />
             </SpeakingWhileMutedNotification>
-            <ToggleVideoPublishingButton />
             <CancelCallButton 
               onClick={handleLeaveCall}
             />

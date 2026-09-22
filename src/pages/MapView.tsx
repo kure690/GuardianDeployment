@@ -67,7 +67,7 @@ const MapView = () => {
   const [currentChannelId, setCurrentChannelId] = useState<string>('');
   const userStr = localStorage.getItem("user");
   const userStr2 = userStr ? JSON.parse(userStr) : null;
-  const userId = userStr2?.id;
+  const userId = userStr2?.id || userStr2?._id;
   const token = localStorage.getItem("token");
   const [opCenStatus, setopCenStatus] = useState<string>('connected');
   const [responderAddress, setResponderAddress] = useState<string>('');
@@ -266,6 +266,30 @@ const MapView = () => {
             setUserData(userData);
           }
         }
+
+        const facilityId = data.selectedFacility?._id || data.selectedFacility || data.selectedHospital;
+        if (facilityId) {
+          const idStr = typeof facilityId === 'string' ? facilityId : facilityId._id;
+          setSelectedHospital(idStr);
+          try {
+            const facResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/facilities/${idStr}`);
+            if (facResponse.ok) {
+              const facData = await facResponse.json();
+              const coords = facData.location?.coordinates || facData.coordinates;
+              if (coords && coords.lat && coords.lng) {
+                setHospitalCoords({
+                  lat: Number(coords.lat),
+                  lng: Number(coords.lng)
+                });
+                setHospitalName(facData.name || '');
+                setHospitalAddress(facData.address || facData.description || '');
+                setDestinationType('hospital');
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching initial facility data:', error);
+          }
+        }
       } catch (err) {
         console.error('Error fetching initial data:', err);
         setError('Error fetching data');
@@ -278,7 +302,7 @@ const MapView = () => {
   }, []);
 
 
-  // Poll for updates to check if selectedHospital changes
+  // Poll for updates to check if selectedFacility/selectedHospital changes
   useEffect(() => {
     const pollInterval = setInterval(async () => {
       if (incidentId) {
@@ -287,36 +311,47 @@ const MapView = () => {
           if (response.ok) {
             const data = await response.json();
 
-            if (data.selectedHospital && data.selectedHospital !== selectedHospital) {
-              setSelectedHospital(data.selectedHospital);
+            const facilityId = data.selectedFacility?._id || data.selectedFacility || data.selectedHospital;
+            const facilityIdStr = facilityId ? (typeof facilityId === 'string' ? facilityId : facilityId._id) : null;
 
-              // Fetch hospital details if we have a new selected hospital
+            if (facilityIdStr && facilityIdStr !== selectedHospital) {
+              setSelectedHospital(facilityIdStr);
+
+              // Fetch facility details if we have a new selected facility
               try {
-                const hospitalResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/hospitals/${data.selectedHospital}`);
-                if (hospitalResponse.ok) {
-                  const hospitalData = await hospitalResponse.json();
+                const facilityResponse = await fetch(`${config.GUARDIAN_SERVER_URL}/facilities/${facilityIdStr}`);
+                if (facilityResponse.ok) {
+                  const facilityData = await facilityResponse.json();
+                  const coords = facilityData.location?.coordinates || facilityData.coordinates;
 
-                  if (hospitalData.coordinates) {
-                    const hospitalCoords = {
-                      lat: Number(hospitalData.coordinates.lat),
-                      lng: Number(hospitalData.coordinates.lng)
+                  if (coords && coords.lat && coords.lng) {
+                    const facilityCoords = {
+                      lat: Number(coords.lat),
+                      lng: Number(coords.lng)
                     };
-                    setHospitalCoords(hospitalCoords);
-                    setHospitalName(hospitalData.name || '');
-                    setHospitalAddress(hospitalData.address || '');
+                    setHospitalCoords(facilityCoords);
+                    setHospitalName(facilityData.name || '');
+                    setHospitalAddress(facilityData.address || facilityData.description || '');
                     setDestinationType('hospital');
                   }
                 }
               } catch (error) {
-                console.error('Error fetching hospital data:', error);
+                console.error('Error fetching facility data:', error);
               }
+            } else if (!facilityIdStr && selectedHospital) {
+              // Facility was unassigned/cleared
+              setSelectedHospital(null);
+              setHospitalCoords(null);
+              setHospitalName('');
+              setHospitalAddress('');
+              setDestinationType('incident');
             }
           }
         } catch (error) {
           console.error('Error polling for updates:', error);
         }
       }
-    }, 5000); // Poll every 5 seconds
+    }, 3000); // Poll every 3 seconds
 
     return () => clearInterval(pollInterval);
   }, [incidentId, selectedHospital]);
@@ -397,13 +432,30 @@ const MapView = () => {
   useEffect(() => {
     const initChatClient = async () => {
       const chat = new StreamChat(config.STREAM_APIKEY);
+      const dispatcherFullName =
+        userStr2?.firstName && userStr2?.lastName
+          ? `${userStr2.firstName} ${userStr2.lastName}`.trim()
+          : userStr2?.name || userStr2?.email || "Dispatcher";
+
       await chat.connectUser(
         {
           id: userId,
+          name: dispatcherFullName,
           image: avatarImg,
         },
         token
       );
+      if (dispatcherFullName && chat.user && chat.user.name !== dispatcherFullName) {
+        try {
+          await chat.upsertUser({
+            id: userId,
+            name: dispatcherFullName,
+            image: avatarImg,
+          });
+        } catch (e) {
+          console.warn("Could not upsert user in MapView:", e);
+        }
+      }
       setChatClient(chat);
     };
 

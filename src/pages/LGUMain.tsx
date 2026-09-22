@@ -93,78 +93,99 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
   const shortId = incident._id ? incident._id.substring(5, 9) : "";
   const [responderData, setResponderData] = useState<any>(null);
   const [routeInfo, setRouteInfo] = useState({ duration: '...', distance: '...' });
-
-  // useEffect(() => {
-  //   // --- THIS IS THE FIX ---
-  //   // Add a more robust check to ensure the entire coordinate structure is valid before using it.
-  //   const incidentGeoCoords = incident.incidentDetails?.coordinates;
-  //   if (
-  //     !responderData?.coordinates ||
-  //     !incidentGeoCoords ||
-  //     incidentGeoCoords.type !== 'Point' ||
-  //     !Array.isArray(incidentGeoCoords.coordinates) ||
-  //     incidentGeoCoords.coordinates.length < 2 ||
-  //     !window.google
-  //   ) {
-  //     return; // Exit if data is not in the expected GeoJSON format
-  //   }
-
-  //   const service = new window.google.maps.DistanceMatrixService();
-
-  //   const origin = { lat: responderData.coordinates.lat, lng: responderData.coordinates.lon };
-    
-  //   const [lon, lat] = incidentGeoCoords.coordinates;
-  //   const destination = { lat, lng: lon };
-
-  //   service.getDistanceMatrix(
-  //     {
-  //       origins: [origin],
-  //       destinations: [destination],
-  //       travelMode: google.maps.TravelMode.DRIVING,
-  //     },
-  //     (response, status) => {
-  //       if (status === 'OK' && response) {
-  //         const result = response.rows[0]?.elements[0];
-  //         if (result?.status === 'OK') {
-  //           setRouteInfo({ duration: result.duration.text, distance: result.distance.text });
-  //         }
-  //       } else {
-  //         console.error(`Distance Matrix error for incident ${incident._id}:`, status);
-  //       }
-  //     }
-  //   );
-  // }, [responderData, incident]);
-
+  const [facilityCoords, setFacilityCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    // Get the incident's coordinates (destination)
-    const incidentGeoCoords = incident.incidentDetails?.coordinates;
-    // Get the responder's coordinates from the incident object (origin)
-    const responderIncidentCoords = incident.responderCoordinates;
+    let isMounted = true;
+    const fetchFacilityCoords = async () => {
+      const facility = incident.selectedFacility || incident.selectedHospital;
+      if (!facility) {
+        if (isMounted) setFacilityCoords(null);
+        return;
+      }
 
-    // --- MODIFIED CHECK ---
-    // Check if we have all the coordinates needed (both origin and destination)
+      // Check if coordinates already exist on populated object
+      const directCoords = facility.location?.coordinates || facility.coordinates;
+      if (directCoords?.lat && directCoords?.lng) {
+        if (isMounted) {
+          setFacilityCoords({
+            lat: Number(directCoords.lat),
+            lng: Number(directCoords.lng)
+          });
+        }
+        return;
+      }
+
+      // If facility is an ID string or object with _id
+      const facilityId = typeof facility === 'object' ? facility._id : facility;
+      if (facilityId) {
+        try {
+          const res = await fetch(`${config.GUARDIAN_SERVER_URL}/facilities/${facilityId}`);
+          if (res.ok) {
+            const data = await res.json();
+            const coords = data.location?.coordinates || data.coordinates;
+            if (coords?.lat && coords?.lng && isMounted) {
+              setFacilityCoords({
+                lat: Number(coords.lat),
+                lng: Number(coords.lng)
+              });
+            }
+          }
+        } catch (err) {
+          console.error(`Error fetching facility coordinates for incident ${incident._id}:`, err);
+        }
+      }
+    };
+
+    fetchFacilityCoords();
+    return () => {
+      isMounted = false;
+    };
+  }, [incident.selectedFacility, incident.selectedHospital, incident._id]);
+
+  useEffect(() => {
+    // If responder is on-scene and no next destination (facility) is selected yet
+    const status = incident.responderStatus ? incident.responderStatus.toLowerCase() : '';
+    if (status === 'onscene' && !facilityCoords && !incident.selectedFacility && !incident.selectedHospital) {
+      setRouteInfo({ duration: '0 min', distance: '0 m' });
+      return;
+    }
+
+    const responderIncidentCoords = incident.responderCoordinates;
     if (
       !responderIncidentCoords?.lat ||
       !responderIncidentCoords?.lon ||
-      !incidentGeoCoords ||
-      incidentGeoCoords.type !== 'Point' ||
-      !Array.isArray(incidentGeoCoords.coordinates) ||
-      incidentGeoCoords.coordinates.length < 2 ||
       !window.google
     ) {
-      return; // Exit if data is not in the expected format
+      return;
+    }
+
+    const origin = {
+      lat: Number(responderIncidentCoords.lat),
+      lng: Number(responderIncidentCoords.lon)
+    };
+
+    let destination: { lat: number; lng: number } | null = null;
+    if (facilityCoords) {
+      destination = facilityCoords;
+    } else {
+      const incidentGeoCoords = incident.incidentDetails?.coordinates;
+      if (
+        incidentGeoCoords &&
+        incidentGeoCoords.type === 'Point' &&
+        Array.isArray(incidentGeoCoords.coordinates) &&
+        incidentGeoCoords.coordinates.length >= 2
+      ) {
+        const [lon, lat] = incidentGeoCoords.coordinates;
+        destination = { lat: Number(lat), lng: Number(lon) };
+      }
+    }
+
+    if (!destination) {
+      return;
     }
 
     const service = new window.google.maps.DistanceMatrixService();
-
-    // --- MODIFIED ORIGIN ---
-    // The origin is now the coordinates stored on the incident
-    const origin = { lat: responderIncidentCoords.lat, lng: responderIncidentCoords.lon };
-    
-    // The destination remains the incident's location
-    const [lon, lat] = incidentGeoCoords.coordinates;
-    const destination = { lat, lng: lon };
 
     service.getDistanceMatrix(
       {
@@ -172,21 +193,18 @@ const IncidentCard = ({ incident, handleMapClick, handleCreateRingCall, handleSe
         destinations: [destination],
         travelMode: google.maps.TravelMode.DRIVING,
       },
-      (response, status) => {
-        if (status === 'OK' && response) {
+      (response, matrixStatus) => {
+        if (matrixStatus === 'OK' && response) {
           const result = response.rows[0]?.elements[0];
           if (result?.status === 'OK') {
             setRouteInfo({ duration: result.duration.text, distance: result.distance.text });
           }
         } else {
-          console.error(`Distance Matrix error for incident ${incident._id}:`, status);
+          console.error(`Distance Matrix error for incident ${incident._id}:`, matrixStatus);
         }
       }
     );
-  // --- MODIFIED DEPENDENCY ---
-  // This hook now only depends on the 'incident' prop, 
-  // as 'responderData' is no longer used for this calculation.
-  }, [incident]);
+  }, [incident.responderCoordinates, incident.incidentDetails?.coordinates, incident.responderStatus, incident.selectedFacility, incident.selectedHospital, facilityCoords, incident._id]);
 
   useEffect(() => {
     const fetchResponderData = async () => {
@@ -795,6 +813,7 @@ const LGUMain = () => {
               name: userStr2?.firstName && userStr2?.lastName 
                 ? `${userStr2.firstName} ${userStr2.lastName}` 
                 : userStr2?.email || "Unknown User",
+              image: getImageUrl(userStr2?.profileImage || userStr2?.image) || undefined,
             },
             token: token,
             options: {
@@ -809,22 +828,6 @@ const LGUMain = () => {
                 callCid: event.call_cid,
                 details: event
               });
-
-              // If this is an outgoing call initiated by this dispatcher, disarm it so LGUMain never joins the SFU
-              const callData = event.call;
-              if (callData && (callData.created_by?.id === userId || callData.created_by_user_id === userId)) {
-                try {
-                  const outgoingCall = client.call(callData.type || 'default', callData.id, { reuseInstance: true });
-                  if (outgoingCall.state.callingState === CallingState.RINGING) {
-                    console.log("LGUMain: Disarming outgoing ringing call on event:", callData.id);
-                    outgoingCall.state.setCallingState(CallingState.IDLE);
-                  } else if ([CallingState.JOINING, CallingState.JOINED].includes(outgoingCall.state.callingState)) {
-                    outgoingCall.leave().catch(() => {});
-                  }
-                } catch (e) {
-                  console.error("Error disarming outgoing call in LGUMain:", e);
-                }
-              }
             }
           });
           
@@ -909,6 +912,7 @@ const LGUMain = () => {
         const url = `/call?id=${callId}&responder=${responderId}`;
         const width = window.screen.width;
         const height = window.screen.height;
+
         // Synchronous window.open ensures modern browser popup blockers allow the new tab
         const newWindow = window.open(url, '_blank', `width=${width},height=${height},left=0,top=0`);
 
@@ -940,6 +944,7 @@ const LGUMain = () => {
             .catch(console.error);
         }
     };
+
 
     const handleMapClick = (incidentId: string) => {
         const width = window.screen.width;
@@ -1727,23 +1732,47 @@ const VideoCallHandler = () => {
     const localUserId = user?.id;
 
     useEffect(() => {
-        if (!localUserId || !calls) return;
+        if (!localUserId || !calls || calls.length === 0) return;
+
+        const subscriptions: (() => void)[] = [];
 
         calls.forEach((call) => {
             const creator = call.state.createdBy;
             const isOutgoingCall = call.isCreatedByMe || (creator && creator.id === localUserId);
 
-            if (isOutgoingCall) {
-                // Ensure this call never joins from the LGUMain dashboard tab
-                if (call.state.callingState === CallingState.RINGING) {
-                    console.log("LGUMain: Setting outgoing call to IDLE:", call.id);
-                    call.state.setCallingState(CallingState.IDLE);
-                } else if ([CallingState.JOINING, CallingState.JOINED].includes(call.state.callingState)) {
-                    console.log("LGUMain: Leaving outgoing call session:", call.id);
+            if (!isOutgoingCall) return;
+
+            // Immediately silence and leave the outgoing call on this (main) window.
+            // We use leave() for ALL active states — never setCallingState(IDLE)
+            // because that only changes client-side state and can still allow the
+            // SFU to publish audio from this window (the ghost participant).
+            const leaveOutgoingCall = () => {
+                const state = call.state.callingState;
+                if (
+                    state === CallingState.RINGING ||
+                    state === CallingState.JOINING ||
+                    state === CallingState.JOINED
+                ) {
+                    console.log(`LGUMain: Leaving outgoing call (${call.id}) in state: ${state}`);
+                    // Disable mic/camera first to prevent any brief audio/video publish
+                    call.microphone.disable().catch(() => {});
+                    call.camera.disable().catch(() => {});
                     call.leave().catch(() => {});
                 }
-            }
+            };
+
+            leaveOutgoingCall();
+
+            // Subscribe to state changes so we catch every transition into an active state
+            const sub = call.state.callingState$.subscribe(() => {
+                leaveOutgoingCall();
+            });
+            subscriptions.push(() => sub.unsubscribe());
         });
+
+        return () => {
+            subscriptions.forEach((unsub) => unsub());
+        };
     }, [calls, localUserId]);
 
     if (!localUserId) {

@@ -84,9 +84,14 @@ export const RingingCall = (props: RingingCallProps) => {
   const callingStateLabel = CALLING_STATE_TO_LABEL[callingState];
   const buttonsDisabled = callingState === CallingState.JOINING;
   
-  const handleAccept = () => {
+  const handleAccept = async () => {
     console.log("Accepting call...");
-    call.join();
+    try {
+      await call.join();
+      await call.camera.disable();
+    } catch (err) {
+      console.error("Error joining/disabling camera in RingingCall:", err);
+    }
   };
   
   const handleDecline = () => {
