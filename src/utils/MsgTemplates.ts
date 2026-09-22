@@ -1,9 +1,9 @@
 const msgTemplates: string[] = [
   "Where are you located",
-  "Matay sa ka sir...",
+  "Are there any injuries or casualties?",
   "What is the closest landmark",
-  "Hello, World",
-  "Lorem ipsum dolor sit amet",
+  "What is the status of the incident?",
+  "What is the status of the patient?",
 ];
 
 export default msgTemplates;
