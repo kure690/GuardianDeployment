@@ -630,6 +630,8 @@ const LGUMain = () => {
         invisible: newInvisibleState,
       });
 
+      // Persist status so the early-sync hook emits the right value on reconnect
+      localStorage.setItem(`lgu_status_${userId}`, newStatus);
       globalSocket.emit('updateOpCenAvailability', { status: newStatus });
 
       setIsInvisible(newInvisibleState);
@@ -865,6 +867,28 @@ const LGUMain = () => {
       }
     }, [incidents, showClosingModal, closingIncident]);
 
+    // --- EARLY STATUS SYNC ---
+    // Emit the stored availability status as soon as the socket is ready,
+    // WITHOUT waiting for the Stream Chat client to initialize.
+    // This prevents the Guardian dispatcher from seeing the LGU as "offline"
+    // when opening the modal before Stream Chat has finished loading.
+    useEffect(() => {
+      if (!globalSocket || !isConnected || !userId) return;
+
+      // Read the persisted status. Default to 'unavailable' if never set.
+      const storedStatus = localStorage.getItem(`lgu_status_${userId}`) || 'unavailable';
+      console.log(`[LGUMain] Early socket status sync: ${storedStatus}`);
+      globalSocket.emit('updateOpCenAvailability', { status: storedStatus });
+
+      // If stored as available, update local state so UI is correct immediately
+      if (storedStatus === 'available') {
+        setIsInvisible(false);
+      }
+    }, [globalSocket, isConnected, userId]);
+
+    // --- STREAM CHAT STATUS SYNC (authoritative, runs after client is ready) ---
+    // Queries Stream Chat for the authoritative invisible/visible state and
+    // persists it to localStorage for the early-sync above.
     useEffect(() => {
       const checkUserStatus = async () => {
         if (!client || !userId || !globalSocket || !isConnected) return;
@@ -876,7 +900,9 @@ const LGUMain = () => {
             
             setIsInvisible(userIsInvisible);
             const currentStatus = userIsInvisible ? 'unavailable' : 'available';
-            console.log(`Syncing status with backend on initial load: ${currentStatus}`);
+            // Persist to localStorage so next page load emits the right status immediately
+            localStorage.setItem(`lgu_status_${userId}`, currentStatus);
+            console.log(`[LGUMain] Stream Chat status confirmed: ${currentStatus}`);
             globalSocket.emit('updateOpCenAvailability', { status: currentStatus });
             if (userIsInvisible) {
               setShowStatusModal(true);
@@ -885,6 +911,7 @@ const LGUMain = () => {
         } catch (error) {
           console.error('Error checking user status:', error);
           setIsInvisible(true);
+          localStorage.setItem(`lgu_status_${userId}`, 'unavailable');
           globalSocket.emit('updateOpCenAvailability', { status: 'unavailable' });
           setShowStatusModal(true);
         }

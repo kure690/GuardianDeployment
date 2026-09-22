@@ -197,6 +197,14 @@ const MainScreen = () => {
     }
   }, [globalSocket, isConnected]);
 
+  // When the OpCen connect modal opens, request a fresh availability list from
+  // the server to ensure we're not showing stale online/offline status.
+  useEffect(() => {
+    if (openModal && globalSocket && isConnected) {
+      globalSocket.emit('getAvailability');
+    }
+  }, [openModal, globalSocket, isConnected]);
+
   useEffect(() => {
     if (!connectionFinalStatus) return;
 
