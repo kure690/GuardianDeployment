@@ -10,7 +10,8 @@ import {
   CheckCircle,
   TrendingUp,
   Menu,
-  X
+  X,
+  Smartphone
 } from 'lucide-react';
 import Grid from '@mui/material/Grid2';
 import { Box } from '@mui/material';
@@ -19,6 +20,7 @@ import GuardianIcon from "../assets/images/icon-removebg-preview.png";
 import config from '../config';
 import IncidentsOverview from './IncidentsDashboard';
 import TopPerformers from '../components/TopPerformers';
+import AppAnalytics from '../components/app-analytics/AppAnalytics';
 
 interface Incident {
   _id: string;
@@ -254,7 +256,20 @@ export default function DataDashboard() {
     { id: 'responders', label: 'Responders', icon: Users },
     { id: 'locations', label: 'Locations', icon: MapPin },
     { id: 'reports', label: 'Reports', icon: FileText },
+    { id: 'app-analytics', label: 'App Analytics', icon: Smartphone },
   ];
+
+  const headers: Record<string, { title: string; subtitle: string }> = {
+    incidents: { title: 'Incidents Overview', subtitle: 'Live map and incident heatmap' },
+    'app-analytics': {
+      title: 'Volunteer App Analytics',
+      subtitle: 'Usage, time in app, screens and feed engagement from the GuardianPH Volunteer app',
+    },
+  };
+  const header = headers[activeView] ?? {
+    title: 'Dashboard Overview',
+    subtitle: 'Real-time incident monitoring and analytics',
+  };
 
   if (loading) {
     return (
@@ -348,16 +363,18 @@ export default function DataDashboard() {
           {/* Header */}
           <Box sx={{ mb: 2, flexShrink: 0 }} className="px-6 pt-6">
             <h2 className="text-2xl font-bold mb-1 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-              {activeView === 'incidents' ? 'Incidents Overview' : 'Dashboard Overview'}
+              {header.title}
             </h2>
             <p className="text-sm text-gray-400">
-              {activeView === 'incidents' ? 'Live map and incident heatmap' : 'Real-time incident monitoring and analytics'}
+              {header.subtitle}
             </p>
           </Box>
 
           <div className="flex-1 min-h-0 overflow-hidden px-6 pb-6">
             {activeView === 'incidents' ? (
               <IncidentsOverview />
+            ) : activeView === 'app-analytics' ? (
+              <AppAnalytics />
             ) : (
               
               <Grid container spacing={4} sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
